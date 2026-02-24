@@ -82,6 +82,7 @@ style: |
     vertical-align: middle;
   }
   /* 이미지별 크기: class="img-숫자" 로 지정 (예: img-200 → 200px), 미지정 시 auto */
+  .screen .imgWrap img.img-300 { width: 300px !important; height: auto !important; }
   .screen .imgWrap img.img-400 { width: 400px !important; height: auto !important; }
   .screen .imgWrap img.img-500 { width: 500px !important; height: auto !important; }
   .screen .imgWrap img.img-600 { width: 600px !important; height: auto !important; }
@@ -275,7 +276,7 @@ style: |
 <div class="content">
 
   <div class="screen box">
-    <div class="title">▼ 이어서 ▼</div>
+    <!-- <div class="title">▼ 이어서 ▼</div> -->
     <div class="inner">
       <div class="imgWrap">
         <img src="ui_doc_post_card.png" alt="" class="img-800"/>
@@ -312,7 +313,7 @@ style: |
           <li>해당 post에 대한 정보를 표시한다. <br/>
             1. 포스트 작성자 이미지 or 아이콘 표시 <br/>
             2. 포스트 작성자 이름 표시 <br/>
-            3. 포스트 최초 작성일 표시 <br/>
+            3. 포스트 마지막 갱신 일 표시 <br/>
           </li>
         </ul>
       </div>
@@ -373,7 +374,7 @@ style: |
 <table class="meta">
   <tr>
     <th class="label">버전(ver)</th><td class="val">1.0</td>
-    <th class="label">페이지코드</th><td class="val">2</td>
+    <th class="label">페이지코드</th><td class="val">3</td>
     <th class="label">페이지명</th><td class="wide">post_btn</td>
     <th class="label">이용자</th><td class="small">PC</td>
     <th class="descH">Description</th>
@@ -426,7 +427,7 @@ style: |
           <li>default는 색상 없는 상태 </li>
           <li>사용자 별로 is_like 상태 관리 / 값이 True면 하트에 색상 표시됨 </li>
           <li>post의 is_like 값이 변경될 때 마다 숫자 증감 </li>
-          <li>post의 is_like 값은 사용자 별로 1번씩만 변경 가능능 </li>
+          <li>post의 is_like 값은 사용자 별로 1번씩만 변경 가능 </li>
         </ul>
       </div>
     </div>
@@ -458,6 +459,611 @@ style: |
           <li>전달 타겟은 공유창에서 선택 </li>
           <li>공유창은 화면 위에 올라가는 모달로 만든다.(공유창 닫기 전에는 다른 창 조작 불가) </li>
           <li>x 버튼이나 공유창 밖 영역 클릭 시 공유창 닫음 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+---
+<!----------------- 4페이지 ----------------------->
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">4</td>
+    <th class="label">페이지명</th><td class="wide">post_detail</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <!-- <div class="title">▼ 이어서 ▼</div> -->
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="ui_doc_post_detail.png" alt="" class="img-400"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
+  
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">1</div>
+      <div class="descBody">
+        ■ post_detail_title <br/>
+        □ 설명
+        <ul>
+          <li>포스트 제목 : "게시글" 고정 표시 </li>
+          <li>해당 영역 클릭 시 홈(board) 화면 다시 표시되야 함 </li>
+          <li>표시 중이던 post_detail 창은 닫음 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ post_detail_image <br/>
+        □ 설명
+        <ul>
+          <li>포스트 이미지 표시 부분 </li>
+          <li>이미지 데이터 없으면 해당 부분 표시 안함 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ post_detail_info <br/>
+        □ 설명
+        <ul>
+          <li>포스트 등록 시 정보를 표시한다. (다음 내용 표시) </li>
+          1. 등록자 아이콘 or 이미지<br/>
+          2. 등록자 이름 <br/>
+          3. post 최초 등록일 <br/>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">4</div>
+      <div class="descBody">
+        ■ post_detail_text <br/>
+        □ 설명
+        <ul>
+        </ul>
+          <li>해당 포스트의 제목과 내용 표시 </li>
+          <li>post 제목 : bold로 굵은 글자 사용, 내용보다 font 약간 더 크게 </li>
+          <li>post 내용 : 포스트 내용 전부 표시 <br/>
+          (post_card에서는 20자 2줄까지 표시했는데 detail에서는 전부 표시함) </li>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+---
+<!----------------- 5페이지 ----------------------->
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">5</td>
+    <th class="label">페이지명</th><td class="wide">post_detail</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <div class="title">▼ 이어서 ▼</div>
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="ui_doc_post_detail.png" alt="" class="img-400"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
+  
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">5</div>
+      <div class="descBody">
+        ■ post_detail_like <br/>
+        □ 설명
+        <ul>
+          <li>해당 포스트의 좋아요 표시 </li>
+          <li>post_btn의 like와 동일한 기능을 가져야 함 <br>
+           1) 기본 상태는 False <br>
+           2) 사용자 별로 1번만 누를 수 있어야 함(is_like = True로 상태 관리)<br>
+           3) True일 때 버튼 색상 변경<br>
+           4) 버튼 뒤에 현재 like 숫자 표시<br>
+           (count 업데이트 받아야 하는데 실시간일 필요 까지는 없어 보임 -> 검토필요)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">6</div>
+      <div class="descBody">
+        ■ post_detail_reply <br/>
+        □ 설명
+        <ul>
+          <li>포스트 뎃글 header에는 현재 등록된 댓글 숫자 표시 </li>
+          <li>아래는 해당 post에 등록된 댓글을 표시 <br>
+            1) 댓글 작성자 아이콘 or 이미지 <br>
+            2) 댓글 작성자 이름 <br>
+            3) 댓글 내용 갱신 날짜 <br>
+            4) 댓글 내용에 다시 댓글 (re-reply) <br>
+            -> 해당 기능 추가할지 여부 이야기 해 봐야 함 <br>
+            5) 댓글 상세메뉴 (아래에서 다시 설명) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">7</div>
+      <div class="descBody">
+        ■ post_detail_reply_input <br/>
+        □ 설명
+        <ul>
+          <li>댓글 입력용 인풋 UI </li>
+          <li>입력된 내용 없을 시 "댓글을 입력하세요" 표시 </li>
+          <li>텍스트 입력되면 입력된 텍스트를 표시한다.  </li>
+          <li>택스트 입력 최대 글자 수 (있으면 정해야 함, 있는게 좋음) </li>
+          <li>텍스트 입력값이 있으면 입력 버튼 활성화로 표시 <br>
+            (입력 없으면 해당 버튼 비활성화 표시 - 색상 옅게, 클릭불가/입력불가) </li>
+          <li>입력버튼 값이 True면 뎃글 입력하고 표시 댓글 내용 갱신 </li>
+          <li>(검토 필요)내가 보고있는 post 정보가 바꼈을 때 (ex - 댓글추가, 내용변경 등) <br>
+            어떻게 / 어떤 이밴트로 업데이트 받아서 갱신할지 검토 필요 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+---
+<!----------------- 6페이지 ----------------------->
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">6</td>
+    <th class="label">페이지명</th><td class="wide">post_detail_info</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <div class="title">▼ 이어서 ▼</div>
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="" alt="" class="img-400"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
+  
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">1</div>
+      <div class="descBody">
+        ■ post_detail_title/image/info/text <br/>
+        □ 설명
+        <ul>
+          <li>게시글 표시 정보 </li>
+          <li>게시글 상세 정보(1.수정 2.삭제 ) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ post_detail_fix <br/>
+        □ 설명
+        <ul>
+          <li>게시글 수정 </li>
+          <li>게시글 수정 시 인터페이스 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ post_detail_delete <br/>
+        □ 설명
+        <ul>
+          <li>게시글 삭제 </li>
+          <li>게시글 삭제 시 안내 or 경고창 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+---
+<!----------------- 7페이지 ----------------------->
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">7</td>
+    <th class="label">페이지명</th><td class="wide">post_detail_reply</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <div class="title">▼ 이어서 ▼</div>
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="" alt="" class="img-400"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
+  
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">1</div>
+      <div class="descBody">
+        ■ post_detail_reply <br/>
+        □ 설명
+        <ul>
+          <li>댓글 표시 개수 </li>
+          <li>댓글 수량 </li>
+          <li>댓글 상세 정보(1.수정 2.삭제 ) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ post_detail_replyfix <br/>
+        □ 설명
+        <ul>
+          <li>댓글 수정 </li>
+          <li>댓글 수정 시 인터페이스 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ post_detail_replydelete <br/>
+        □ 설명
+        <ul>
+          <li>댓글 삭제 </li>
+          <li>댓글 삭제 시 안내 or 경고창 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+
+---
+<!----------------- 8페이지 ----------------------->
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">8</td>
+    <th class="label">페이지명</th><td class="wide">post_new</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <!-- <div class="title">▼ 이어서 ▼</div> -->
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="ui_doc_post_new.png" alt="" class="img-600"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
+  
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">1</div>
+      <div class="descBody">
+        ■ post_new_header <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ post_new_title <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ post_new_text <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">4</div>
+      <div class="descBody">
+        ■ post_new_category <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">5</div>
+      <div class="descBody">
+        ■ post_new_maplocation <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">6</div>
+      <div class="descBody">
+        ■ post_new_image <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">7</div>
+      <div class="descBody">
+        ■ post_new_submit <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+
+  </div>
+</div>
+
+---
+<!----------------- 8페이지 ----------------------->
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">8</td>
+    <th class="label">페이지명</th><td class="wide">post_new</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <!-- <div class="title">▼ 이어서 ▼</div> -->
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="ui_doc_map.png" alt="" class="img-600"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
+  
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">1</div>
+      <div class="descBody">
+        ■ map_header <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ map_region <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ map_locations <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">4</div>
+      <div class="descBody">
+        ■ map_zoom <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">5</div>
+      <div class="descBody">
+        ■ map_mylocation <br/>
+        □ 설명
+        <ul>
+          <li> </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">6</div>
+      <div class="descBody">
+        ■ menu <br/>
+        □ 설명
+        <ul>
+          <li> </li>
         </ul>
       </div>
     </div>
