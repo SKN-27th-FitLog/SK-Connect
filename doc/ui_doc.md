@@ -1085,8 +1085,10 @@ style: |
 
   </div>
 </div>
+
 ---
-<!----------------- 10페이지 ----------------------->
+
+## <span class="page-anchor" data-page="10">10페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -1119,7 +1121,6 @@ style: |
   <div class="descPanel">
     <div class="head">화면 설명</div>
   
-
   <div class="list">
     <div class="descItem">
       <div class="descNum">1</div>
