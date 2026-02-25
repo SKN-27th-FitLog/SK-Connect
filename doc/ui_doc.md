@@ -706,7 +706,7 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ post_detail_edit <br/>
+        ■ post_detail_edit(게시글 수정 메뉴) <br/>
         □ 설명
         <ul>
           <li>게시글 상세 정보 수정 할 수 있도록 메뉴 제공되어야 함(1.수정 2.삭제 ) </li>
@@ -722,13 +722,12 @@ style: |
     <div class="descItem">
       <div class="descNum">2</div>
       <div class="descBody">
-        ■ post_detail_fix <br/>
+        ■ post_detail_fix (게시글 수정 시 인터페이스) <br/>
         □ 설명
         <ul>
-          <li>게시글 수정 시 인터페이스 </li>
-          <li>플로팅 박스에서 "수정" 버튼 클릭 시 게시글 작성 창 호출 (상세 내용은 이후에 있는 post_new 참조) </li>
-          <li>수정모드에서는 게시글 작성 창에 현재 게시글의 정보가 채워진 상태로 호출함 </li>
-          <li>내용 수정 후 입력 버튼 누르면 게시글의 정보를 입력된 값 들로 오버라이트 해야 한다. </li>
+          <li>"수정" 버튼 클릭 시 게시글 작성 창 호출 (상세 내용은 이후에 있는 post_new 참조) </li>
+          <li>수정모드에서는 현재 게시글의 정보가 채워진 상태로 호출함 </li>
+          <li>내용 수정 후 입력 버튼 누르면 게시글의 정보를 입력된 값 들로 오버라이트 </li>
         </ul>
       </div>
     </div>
@@ -738,10 +737,9 @@ style: |
     <div class="descItem">
       <div class="descNum">3</div>
       <div class="descBody">
-        ■ post_detail_delete <br/>
+        ■ post_detail_delete(게시글 삭제 시 인터페이스) <br/>
         □ 설명
         <ul>
-          <li>게시글 삭제 시 인터페이스 </li>
           <li>"삭제" 버튼 클릭하면 모달리스 창으로 경고 팝업 호출 </li>
           <li>확인 누르면 해당 게시글 삭제 / 취소 누르면 팝업창 닫는다. </li>
         </ul>
@@ -756,8 +754,8 @@ style: |
         ■ post_detail_auth <br/>
         □ 설명
         <ul>
-          <li>게시글 편집 권한은 게시글 작성자에게만 줘야 함 </li>
-          <li>수정 권한이 없는 사람은 게시글 편집 버튼 비활성화 (클릭불가) 처리해야 함 </li>
+          <li>편집 권한은 게시글 작성자에게만 줘야 함 </li>
+          <li>권한이 없는 사람은 게시글 편집 버튼 비활성화 (클릭불가) 처리 </li>
           <li>정보 수정이므로 만약 권한이 없는 사람이 요청했을 때 검증 로직이 필요할 수 있음 </li>
         </ul>
       </div>
@@ -823,9 +821,8 @@ style: |
         □ 설명
         <ul>
           <li>현재 포스트에 달린 댓글 개수 표시 </li>
-          <li>각 댓글에 작성자 아이콘, 이름 표시 </li>
-          <li>해당 댓글 가장 마지막 수정된 날짜 표시 </li>
-          <li>댓글은 최초 등록 날짜 기준으로 내림차 순 정렬 </li>
+          <li>각 댓글에 작성자 아이콘, 이름 표시, 마지막 수정된 날짜 표시 </li>
+          <li>최초 등록 날짜 기준으로 내림차 순 정렬 </li>
         </ul>
       </div>
     </div>
@@ -835,10 +832,9 @@ style: |
     <div class="descItem">
       <div class="descNum">2</div>
       <div class="descBody">
-        ■ post_detail_replyedit <br/>
+        ■ post_detail_replyedit(댓글 편집 인터페이스) <br/>
         □ 설명
         <ul>
-          <li>댓글 편집 인터페이스 </li>
           <li>(...) 버튼 클릭 시 플로팅 창으로 메뉴 목록 띄워줘야 함 </li>
           <li>메뉴 밖을 클릭하면 플로팅 창은 닫아줘야 함  </li>
           <li>수정 / 삭제 클릭하면 플로팅 닫히고 각 메뉴 동작 처리 </li>
@@ -854,11 +850,10 @@ style: |
         ■ post_detail_replyfix <br/>
         □ 설명
         <ul>
-          <li>댓글 수정 시 댓글 입력 메뉴 위에 수정하려는 댓글 내용을 표시해줌 </li>
-          <li>수정 상태에서는 이전에 작성한 댓글을 입력창 바로 위에 띄워서 보여줌 (비교해서 볼 수 있도록) </li>
+          <li>수정 시 댓글 입력 메뉴 위에 수정 전 댓글 내용을 표시해줌(비교해서 볼 수 있도록) </li>
           <li>이전에 작성한 내용을 댓글 input에 그대로 넣어준다. </li>
-          <li>수정이 발생하지 않았을 경우 string 비교해서 "입력" 버튼 클릭 불가 (구현할지 검토) </li>
-          <li>( X ) 버튼 같은걸 넣어서 수정 모드를 바로 취소할 수 있도록 처리 필요 </li>
+          <li>수정이 발생하지 않았을 경우 string 비교해서 "입력" 버튼 클릭 불가 </li>
+          <li>( X ) 버튼 넣어서 수정 모드를 바로 취소할 수 있도록 처리 </li>
           <li>입력되면 현재 표시하고 있던 게시글 다시 띄움 </li>
         </ul>
       </div>
@@ -873,8 +868,8 @@ style: |
         □ 설명
         <ul>
           <li>댓글 삭제 시 모달로 경고창 표시 </li>
-          <li>경고 창에서 확인 누르면 해당 댓글 삭제하고 게시글 갱신 </li>
-          <li>취소하면 다시 원래 창으로 되돌아옴 </li>
+          <li>확인 누르면 삭제하고 게시글 갱신/취소하면 다시 원래 창으로 되돌아옴 </li>
+          <li> </li>
         </ul>
       </div>
     </div>
@@ -884,10 +879,9 @@ style: |
     <div class="descItem">
       <div class="descNum">5</div>
       <div class="descBody">
-        ■ post_detail_replyauth <br/>
+        ■ post_detail_replyauth(댓글 편집 권한) <br/>
         □ 설명
         <ul>
-          <li>댓글 편집 권한 </li>
           <li>댓글 작성자만 해당 댓글에 대한 편집 권한이 존재함 </li>
           <li>작성자 이외의 유저는 해당 버튼이 클릭 불가능해야 함 </li>
         </ul>
