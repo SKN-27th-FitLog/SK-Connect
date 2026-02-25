@@ -135,9 +135,10 @@ style: |
   }
   .descBody ul { margin: 6px 0 0 18px; padding: 0; }
   .descBody li { margin: 2px 0; }
+
   /* 페이지 앵커: Outline/동기화용, 화면에는 미표시 */
   h2:has(.page-anchor) {
-  display: none;
+    display: none;
   }
 
 ---
@@ -166,7 +167,7 @@ style: |
     <!-- <div class="title">▼ 이어서 ▼</div> -->
     <div class="inner">
       <div class="imgWrap">
-        <img src="ui_doc_borad.png" alt="" class="img-500"/>
+        <img src="ui_doc_board.png" alt="" class="img-500"/>
       </div>
     </div>
   </div>
@@ -1113,7 +1114,7 @@ style: |
     <!-- <div class="title">▼ 이어서 ▼</div> -->
     <div class="inner">
       <div class="imgWrap">
-        <img src="ui_doc_map.png" alt="" class="img-600"/>
+        <img src="ui_doc_map.png" alt="" class="img-800"/>
       </div>
     </div>
   </div>
@@ -1128,7 +1129,7 @@ style: |
         ■ map_header <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>현재 창의 header "지도" string 표시 </li>
         </ul>
       </div>
     </div>
@@ -1141,7 +1142,9 @@ style: |
         ■ map_region <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>지도의 최대 / 최소 확대 범위를 결정해야 함 </li>
+          <li>지도의 표시 화면은 확대율에 따라 다르게 표시된다. (해당 부분은 자세하게 이야기 해봐야 함) </li>
+          <li>지도에서 제공하고 있는 기능들을 어디까지 수용할 지 이야기 해봐야 함 <br>(이게 없으면 지도 사용자가 불편해 할 수 있음 ex - 내 위치 찾기 등......) </li>
         </ul>
       </div>
     </div>
@@ -1154,11 +1157,69 @@ style: |
         ■ map_locations <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>게시글의 위치 정보들이 해당 화면에 표시된다. </li>
+          <li>지도에 게시글 카테고리 별 필터가 있어야 될 것으로 생각됨 (원하는 태그만 지도에서 보기 용도) </li>
+          <li>마커들은 지도의 줌 단계에 따라 비례해서 크기가 변한다. (지도의 확대 배율과 일치하지 않아도 됨) </li>
+          <li>마커들 하단에 마커의 이름 표시(게시글 제목 일부 또는 위치 이름 등등.. 어떤걸 표시할지는 이야기 해봐야 함) </li>
+          <li>마커 종류에 따라 구분할 수 있도록 색상이나 디자인 차별화 (커뮤니티 / 게시글 구분용) </li>
         </ul>
       </div>
     </div>
   </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3.1</div>
+      <div class="descBody">
+        ■ map_locations_float <br/>
+        □ 설명
+        <ul>
+          <li>마커 클릭 시 해당 마커의 게시글 요약 정보를 보여주는 플로팅 창 오픈 </li>
+          <li>마커에 대한 플로팅은 동시에 하나만 출력될 수 있다. (다른 마커 누르면 이전게 닫힘) </li>
+          <li>플로팅 창이 떳을 때 마커의 정보를 요약해서 표시 </li>
+          <li>마커의 종류가 게시글이면 주황 / 커뮤니티면 보라색 사용 (마커 자체도 구분 필요해보임) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+---
+
+## <span class="page-anchor" data-page="11">11페이지 · board</span>
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">11</td>
+    <th class="label">페이지명</th><td class="wide">map</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <div class="title">▼ 이어서 ▼</div>
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="ui_doc_map.png" alt="" class="img-800"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
 
   <div class="list">
     <div class="descItem">
@@ -1167,7 +1228,11 @@ style: |
         ■ map_zoom <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>줌은 6단계(0 ~ 5 까지)를 제공 (협의 가능) </li>
+          <li>가장 낮은 배율 부터 지도가 20% 씩 커짐 (지도 기본 기능으로 추정함) </li>
+          <li>줌 단계에 따라 마커의 크기 및 이름 표시 여부가 변경 </li>
+          <li>0 단계 일 때 확대 버틑 비활성화 </li>
+          <li>5 단계 일 때 축소 버틑 비활성화 </li>
         </ul>
       </div>
     </div>
@@ -1180,7 +1245,9 @@ style: |
         ■ map_mylocation <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>내 위치 찾기 버튼 </li>
+          <li>클릭 시 화면의 중앙 위치를 내 현재 위치로 변경하고 변경된 위치 기준으로 맞추는 버튼 </li>
+          <li>지도 유틸리티 들을 화면 좌측 하단에 붙이고 내 위치 버튼도 같이 존재한다.  </li>
         </ul>
       </div>
     </div>
@@ -1193,7 +1260,9 @@ style: |
         ■ menu <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>메뉴 플로트 </li>
+          <li>공용으로 사용하는 메뉴 플로트 UI 지도보고 있는 중에는 지도 탭이 선택되어 있음 </li>
+          <li>메뉴 버튼으로 넘어갈 때 각 페이지 별로 직전에 보고 있던 화면 상태를 다시 보여줄지는 이야기 해 봐야 함 </li>
         </ul>
       </div>
     </div>
