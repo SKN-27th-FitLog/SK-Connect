@@ -135,9 +135,13 @@ style: |
   }
   .descBody ul { margin: 6px 0 0 18px; padding: 0; }
   .descBody li { margin: 2px 0; }
+  /* 페이지 앵커: Outline/동기화용, 화면에는 미표시 */
+  h2:has(.page-anchor) {
+  display: none;
+  }
 
 ---
-<!----------------- 1페이지 ----------------------->
+## <span class="page-anchor" data-page="1">1페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -254,7 +258,7 @@ style: |
 </div>
 
 ---
-<!----------------- 2페이지 ----------------------->
+## <span class="page-anchor" data-page="2">2페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -369,7 +373,7 @@ style: |
 </div>
 
 ---
-<!----------------- 3페이지 ----------------------->
+## <span class="page-anchor" data-page="3">3페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -468,7 +472,7 @@ style: |
 </div>
 
 ---
-<!----------------- 4페이지 ----------------------->
+## <span class="page-anchor" data-page="4">4페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -554,11 +558,11 @@ style: |
         ■ post_detail_text <br/>
         □ 설명
         <ul>
+          <li> 해당 포스트의 제목과 내용 표시 </li>
+          <li> post 제목 : bold로 굵은 글자 사용, 내용보다 font 약간 더 크게 </li>
+          <li> post 내용 : 포스트 내용 전부 표시 <br>
+          (post_card에서는 20자 2줄까지 표시 -> detail에서는 전부 표시) </li>
         </ul>
-          <li>해당 포스트의 제목과 내용 표시 </li>
-          <li>post 제목 : bold로 굵은 글자 사용, 내용보다 font 약간 더 크게 </li>
-          <li>post 내용 : 포스트 내용 전부 표시 <br/>
-          (post_card에서는 20자 2줄까지 표시했는데 detail에서는 전부 표시함) </li>
       </div>
     </div>
   </div>
@@ -567,7 +571,7 @@ style: |
 </div>
 
 ---
-<!----------------- 5페이지 ----------------------->
+## <span class="page-anchor" data-page="5">5페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -632,9 +636,7 @@ style: |
             1) 댓글 작성자 아이콘 or 이미지 <br>
             2) 댓글 작성자 이름 <br>
             3) 댓글 내용 갱신 날짜 <br>
-            4) 댓글 내용에 다시 댓글 (re-reply) <br>
-            -> 해당 기능 추가할지 여부 이야기 해 봐야 함 <br>
-            5) 댓글 상세메뉴 (아래에서 다시 설명) </li>
+            4) 댓글 상세메뉴 (아래에서 다시 설명) </li>
         </ul>
       </div>
     </div>
@@ -665,13 +667,13 @@ style: |
 </div>
 
 ---
-<!----------------- 6페이지 ----------------------->
+## <span class="page-anchor" data-page="6">6페이지 · board</span>
 
 <table class="meta">
   <tr>
     <th class="label">버전(ver)</th><td class="val">1.0</td>
     <th class="label">페이지코드</th><td class="val">6</td>
-    <th class="label">페이지명</th><td class="wide">post_detail_info</td>
+    <th class="label">페이지명</th><td class="wide">post_detail_edit</td>
     <th class="label">이용자</th><td class="small">PC</td>
     <th class="descH">Description</th>
   </tr>
@@ -687,10 +689,10 @@ style: |
 <div class="content">
 
   <div class="screen box">
-    <div class="title">▼ 이어서 ▼</div>
+    <!-- <div class="title">▼ 이어서 ▼</div> -->
     <div class="inner">
       <div class="imgWrap">
-        <img src="" alt="" class="img-400"/>
+        <img src="ui_doc_post_fix.png" alt="" class="img-800"/>
       </div>
     </div>
   </div>
@@ -703,11 +705,13 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ post_detail_title/image/info/text <br/>
+        ■ post_detail_edit <br/>
         □ 설명
         <ul>
-          <li>게시글 표시 정보 </li>
-          <li>게시글 상세 정보(1.수정 2.삭제 ) </li>
+          <li>게시글 상세 정보 수정 할 수 있도록 메뉴 제공되어야 함(1.수정 2.삭제 ) </li>
+          <li> (...) 버튼 클릭되면 클릭 위치에서 작은 메뉴 박스 하나 플로팅 됨 </li>
+          <li> 플로팅 박스에서 수정 / 삭제 클릭하면 각각 동작 </li>
+          <li> 플로팅 박스는 박스 밖 영역 클릭되면 닫혀야 함 </li>
         </ul>
       </div>
     </div>
@@ -720,8 +724,10 @@ style: |
         ■ post_detail_fix <br/>
         □ 설명
         <ul>
-          <li>게시글 수정 </li>
           <li>게시글 수정 시 인터페이스 </li>
+          <li>플로팅 박스에서 "수정" 버튼 클릭 시 게시글 작성 창 호출 (상세 내용은 이후에 있는 post_new 참조) </li>
+          <li>수정모드에서는 게시글 작성 창에 현재 게시글의 정보가 채워진 상태로 호출함 </li>
+          <li>내용 수정 후 입력 버튼 누르면 게시글의 정보를 입력된 값 들로 오버라이트 해야 한다. </li>
         </ul>
       </div>
     </div>
@@ -734,8 +740,37 @@ style: |
         ■ post_detail_delete <br/>
         □ 설명
         <ul>
-          <li>게시글 삭제 </li>
-          <li>게시글 삭제 시 안내 or 경고창 </li>
+          <li>게시글 삭제 시 인터페이스 </li>
+          <li>"삭제" 버튼 클릭하면 모달리스 창으로 경고 팝업 호출 </li>
+          <li>확인 누르면 해당 게시글 삭제 / 취소 누르면 팝업창 닫는다. </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">4</div>
+      <div class="descBody">
+        ■ post_detail_auth <br/>
+        □ 설명
+        <ul>
+          <li>게시글 편집 권한은 게시글 작성자에게만 줘야 함 </li>
+          <li>수정 권한이 없는 사람은 게시글 편집 버튼 비활성화 (클릭불가) 처리해야 함 </li>
+          <li>정보 수정이므로 만약 권한이 없는 사람이 요청했을 때 검증 로직이 필요할 수 있음 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">5</div>
+      <div class="descBody">
+        ■ post_detail_etc <br/>
+        □ 설명
+        <ul>
+          <li>이 외에 게시글에 대한 추가 기능 있으면 메뉴 추가해야 함 </li>
         </ul>
       </div>
     </div>
@@ -745,13 +780,13 @@ style: |
 </div>
 
 ---
-<!----------------- 7페이지 ----------------------->
+## <span class="page-anchor" data-page="7">7페이지 · board</span>
 
 <table class="meta">
   <tr>
     <th class="label">버전(ver)</th><td class="val">1.0</td>
     <th class="label">페이지코드</th><td class="val">7</td>
-    <th class="label">페이지명</th><td class="wide">post_detail_reply</td>
+    <th class="label">페이지명</th><td class="wide">post_detail_replyedit</td>
     <th class="label">이용자</th><td class="small">PC</td>
     <th class="descH">Description</th>
   </tr>
@@ -767,10 +802,10 @@ style: |
 <div class="content">
 
   <div class="screen box">
-    <div class="title">▼ 이어서 ▼</div>
+    <!-- <div class="title">▼ 이어서 ▼</div> -->
     <div class="inner">
       <div class="imgWrap">
-        <img src="" alt="" class="img-400"/>
+        <img src="ui_doc_post_reply_fix.png" alt="" class="img-800"/>
       </div>
     </div>
   </div>
@@ -786,9 +821,10 @@ style: |
         ■ post_detail_reply <br/>
         □ 설명
         <ul>
-          <li>댓글 표시 개수 </li>
-          <li>댓글 수량 </li>
-          <li>댓글 상세 정보(1.수정 2.삭제 ) </li>
+          <li>현재 포스트에 달린 댓글 개수 표시 </li>
+          <li>각 댓글에 작성자 아이콘, 이름 표시 </li>
+          <li>해당 댓글 가장 마지막 수정된 날짜 표시 </li>
+          <li>댓글은 최초 등록 날짜 기준으로 내림차 순 정렬 </li>
         </ul>
       </div>
     </div>
@@ -798,11 +834,13 @@ style: |
     <div class="descItem">
       <div class="descNum">2</div>
       <div class="descBody">
-        ■ post_detail_replyfix <br/>
+        ■ post_detail_replyedit <br/>
         □ 설명
         <ul>
-          <li>댓글 수정 </li>
-          <li>댓글 수정 시 인터페이스 </li>
+          <li>댓글 편집 인터페이스 </li>
+          <li>(...) 버튼 클릭 시 플로팅 창으로 메뉴 목록 띄워줘야 함 </li>
+          <li>메뉴 밖을 클릭하면 플로팅 창은 닫아줘야 함  </li>
+          <li>수정 / 삭제 클릭하면 플로팅 닫히고 각 메뉴 동작 처리 </li>
         </ul>
       </div>
     </div>
@@ -812,11 +850,45 @@ style: |
     <div class="descItem">
       <div class="descNum">3</div>
       <div class="descBody">
+        ■ post_detail_replyfix <br/>
+        □ 설명
+        <ul>
+          <li>댓글 수정 시 댓글 입력 메뉴 위에 수정하려는 댓글 내용을 표시해줌 </li>
+          <li>수정 상태에서는 이전에 작성한 댓글을 입력창 바로 위에 띄워서 보여줌 (비교해서 볼 수 있도록) </li>
+          <li>이전에 작성한 내용을 댓글 input에 그대로 넣어준다. </li>
+          <li>수정이 발생하지 않았을 경우 string 비교해서 "입력" 버튼 클릭 불가 (구현할지 검토) </li>
+          <li>( X ) 버튼 같은걸 넣어서 수정 모드를 바로 취소할 수 있도록 처리 필요 </li>
+          <li>입력되면 현재 표시하고 있던 게시글 다시 띄움 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">4</div>
+      <div class="descBody">
         ■ post_detail_replydelete <br/>
         □ 설명
         <ul>
-          <li>댓글 삭제 </li>
-          <li>댓글 삭제 시 안내 or 경고창 </li>
+          <li>댓글 삭제 시 모달로 경고창 표시 </li>
+          <li>경고 창에서 확인 누르면 해당 댓글 삭제하고 게시글 갱신 </li>
+          <li>취소하면 다시 원래 창으로 되돌아옴 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">5</div>
+      <div class="descBody">
+        ■ post_detail_replyauth <br/>
+        □ 설명
+        <ul>
+          <li>댓글 편집 권한 </li>
+          <li>댓글 작성자만 해당 댓글에 대한 편집 권한이 존재함 </li>
+          <li>작성자 이외의 유저는 해당 버튼이 클릭 불가능해야 함 </li>
         </ul>
       </div>
     </div>
@@ -827,7 +899,8 @@ style: |
 
 
 ---
-<!----------------- 8페이지 ----------------------->
+
+## <span class="page-anchor" data-page="8">8페이지 · board</span>
 
 <table class="meta">
   <tr>
@@ -868,7 +941,10 @@ style: |
         ■ post_new_header <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>게시글 작성 창 상단 </li>
+          <li>< 표시를 포함해 해당 영역 클릭되면 작성창을 나가서 원래 게시글 화면으로 돌아옴 </li>
+          <li>새 게시글 작성 버튼이 공용 플로트 버튼이라 마지막으로 보고 있던 창으로 되돌아 가는지 여부는 이야기해서 정해야 함 </li>
+          <li>게시글 수정 시에도 해당 창을 같이 사용 -> 이 때는 "게시글 수정" 으로 글자가 떠야 함 </li>
         </ul>
       </div>
     </div>
@@ -881,7 +957,10 @@ style: |
         ■ post_new_title <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>포스트 제목 입력 </li>
+          <li>필수 입력 사항 / 데이터 없으면 등록 불가 </li>
+          <li>최대 글자 수 존재 </li>
+          <li>현재 입력 된 글자수 / 최대 글자 수 표시 (input 창 우측 정렬) </li>
         </ul>
       </div>
     </div>
@@ -894,7 +973,10 @@ style: |
         ■ post_new_text <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>포스트 내용 입력 </li>
+          <li>필수 입력 사항 / 데이터 없으면 등록 불가 </li>
+          <li>최대 글자 수 존재 </li>
+          <li>현재 입력 된 글자수 / 최대 글자 수 표시 (input 창 우측 정렬) </li>
         </ul>
       </div>
     </div>
@@ -907,11 +989,50 @@ style: |
         ■ post_new_category <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>포스트 카테고리 선택 </li>
+          <li>필수 입력사항 & 입력창 제공 시 기본 선택 제공(default) </li>
         </ul>
       </div>
     </div>
   </div>
+
+  </div>
+</div>
+
+---
+
+## <span class="page-anchor" data-page="9">9페이지 · board</span>
+
+<table class="meta">
+  <tr>
+    <th class="label">버전(ver)</th><td class="val">1.0</td>
+    <th class="label">페이지코드</th><td class="val">9</td>
+    <th class="label">페이지명</th><td class="wide">post_new</td>
+    <th class="label">이용자</th><td class="small">PC</td>
+    <th class="descH">Description</th>
+  </tr>
+  <tr>
+    <th class="label">작성인</th><td class="val">김경수</td>
+    <th class="label">작성일</th><td class="val">2026.02.24</td>
+    <th class="label">페이지 경로</th><td class="wide">-</td>
+    <th class="label">페이지</th><td class="small">1</td>
+    <td class="descH"> </td>
+  </tr>
+</table>
+
+<div class="content">
+
+  <div class="screen box">
+    <div class="title">▼ 이어서 ▼</div>
+    <div class="inner">
+      <div class="imgWrap">
+        <img src="ui_doc_post_new.png" alt="" class="img-600"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="descPanel">
+    <div class="head">화면 설명</div>
   
   <div class="list">
     <div class="descItem">
@@ -920,7 +1041,10 @@ style: |
         ■ post_new_maplocation <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>지도상 표시 위치 선택 </li>
+          <li>위치 이름 표시 (입력 어떻게 할지 검토 필요) </li>
+          <li>실제 위치좌표 저장 (x,y로 2차원 튜플 -> 지도에서 좌표로 표시) </li>
+          <li>위치 검색 인터페이스 호출 (호출창 및 호출방법 검토 필요) </li>
         </ul>
       </div>
     </div>
@@ -933,7 +1057,11 @@ style: |
         ■ post_new_image <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>이미지는 1개만 등록 가능 (이미지 개수 표시 x -> 나중에 이야기로 결정됨) </li>
+          <li>이미지 등록되면 등록된 이미지를 표시 </li>
+          <li>등록된 이미지 없으면 "추가" 아이콘 표시 </li>
+          <li>이미지가 1개이므로 추가 아이콘은 중앙 정렬 </li>
+          <li>이미지 부분 레이아웃 사이즈는 따로 검토해 봐야 함 (등록 개수가 1개가 되서 중요도가 떨어졌음) </li>
         </ul>
       </div>
     </div>
@@ -946,7 +1074,9 @@ style: |
         ■ post_new_submit <br/>
         □ 설명
         <ul>
-          <li> </li>
+          <li>작성한 포스트 입력 버튼 </li>
+          <li>필수 입력사항이 모두 존재하는지 체크되어야 함 -> 아니면 클릭불가 / 등록하기 버튼 알파(투명도) 낮춤 </li>
+          <li>게시글 수정 모드인 경우 필수 입력사항 존재 및 수정 발생 여부도 체크해서 등록하기 버튼 체크해야 함 </li>
         </ul>
       </div>
     </div>
@@ -955,15 +1085,14 @@ style: |
 
   </div>
 </div>
-
 ---
-<!----------------- 8페이지 ----------------------->
+<!----------------- 10페이지 ----------------------->
 
 <table class="meta">
   <tr>
     <th class="label">버전(ver)</th><td class="val">1.0</td>
-    <th class="label">페이지코드</th><td class="val">8</td>
-    <th class="label">페이지명</th><td class="wide">post_new</td>
+    <th class="label">페이지코드</th><td class="val">10</td>
+    <th class="label">페이지명</th><td class="wide">map</td>
     <th class="label">이용자</th><td class="small">PC</td>
     <th class="descH">Description</th>
   </tr>
