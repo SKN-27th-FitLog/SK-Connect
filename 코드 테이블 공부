@@ -25,17 +25,17 @@
 |----------------|-------|---------|----------|
 | status.cd      | 상태  | null    | -        |
 | right_id       | 정상  | status.cd | -      |
-| cancel_id      | 취소  | right_id | -       |
+| cancel_id      | 취소  | status.cd | -       |
 | gender_id      | 성별  | null    | -        |
 | man_id         | 남    | gender_id | -      |
-| woman_id       | 여    | man_id  | -        |
+| woman_id       | 여    | gender_id  | -        |
 | streetnumber_id| 주소  | null    | -        |
 | seoul_id       | 서울  | streetnumber_id | - |
 | dj_id          | 동작  | seoul_id | -       |
-| gc_id          | 금천  | dj_id   | -        |
+| gc_id          | 금천  | seoul_id   | -        |
 | gg_id          | 경기  | streetnumber_id | - |
 | gm_id          | 광명  | gg_id   | -        |
-| pj_id          | 파주  | gm_id   | -        |
+| pj_id          | 파주  | gg_id   | -        |
 | ic_id          | 인천  | streetnumber_id | - |
 | bp_id          | 부평  | ic_id   | -        |
 
