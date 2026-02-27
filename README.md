@@ -1,7 +1,8 @@
 # ToyProject
 토이프로젝트
 ### 플로우차트(컨펌 전)
-<img width="2069" height="1421" alt="Fitlog_Flowchart drawio (1)" src="https://github.com/user-attachments/assets/d66b9eda-3aa9-4dea-a835-edce62cc0dec" />
+
+<img width="3686" height="3368" alt="플로우차트_1차" src="https://github.com/user-attachments/assets/fe31f862-50c3-495f-adc7-a230957533ab" />
 
 
 ### 화면구현(예상도) - 일단 캡쳐 이미지만 등록
