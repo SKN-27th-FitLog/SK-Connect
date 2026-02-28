@@ -177,10 +177,25 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ 게시글 title <br/>
+        ■ 신규 작성 버튼 <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>게시글 / 커뮤니티 화면에서만 표시 </li>
+          <li>버튼 클릭 시 게시글 작성 / 모임 추가 페이지로 이동 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ 페이지 네비게이터 <br/>
+        □ 설명
+        <ul>
+          <li>화면 하단에 항상 표시 (게시글 작성 등 이부 페이지에선 예외) </li>
+          <li>버튼 클릭 시 해당 화면으로 이동 </li>
         </ul>
       </div>
     </div>
@@ -228,10 +243,54 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ 게시글 title <br/>
+        ■ 탭 버튼 <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>버튼에 따라 아래 표시되는 게시글 목록이 변경됨 </li>
+          <li>목록 변경은 각 카테고리에서 부연설명 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ 게시글 목록 <br/>
+        □ 설명
+        <ul>
+          <li>조회된 게시글 목록을 표시한다. </li>
+          <li>리스트는 상하 스크롤로 이동한다. </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ 인터랙션 버튼 <br/>
+        □ 설명
+        <ul>
+          <li>게시글 인터랙션 버튼. </li>
+          <li>버튼 클릭 시 해당 게시글에 대해 추가 기능을 이용할 수 있다. </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ 좋아요/댓글/공유 버튼튼 <br/>
+        □ 설명
+        <ul>
+          <li>좋아요 : 클릭 시 좋아요 상태 변경, 좋아요 숫자 증감 </li>
+          <li>댓글 : 해당 게시글로 이동 -> 댓글 입력 상태가 됨 </li>
+          <li>공유 : 해당 게시글의 주소를 다른 앱으로 공유 -> 공유앱 목록 창 호출 </li>
         </ul>
       </div>
     </div>
@@ -279,10 +338,37 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ 게시글 title <br/>
+        ■ 인기 탭 버튼 <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>버튼 클릭 시 게시글이 좋아요 내림차 순으로 정렬 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ 관심 탭 버튼 <br/>
+        □ 설명
+        <ul>
+          <li>버튼 클릭 시 내가 좋아요 누른 게시글만 필터해서 표시 </li>
+          <li>정렬 순서는 서버에서 주는 대로 표시함 (왠만하면 수정일자 내림차순이면 좋음) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ 최신 탭 버튼 <br/>
+        □ 설명
+        <ul>
+          <li>버튼 클릭 시 수정일자 내림차 순으로 게시글 표시 </li>
         </ul>
       </div>
     </div>
@@ -324,16 +410,29 @@ style: |
 
   <div class="descPanel">
     <div class="head">화면 설명</div>
-  
 
   <div class="list">
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ 게시글 title <br/>
+        ■ 관심 필터 <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>스터디/운동/맛집/취미/네트워킹/기타 6개 항목 제공 </li>
+          <li>카테고리 선택 시 기본으로 선택된 필터가 존재함 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ 필터된 게시글 목록 <br/>
+        □ 설명
+        <ul>
+          <li>선택된 필터와 일치하는 게시글만 목록에 표시됨 </li>
         </ul>
       </div>
     </div>
@@ -384,7 +483,89 @@ style: |
         ■ 게시글 title <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>클릭 시 홈 화면으로 나감 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ 이미지 <br/>
+        □ 설명
+        <ul>
+          <li>게시글에 등록된 이미지 표시(없으면 표시 안함) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ 작성자 정보 <br/>
+        □ 설명
+        <ul>
+          <li>작성자 이름 / 게시글 수정일자 표시 / 게시글 편집 버튼 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">4</div>
+      <div class="descBody">
+        ■ 게시글 제목/내용, 카테고리, 위치 <br/>
+        □ 설명
+        <ul>
+          <li>게시글 제목과 내용 표시 </li>
+          <li>게시글의 카테고리 표시 (이미지 추후 수정) </li>
+          <li>게시글에 링크된 위치 표시 (이미지 추후 수정) </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">5</div>
+      <div class="descBody">
+        ■ 좋아요 버튼 <br/>
+        □ 설명
+        <ul>
+          <li>게시글의 좋아요 개수 표시 / 버튼 클릭 시 좋아요 동작 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">6</div>
+      <div class="descBody">
+        ■ 댓글 목록 <br/>
+        □ 설명
+        <ul>
+          <li>게시글의 댓글 목록 표시 </li>
+          <li>댓글 목록은 상하 스크롤로 이동 가능 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">7</div>
+      <div class="descBody">
+        ■ 댓글 입력 창 <br/>
+        □ 설명
+        <ul>
+          <li>신규 댓글을 추가하기 위한 입력창 </li>
+          <li>입력기에 포커스가 가면 모바일 텍스트 입력기 같이 표시됨 </li>
         </ul>
       </div>
     </div>
@@ -432,10 +613,29 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ 게시글 title <br/>
+        ■ title <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>클릭 시 홈 화면 (게시글 목록) 으로 이동 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2<br><br>~<br><br>7</div>
+      <div class="descBody">
+        ■ 게시글 정보 입력 <br/>
+        □ 설명
+        <ul>
+          <li>게시글에 등록될 각 정보를 입력 </li>
+          2) 제목 (필수)<br>
+          3) 내용 (필수)<br>
+          4) 카테고리 (필수)<br>
+          5) 위치 -> 지도 api 호출해서 위치 찾음<br>
+          6) 이미지 -> 내 기기에서 등록 이미지 찾는 창 호출<br>
+          7) 입력 버튼 -> 필수 정보 모두 입력해야 누를 수 있음<br>
         </ul>
       </div>
     </div>
@@ -483,10 +683,43 @@ style: |
     <div class="descItem">
       <div class="descNum">1</div>
       <div class="descBody">
-        ■ 게시글 title <br/>
+        ■ 지도 인터랙션 버튼 <br/>
         □ 설명
         <ul>
-          <li>화면 중앙정렬 / 상단에 제목 표시 </li>
+          <li>확대 버튼 </li>
+          <li>축소 버튼 </li>
+          <li>내위치 버튼 : 기기에 등록된 내 위치로 위치정보 갱신 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">2</div>
+      <div class="descBody">
+        ■ 지도 화면 <br/>
+        □ 설명
+        <ul>
+          <li>지도는 지도api 통해서 얻어와 표시 </li>
+          <li>기본으로 표시할 위치는 내 현재 위치로 (모바일 기준) </li>
+          <li>지도 핀 : 게시글이 가지고 있는 위치로 핀을 표현 </li>
+          <li>핀의 아이콘은 게시글 카테고리를 기준으로 결정됨 </li>
+          <li>지도 중앙 위치를 기준으로 일정 반경내 핀을 검색해서 표시 </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="descItem">
+      <div class="descNum">3</div>
+      <div class="descBody">
+        ■ 지도 핀 -> 요약 정보창 <br/>
+        □ 설명
+        <ul>
+          <li>핀의 선택 시 해당 게시글의 요약 정보창 표시 </li>
+          <li>요약 정보창에는 게시글의 제목일부 / 내용일부 / 카테고리 / 위치 를 표시한다.  </li>
         </ul>
       </div>
     </div>
