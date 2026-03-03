@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'common',
     'interactions',
     'posts',
-    'map'
+    'maps'
 ]
 
 MIDDLEWARE = [

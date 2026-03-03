@@ -1,18 +1,17 @@
 from django.db import models
-from map.models import Map
+from maps.models import Map
 
 
 class Post(models.Model):
     title = models.CharField(max_length=100)
     content = models.TextField()
 
-    # ✅ nullable map
-    map = models.ForeignKey(
-        map.Map,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
-    )
+map = models.ForeignKey(
+    "maps.Map",
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+)
 
 
 class PostImage(models.Model):
