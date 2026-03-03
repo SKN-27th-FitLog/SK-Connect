@@ -6,11 +6,11 @@ class Post(models.Model):
     title = models.CharField(max_length=100)
     content = models.TextField()
 
-map = models.ForeignKey(
-    "maps.Map",
-    on_delete=models.SET_NULL,
-    null=True,
-    blank=True,
+    map = models.ForeignKey(
+        "maps.Map",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
 )
 
 
