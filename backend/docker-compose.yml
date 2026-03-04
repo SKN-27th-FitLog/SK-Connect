@@ -5,7 +5,7 @@ services:
     container_name: postgres_db
     restart: always
     environment:
-      POSTGRES_DB: postgres        # Django의 DB_NAME과 일치
+      POSTGRES_DB: sk_connect_db       # Django의 DB_NAME과 일치
       POSTGRES_USER: community     # Django의 DB_USER와 일치
       POSTGRES_PASSWORD: password123 # Django의 DB_PASSWORD와 일치
     ports:
@@ -15,7 +15,7 @@ services:
 
   web:
     build: .
-    container_name: django_web
+    container_name: sk_connect_web
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
