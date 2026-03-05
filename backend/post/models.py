@@ -7,6 +7,7 @@ from post import models as m3
 # Create your models here.
 
 class Posts(models.Model):
+    Feed_id = models.BigAutoField(primary_key = True)
     Feed_content = models.TextField(
         null = False,
         blank = False,
@@ -43,7 +44,14 @@ class Posts(models.Model):
     )
 
 class ImageURL(models.Model):
-    Image_url = models.TextField(primary_key = True)
+    id = models.BigAutoField(primary_key = True)
+    Image_url = models.TextField(
+        unique = True,
+        null = False,
+        blank = False,
+        verbose_name = '이미지 링크'
+
+    )
     post = models.ForeignKey(
         m3.Posts,
         on_delete = models.CASCADE,

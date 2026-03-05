@@ -92,7 +92,7 @@ cp .env.example .env
 ## ✅ 6. SECRET_KEY 생성
 
 ```bash
-python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+python -c "import secrets; print(secrets.token_urlsafe(50))"
 ```
 
 출력된 값을 `.env`에 추가:
@@ -107,13 +107,6 @@ SECRET_KEY=생성된값
 
 `.env` 값은 반드시 `docker-compose.yml`과 동일해야 합니다.
 
-```
-POSTGRES_DB=community
-POSTGRES_USER=community
-POSTGRES_PASSWORD=community
-
-DB_HOST=db
-DB_PORT=5432
 ```
 
 ### ⚠️ 주의사항
@@ -149,17 +142,8 @@ db
 
 ## ✅ 9. Web 컨테이너 접속
 
-Django 명령어는 **반드시 web 컨테이너 내부**에서 실행합니다.
+~~Django 명령어는 **반드시 web 컨테이너 내부**에서 실행합니다.~~
 
-```bash
-docker compose exec web bash
-```
-
-bash 오류 발생 시:
-
-```bash
-docker compose exec web sh
-```
 
 ---
 
@@ -180,80 +164,6 @@ OK
 
 ---
 
-## ✅ 11. Seed 데이터 반영 (팀 공통 데이터)
-
-초기 데이터 생성:
-
-```bash
-python manage.py seed
-```
-
-👉 게시글 / 유저 / 테스트 데이터가 DB에 생성됩니다.
-
----
-
-## ✅ 12. 서버 실행 확인
-
-브라우저 접속:
-
-```
-http://localhost:8000
-```
-
-페이지가 열리면 정상입니다.
-
----
-
-## ✅ 13. DBeaver DB 확인
-
-PostgreSQL 연결 생성
-
-| 항목 | 값 |
-|---|---|
-| Host | localhost |
-| Port | 5432 |
-| Database | community |
-| Username | community |
-| Password | community |
-
-연결 후:
-
-```
-Schemas
- └ public
-    └ Tables
-```
-
-👉 우클릭 → **Refresh**
-
----
-
-## ✅ 14. Pull 이후 팀원이 반드시 해야 할 작업
-
-새 migration 또는 seed 변경 시:
-
-```bash
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py seed
-```
-
----
-
-## ✅ 15. 컨테이너 종료
-
-### 일반 종료
-```bash
-docker compose down
-```
-
-### DB 포함 완전 초기화 ⚠️
-```bash
-docker compose down -v
-```
-
-⚠️ 모든 DB 데이터 삭제됨
-
----
 
 # 🚀 최초 실행 Quick Start (요약)
 
@@ -272,12 +182,7 @@ copy .env.example .env
 
 docker compose up -d --build
 
-docker compose exec web bash
 python manage.py migrate
-python manage.py seed
+
 ```
 
----
-
-## 🌐 웹 서버는 테스트용
----
