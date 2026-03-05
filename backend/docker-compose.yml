@@ -1,0 +1,31 @@
+
+services:
+  db:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_DB: sk_connect_db       # Django의 DB_NAME과 일치
+      POSTGRES_USER: community     # Django의 DB_USER와 일치
+      POSTGRES_PASSWORD: password123 # Django의 DB_PASSWORD와 일치
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: sk_connect_web
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+
+  #backend:
+
+volumes:
+  postgres_data:
