@@ -18,12 +18,6 @@ class LikeT(models.Model):
         blank = True,
         verbose_name = 'code_id'
     )
-    like_count = models.IntegerField(
-        null = False,
-        blank = False,
-        default = 0,
-        verbose_name = '좋아요 수'
-    )
 
 class CommentsT(models.Model):
     id = models.BigAutoField(primary_key = True)
@@ -43,12 +37,6 @@ class CommentsT(models.Model):
         null = False,
         blank = False,
         verbose_name = '댓글 내용'
-    )
-    comment_count = models.IntegerField(
-        null = False,
-        blank = False,
-        defalt = 0,
-        verbose = '댓글 수'
     )
     created_at = models.DateTimeField(
         null = False,
