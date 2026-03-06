@@ -7,7 +7,7 @@ from post import models as m3
 # Create your models here.
 
 class Posts(models.Model):
-    feed_id = models.BigAutoField(primary_key = True)
+    id = models.BigAutoField(primary_key = True)
     content = models.TextField(
         null = False,
         blank = False,
