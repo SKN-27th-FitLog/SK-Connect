@@ -11,7 +11,7 @@ class Maps(models.Model):
         null = True,
         blank = True
         )
-    business_category = models.ForeignKey(
+    category = models.ForeignKey(
         m1.CodeT, 
         on_delete=models.SET_NULL,
         null = True
