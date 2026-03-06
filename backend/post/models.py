@@ -8,12 +8,12 @@ from post import models as m3
 
 class Posts(models.Model):
     Feed_id = models.BigAutoField(primary_key = True)
-    Feed_content = models.TextField(
+    content = models.TextField(
         null = False,
         blank = False,
         verbose_name = '게시글 본문'
     )
-    Feed_title = models.CharField(
+    title = models.CharField(
         max_length = 100,
         null = False,
         verbose_name = '게시글 제목'
@@ -30,7 +30,7 @@ class Posts(models.Model):
     verbose_name = '상태코드',
     related_name = 'posts_status'
     )
-    post_category_cd = models.ForeignKey(
+    post_cd = models.ForeignKey(
     m1.CodeT,
     on_delete = models.SET_NULL,
     null = True,
@@ -44,8 +44,8 @@ class Posts(models.Model):
     )
 
 class ImageURL(models.Model):
-    id = models.BigAutoField(primary_key = True)
-    Image_url = models.TextField(
+    image_id = models.BigAutoField(primary_key = True)
+    image_url = models.TextField(
         unique = True,
         null = False,
         blank = False,

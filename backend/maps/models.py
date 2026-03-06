@@ -5,7 +5,7 @@ from post import models as m2
 # 이름, 업종, 대표메뉴, 주소, 위도, 경도
 
 class Maps(models.Model):
-    id = models.BigAutoField(primary_key = True)
+    map_id = models.BigAutoField(primary_key = True)
     name = models.CharField(
         max_length = 50,
         null = True,
@@ -21,7 +21,7 @@ class Maps(models.Model):
         null = True,
         blank = True,
     )
-    address = models.TextField(
+    address_cd = models.TextField(
         null = False,
         blank = False,
         unique = True

@@ -35,8 +35,6 @@ class PostSerializer(serializers.ModelSerializer):
     content = serializers.CharField(source = 'Feed_content')
     post_cd = CodeTSerializer(source = 'post_category_cd', read_only = True)
 
-
-
     class Meta:
         fields= [
             'Feed_id',
