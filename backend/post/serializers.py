@@ -19,13 +19,13 @@ class UserSerializer(serializers.ModelSerializer):
 
 class MapsSerializer(serializers.ModelSerializer):
     map_id = serializers.CharField(source = 'id', read_only = True)
-    addres_cd = serializers.CharField(source = 'address', read_only = True)
+    address_cd = serializers.CharField(source = 'address', read_only = True)
     class Meta:
         model = Maps
         fields = ['map_id', 'address_cd', 'latitude', 'longitude']
 
 class PostImageSerializer(serializers.ModelSerializer):
-    image_id = serializers.IntegerField(source = 'id', many = True, read_only = True)
+    image_id = serializers.IntegerField(source = 'id', read_only = True)
     class Meta:
         model = PostImage
         fields = ['image_id', 'image_url']

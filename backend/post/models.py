@@ -7,7 +7,7 @@ from post import models as m3
 # Create your models here.
 
 class Posts(models.Model):
-    Feed_id = models.BigAutoField(primary_key = True)
+    id = models.BigAutoField(primary_key = True)
     content = models.TextField(
         null = False,
         blank = False,
@@ -24,7 +24,7 @@ class Posts(models.Model):
     auto_now_add = True,
     verbose_name = "생성일"
     )
-    status_id = models.ForeignKey(
+    status_cd = models.ForeignKey(
     m1.CodeT,
     on_delete=models.CASCADE,
     verbose_name = '상태코드',

@@ -8,7 +8,7 @@ class CodeT(models.Model):
         max_length = 4,
         primary_key = True
     )
-    cd_name = models.CharField(                     # 코드명
+    name = models.CharField(                     # 코드명
         null = False,
         blank = False,
         max_length = 30,
