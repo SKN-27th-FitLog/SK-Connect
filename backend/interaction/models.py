@@ -1,0 +1,46 @@
+from django.db import models
+from common import models as m1
+from post import models as m2
+
+# Create your models here.
+
+class LikeT(models.Model):
+    id = models.BigAutoField(primary_key = True)
+    post= models.ForeignKey(
+        m2.Posts, 
+        on_delete=models.CASCADE, 
+        verbose_name = 'post_id'
+        )
+    status= models.ForeignKey(
+        m1.CodeT,
+        on_delete=models.SET_NULL,
+        null = True,
+        blank = True,
+        verbose_name = 'code_id'
+    )
+
+class CommentsT(models.Model):
+    id = models.BigAutoField(primary_key = True)
+    post= models.ForeignKey(
+        m2.Posts,
+        on_delete=models.CASCADE,
+        verbose_name = 'post_id'
+    )
+    status = models.ForeignKey(
+        m1.CodeT,
+        on_delete=models.SET_NULL,
+        null = True,
+        blank = True,
+        verbose_name = 'code_id'
+    )
+    content = models.TextField(
+        null = False,
+        blank = False,
+        verbose_name = '댓글 내용'
+    )
+    created_at = models.DateTimeField(
+        null = False,
+        blank = False,
+        auto_now_add = True,
+        verbose_name = "생성일"
+    )
