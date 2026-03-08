@@ -30,7 +30,7 @@ class Maps(models.Model):
         null = False,
         blank = False
         )
-    longitutde = models.FloatField(
+    longitude = models.FloatField(
         null = False,
         blank = False
     )
