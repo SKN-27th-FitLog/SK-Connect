@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    #외부 라이브러리
     'rest_framework',
 
     # custom apps
@@ -48,8 +49,8 @@ INSTALLED_APPS = [
     'common',
     'post',
     'interaction',
-    'maps'
-
+    'maps',
+    'foodm'
 ]
 
 

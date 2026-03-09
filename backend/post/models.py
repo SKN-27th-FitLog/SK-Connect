@@ -23,24 +23,34 @@ class Posts(models.Model):
     auto_now_add = True,
     verbose_name = "생성일"
     )
+    modify_at = models.DateTimeField(
+        null = False,
+        blank = False,
+        auto_now = True
+    )
     status_cd = models.ForeignKey(
     m1.CodeT,
-    on_delete=models.CASCADE,
+    on_delete=models.SET_NULL,
+    null = True,
     verbose_name = '상태코드',
-    related_name = 'posts_status'
+    related_name = 'posts_status',
+    db_column = 'status_cd'
     )
     post_cd = models.ForeignKey(
     m1.CodeT,
     on_delete = models.SET_NULL,
     null = True,
-    verbose_name = '카테고리 코드',
-    related_name = 'post_category'
+    related_name = 'post_category',
+    db_column = 'post_cd'
     )
     user_id = models.ForeignKey(
     m2.User,
     on_delete=models.SET_NULL,
-    null = True
+    null = True,
+    db_column = 'user_id'
     )
+    class Meta:
+        db_table = 'posts'
 
 class ImageURL(models.Model):
     image_id = models.BigAutoField(primary_key = True)
@@ -49,10 +59,12 @@ class ImageURL(models.Model):
         null = False,
         blank = False,
         verbose_name = '이미지 링크'
-
     )
     post = models.ForeignKey(
         m3.Posts,
         on_delete = models.CASCADE,
-        verbose_name = '게시글 아이디'
+        verbose_name = '게시글 아이디',
+        db_column = 'post_id'
     )
+    class Meta:
+        db_table = 'post_image'
