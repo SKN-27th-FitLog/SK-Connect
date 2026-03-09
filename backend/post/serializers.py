@@ -59,7 +59,7 @@ class PostListSerializer(PostMapMixin, serializers.ModelSerializer):
     """게시글 목록 조회 응답 Serializer"""
 
     post_cd = serializers.SerializerMethodField()   # 게시글 구분 코드 (예: COMMUNITY)
-    cd_table = serializers.SerializerMethodField()  # 코드 테이블 정보
+    status_cd = serializers.SerializerMethodField()  # 코드 테이블 정보
     map = serializers.SerializerMethodField()       # 지도 정보
     image = PostImageSerializer(source="imageurl_set", many=True)  # 이미지 리스트
 
@@ -71,7 +71,7 @@ class PostListSerializer(PostMapMixin, serializers.ModelSerializer):
             "content",
             "created_at",
             "post_cd",
-            "cd_table",
+            "status_cd",
             "map",
             "image",
         ]
@@ -79,6 +79,10 @@ class PostListSerializer(PostMapMixin, serializers.ModelSerializer):
     def get_post_cd(self, obj):
         # Posts.post_cd(CodeT)의 cd 값만 꺼내서 문자열로 반환
         return obj.post_cd.cd if obj.post_cd else None
+
+    def get_status_cd(self, obj):
+        # 상태 코드(CodeT)의 cd 값만 노출
+        return obj.status_cd.cd if obj.status_cd else None
 
     def get_cd_table(self, obj):
         # Posts.post_cd에 연결된 코드 테이블 전체 정보 반환
@@ -181,12 +185,12 @@ class PostCreateSerializer(serializers.Serializer):
         image_urls = validated_data.pop("image_url", [])
 
         post_cd = validated_data.pop("post_cd")
-        category_cd = validated_data.pop("category_cd")
+        category= validated_data.pop("category_cd")
 
-        # 상태 코드는 명세에서 별도 입력이 없으므로 기본값 "ACTIVE" 로 가정
-        status = self._get_code_or_error("ACTIVE", "status_cd")
+        # 상태 코드는 명세에서 별도 입력이 없으므로 기본값 ST01(ACTIVE)로 가정
+        status = self._get_code_or_error("ST01", "status_cd")
         post_category = self._get_code_or_error(post_cd, "post_cd")
-        map_category = self._get_code_or_error(category_cd, "category_cd")
+        map_category = self._get_code_or_error(category, "category_cd")
 
         # 게시글 생성
         post = Posts.objects.create(
