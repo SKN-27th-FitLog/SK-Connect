@@ -1,6 +1,6 @@
 # ToyProject
 토이프로젝트
-### 플로우차트(컨펌 전)
+### 플로우차트
 
 <img width="3686" height="3368" alt="플로우차트_1차" src="https://github.com/user-attachments/assets/fe31f862-50c3-495f-adc7-a230957533ab" />
 
