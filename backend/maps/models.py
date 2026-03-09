@@ -33,7 +33,7 @@ class Maps(models.Model):
     longitude = models.FloatField(
         null = False,
         blank = False,
-        db_column = "longitutde"
+        db_column = "longitude"
     )
     post = models.ForeignKey(
         m2.Posts,
