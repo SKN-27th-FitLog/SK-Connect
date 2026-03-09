@@ -29,10 +29,11 @@ class Maps(models.Model):
     latitude = models.FloatField(
         null = False,
         blank = False
-        )
-    longitutde = models.FloatField(
+    )
+    longitude = models.FloatField(
         null = False,
-        blank = False
+        blank = False,
+        db_column = "longitutde"
     )
     post = models.ForeignKey(
         m2.Posts,
