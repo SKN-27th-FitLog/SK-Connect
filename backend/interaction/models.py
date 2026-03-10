@@ -18,20 +18,24 @@ class LikeT(models.Model):
         blank = True,
         verbose_name = 'code_id'
     )
+    class Meta:
+        db_table = 'like'
 
 class CommentsT(models.Model):
     id = models.BigAutoField(primary_key = True)
     post= models.ForeignKey(
         m2.Posts,
         on_delete=models.CASCADE,
-        verbose_name = 'post_id'
+        verbose_name = 'post_id',
+        db_column= 'post_id'
     )
     status = models.ForeignKey(
         m1.CodeT,
-        on_delete=models.SET_NULL,
+        on_delete=models.SET_NULL, 
         null = True,
         blank = True,
-        verbose_name = 'code_id'
+        verbose_name = 'code_id',
+        db_column = 'status_cd'
     )
     content = models.TextField(
         null = False,
@@ -44,3 +48,10 @@ class CommentsT(models.Model):
         auto_now_add = True,
         verbose_name = "생성일"
     )
+    modify_at = models.DateTimeField(
+        null = False,
+        blank = False,
+        auto_now = True
+    )
+    class Meta:
+        db_table = 'comments'
