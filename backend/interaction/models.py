@@ -26,7 +26,6 @@ class CommentsT(models.Model):
     post= models.ForeignKey(
         m2.Posts,
         on_delete=models.CASCADE,
-        verbose_name = 'post_id',
         db_column= 'post_id'
     )
     status = models.ForeignKey(
@@ -34,19 +33,16 @@ class CommentsT(models.Model):
         on_delete=models.SET_NULL, 
         null = True,
         blank = True,
-        verbose_name = 'code_id',
         db_column = 'status_cd'
     )
     content = models.TextField(
         null = False,
-        blank = False,
-        verbose_name = '댓글 내용'
+        blank = False
     )
     created_at = models.DateTimeField(
         null = False,
         blank = False,
-        auto_now_add = True,
-        verbose_name = "생성일"
+        auto_now_add = True
     )
     modify_at = models.DateTimeField(
         null = False,

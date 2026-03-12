@@ -2,6 +2,7 @@ from rest_framwork import serializers
 from .models import Posts, ImageURL
 from common.models import CodeT
 from maps.models import Maps
+from foodm.models import FoodMap
 
 
 class CodeTBaseSerializer(serializers.ModelSerializer): #공통 코드 테이블 기본 정보
@@ -20,7 +21,9 @@ class imageSerializer(serializers.ModelSerializer): #이미지 정보
         model = ImageURL
         fields = ['image_id', 'image_url']
 
-class FoodMapSerializer()
+class FoodMapSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FoodMap
 
 class PostDetailSerializer(serializers.ModelSerializer): # 게시글 리스트조회, 상세 조회
     cd_table = CodeTBaseSerializer(source = 'status_cd') #공통 코드 시리얼라이저 사용
