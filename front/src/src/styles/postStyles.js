@@ -6,7 +6,7 @@ export const postListStyles = StyleSheet.create({
         ...ui.page,
         paddingTop: ui.verticalScale(20),
     },
-
+ 
     header: {
         ...ui.header,
         paddingTop: ui.verticalScale(20),

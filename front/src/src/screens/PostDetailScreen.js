@@ -15,7 +15,7 @@ import { postDetailStyles as styles } from "../styles/postStyles";
 
 export default function PostDetailScreen({ navigation, route }) {
   const postFromRoute = route?.params?.post;
-
+ 
   const post = useMemo(
     () =>
       postFromRoute || {

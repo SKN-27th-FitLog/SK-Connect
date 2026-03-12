@@ -19,7 +19,7 @@ const CATEGORY_OPTIONS = [
   { key: "hobby", label: "취미" },
   { key: "networking", label: "네트워킹" },
   { key: "etc", label: "기타" },
-];
+]; 
 
 export default function PostCreateScreen({ navigation }) {
   const [title, setTitle] = useState("");

@@ -24,7 +24,7 @@ const CATEGORY_OPTIONS = [
   { key: "networking", label: "네트워킹" },
   { key: "etc", label: "기타" },
 ];
-
+ 
 function PostCard({ item, onPress }) {
   return (
     <TouchableOpacity

@@ -14,4 +14,4 @@ export const styles = StyleSheet.create({
         fontSize: ui.scale(16),
         fontWeight: "500",
     },
-});
+}); 

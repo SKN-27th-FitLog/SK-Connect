@@ -18,7 +18,7 @@ import {
         setPosts((prev) => [newPost, ...prev]);
         },
     });
-    };
+    }; 
 
     import PostCard from '../components/common/PostCard';
     // 게시글 상세 페이지로 이동

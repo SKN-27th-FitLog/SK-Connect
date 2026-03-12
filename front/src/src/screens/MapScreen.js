@@ -13,7 +13,7 @@ function MapPlaceholder() {
       </Text>
     </View>
   );
-}
+} 
 
 export default function MapScreen() {
   const navigation = useNavigation();

@@ -12,7 +12,7 @@ export default function AppNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-      }}
+      }} 
     >
       <Stack.Screen name="MainTabs" component={RootNavigator} />
 

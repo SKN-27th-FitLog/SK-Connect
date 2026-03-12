@@ -11,7 +11,7 @@ const scale = (size) => {
   if (isSmallDevice) return Math.round(size * 0.94);
     return size;
 };
-
+ 
 const verticalScale = (size) => {
   if (height > 900) return Math.round(size * 1.08);
   if (height < 700) return Math.round(size * 0.94);

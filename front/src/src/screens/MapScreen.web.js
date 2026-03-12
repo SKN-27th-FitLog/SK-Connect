@@ -18,7 +18,7 @@ const appkey = process.env.EXPO_PUBLIC_KAKAO_MAPS_JAVASCRIPT_KEY || "";
 const MAP_HEIGHT =
   Platform.OS === "web"
     ? "calc(100vh - 180px)"
-    : "100%";
+    : "100%"; 
 
 export default function MapScreen() {
   const navigation = useNavigation();
