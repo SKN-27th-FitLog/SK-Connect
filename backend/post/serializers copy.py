@@ -1,4 +1,5 @@
-from rest_framwork import serializers
+from dataclasses import fields
+from rest_framework import serializers
 from .models import Posts, ImageURL
 from common.models import CodeT
 from maps.models import Maps
@@ -21,20 +22,31 @@ class imageSerializer(serializers.ModelSerializer): #이미지 정보
         model = ImageURL
         fields = ['image_id', 'image_url']
 
-class FoodMapSerializer(serializers.ModelSerializer):
+class FoodMapSerializer(serializers.ModelSerializer): #맛집 주소
     class Meta:
         model = FoodMap
 
-class PostDetailSerializer(serializers.ModelSerializer): # 게시글 리스트조회, 상세 조회
+'''==============================================================='''
+
+class PostBaseSerializer(serializers.ModelSerializer): #post관련 시리얼라이저가 공통으로 사용
     cd_table = CodeTBaseSerializer(source = 'status_cd') #공통 코드 시리얼라이저 사용
     map = MapBaseSerializer(source='map_id') #공통 맵 시리얼라이저 사용
     image = imageSerializer(source='post_image_set') #역참조이므로 _set
-    category = serializers.
     class Meta:
         model = Posts
-        fields = ['']
+        fields = ['post_id', 'title', 'content', 'created_at', 'modify_at', 'cd_table', 'map', 'image']
 
-class PostCreateSerializer(serializers.ModelSerializer): #게시글 생성
-    class Meta:
-        model = Posts
-        fields = ['']
+
+class PostListSerializer(PostBaseSerializer): # 게시글 목록 조회
+    class Meta(PostBaseSerializer):
+        fields = PostBaseSerializer.Meta.fields + ['']
+
+class PostDetailSerializer(PostBaseSerializer): # 게시글 상세 조회
+    category = serializers.CharField()
+    class Meta(PostBaseSerializer):
+        fields = PostBaseSerializer.Meta.fields + ['category_cd', 'latitude', 'longitude', 'status_cd']
+
+class PostCreateSerializer(PostBaseSerializer): #게시글 생성
+    class Meta(PostBaseSerializer):
+        fields = PostBaseSerializer.Meta.fields +['category_cd', 'latitude', 'longitude', 'address']
+
