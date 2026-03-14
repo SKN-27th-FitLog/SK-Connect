@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Posts, ImageURL
 from common.models import CodeT
 from maps.models import Maps
-from foodm.models import FoodMap
+from menu.models import Menu
 
 
 class CodeTBaseSerializer(serializers.ModelSerializer): #공통 코드 테이블 기본 정보
@@ -23,7 +23,7 @@ class imageSerializer(serializers.ModelSerializer): #이미지 정보
 
 class FoodMapSerializer(serializers.ModelSerializer): #맛집 주소
     class Meta:
-        model = FoodMap
+        model = Menu
         fields = ['map', 'signature_menu']
 
 '''==============================================================='''

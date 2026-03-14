@@ -1,5 +1,5 @@
 from rest_framework import generics
-from .models import Post
+from .models import Posts
 from .serializers import (
     PostListSerializer,
     PostDetailSerializer,
@@ -7,11 +7,11 @@ from .serializers import (
 )
 
 class PostListView(generics.ListAPIView): #게시글 리스트 조회
-    queryset = Post.objects.all()
+    queryset = Posts.objects.all()
     serializer_class = PostListSerializer
 
     #Posts.onjects는 Posts모델에 접근하기 위함
-    posts = Post.objects.select_related( #정참조 (foreignkey, onetoone)관계 데이터를 join을 통해 한꺼번에 미리 가져옴
+    posts = Posts.objects.select_related( #정참조 (foreignkey, onetoone)관계 데이터를 join을 통해 한꺼번에 미리 가져옴
         'post_cd',
         'status_cd',
         #'user_id'
@@ -26,7 +26,7 @@ class PostListView(generics.ListAPIView): #게시글 리스트 조회
 
 
 class PostDetailView(generics.ListAPIView): #게시글 상세조회
-    queryset = Post.objects.all()
+    queryset = Posts.objects.all()
     serializer_class = PostDetailSerializer
 
     
@@ -34,6 +34,6 @@ class PostDetailView(generics.ListAPIView): #게시글 상세조회
 
 
 class PostCreateView(generics.ListCreateAPIView):
-    queryset = Post.objects.all()
+    queryset = Posts.objects.all()
     serializer_class = PostCreateSerializer
 

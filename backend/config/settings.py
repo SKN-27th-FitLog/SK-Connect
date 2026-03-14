@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'maps',
     'post',
     'interaction',
+    'menu',
     'foodm'
 ]
 
