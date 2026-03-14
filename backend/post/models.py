@@ -32,7 +32,6 @@ class Posts(models.Model):
     m1.CodeT,
     on_delete=models.SET_NULL,
     null = True,
-    verbose_name = '상태코드',
     related_name = 'posts_status',
     db_column = 'status_cd'
     )
@@ -63,7 +62,6 @@ class ImageURL(models.Model):
     post = models.ForeignKey(
         m3.Posts,
         on_delete = models.CASCADE,
-        verbose_name = '게시글 아이디',
         db_column = 'post_id'
     )
     class Meta:
