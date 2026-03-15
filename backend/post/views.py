@@ -1,5 +1,4 @@
 from rest_framework import generics
-from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from .models import Posts 
 from .serializers import (
     PostListSerializer,
@@ -31,10 +30,10 @@ class PostDetailView(generics.RetrieveAPIView):
         ).prefetch_related('imageurl_set')
 
 
+
 class PostCreateView(generics.CreateAPIView): 
     queryset = Posts.objects.all()
     serializer_class = PostCreateSerializer
-    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def perform_create(self, serializer):
         serializer.save()

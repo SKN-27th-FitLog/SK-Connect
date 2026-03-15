@@ -95,11 +95,13 @@ class PostCreateSerializer(PostBaseSerializer):
 
         post = Posts.objects.create(**validated_data)
 
+        address_code_instance = CodeT.objects.get(cd = address_cd)
+
         Maps.objects.create(
             post=post,
             latitude=latitude,
             longitude=longitude,
-            address_cd=address_cd,
+            address_cd=address_code_instance,
             address_detail=address_detail 
         )
 
