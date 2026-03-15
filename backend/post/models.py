@@ -53,7 +53,7 @@ class Posts(models.Model):
 
 class ImageURL(models.Model):
     image_id = models.BigAutoField(primary_key = True)
-    image_url = models.TextField(
+    image_url = models.URLField(
         unique = True,
         null = False,
         blank = False,
