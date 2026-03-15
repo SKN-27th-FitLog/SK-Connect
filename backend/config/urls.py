@@ -22,6 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("", include("post.urls")),
     path("api/map/", include("maps.urls")),
+    path("api/foodmap/", include("foodm.urls")),
     # API 스키마 생성
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     # Swagger UI 페이지 연결
