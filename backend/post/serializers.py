@@ -45,8 +45,9 @@ class PostBaseSerializer(serializers.ModelSerializer):
 
     def get_map(self, obj):
         try:
-            map_obj = Maps.objects.get(post=obj) 
-            return MapBaseSerializer(map_obj).data
+            # map_obj = Maps.objects.get(post=obj) 
+            # return MapBaseSerializer(map_obj).data
+            return MapBaseSerializer(obj.map).data  # post→map 방향
         except Exception: # Maps.DoesNotExist
             return None
 
@@ -85,30 +86,56 @@ class PostCreateSerializer(PostBaseSerializer):
             'post_cd', 'status_cd', 'latitude', 'longitude', 'address_cd', 'address_detail', 'image_url'
         ]
 
-    def create(self, validated_data):
+    # def create(self, validated_data):
 
-        latitude = validated_data.pop('latitude')
-        longitude = validated_data.pop('longitude')
-        address_cd = validated_data.pop('address_cd')
-        address_detail = validated_data.pop('address_detail')
-        image_urls = validated_data.pop('image_url', [])
+        # latitude = validated_data.pop('latitude')
+        # longitude = validated_data.pop('longitude')
+        # address_cd = validated_data.pop('address_cd')
+        # address_detail = validated_data.pop('address_detail')
+        # image_urls = validated_data.pop('image_url', [])
 
-        post = Posts.objects.create(**validated_data)
+        # post = Posts.objects.create(**validated_data)
 
-        address_code_instance = CodeT.objects.get(cd = address_cd)
+        # address_code_instance = CodeT.objects.get(cd = address_cd)
 
-        Maps.objects.create(
-            post=post,
-            latitude=latitude,
-            longitude=longitude,
-            address_cd=address_code_instance,
-            address_detail=address_detail 
-        )
+        # Maps.objects.create(
+        #     post=post,
+        #     latitude=latitude,
+        #     longitude=longitude,
+        #     address_cd=address_code_instance,
+        #     address_detail=address_detail 
+        # )
 
-        for url in image_urls:
-            ImageURL.objects.create(
-                post=post,
-                image_url=url
-            )
+        # for url in image_urls:
+        #     ImageURL.objects.create(
+        #         post=post,
+        #         image_url=url
+        #     )
 
-        return post
+        # return post
+
+
+def create(self, validated_data):
+    latitude = validated_data.pop('latitude')
+    longitude = validated_data.pop('longitude')
+    address_cd = validated_data.pop('address_cd')
+    address_detail = validated_data.pop('address_detail')
+    image_urls = validated_data.pop('image_url', [])
+
+    address_code_instance = CodeT.objects.get(cd=address_cd)
+
+    # map 먼저 생성
+    map_obj = Maps.objects.create(
+        latitude=latitude,
+        longitude=longitude,
+        address_cd=address_code_instance,
+        address_detail=address_detail
+    )
+
+    # post 생성할 때 map 연결
+    post = Posts.objects.create(map=map_obj, **validated_data)
+
+    for url in image_urls:
+        ImageURL.objects.create(post=post, image_url=url)
+
+    return post
