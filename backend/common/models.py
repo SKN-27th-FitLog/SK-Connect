@@ -26,4 +26,6 @@ class CodeT(models.Model):
         blank = True,
         editable = False
     )
+    class Meta:
+        db_table = 'codeT'
     

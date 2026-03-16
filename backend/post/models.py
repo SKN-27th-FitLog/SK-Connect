@@ -1,4 +1,3 @@
-from tkinter import CASCADE
 from django.db import models
 from common import models as m1
 from users import models as m2
@@ -24,36 +23,54 @@ class Posts(models.Model):
     auto_now_add = True,
     verbose_name = "생성일"
     )
+    modify_at = models.DateTimeField(
+        null = False,
+        blank = False,
+        auto_now = True
+    )
     status_cd = models.ForeignKey(
     m1.CodeT,
-    on_delete=models.CASCADE,
-    verbose_name = '상태코드',
-    related_name = 'posts_status'
+    on_delete=models.SET_NULL,
+    null = True,
+    related_name = 'posts_status',
+    db_column = 'status_cd'
     )
     post_cd = models.ForeignKey(
     m1.CodeT,
     on_delete = models.SET_NULL,
     null = True,
-    verbose_name = '카테고리 코드',
-    related_name = 'post_category'
+    related_name = 'post_category',
+    db_column = 'post_cd'
     )
     user_id = models.ForeignKey(
     m2.User,
     on_delete=models.SET_NULL,
-    null = True
+    null = True,
+    db_column = 'user_id'
     )
+    map = models.ForeignKey(  # 추가
+        'maps.Maps',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='map_id'
+    )
+
+    class Meta:
+        db_table = 'posts'
 
 class ImageURL(models.Model):
     image_id = models.BigAutoField(primary_key = True)
-    image_url = models.TextField(
+    image_url = models.URLField(
         unique = True,
         null = False,
         blank = False,
         verbose_name = '이미지 링크'
-
     )
     post = models.ForeignKey(
         m3.Posts,
         on_delete = models.CASCADE,
-        verbose_name = '게시글 아이디'
+        db_column = 'post_id'
     )
+    class Meta:
+        db_table = 'post_image'

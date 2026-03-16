@@ -6,37 +6,35 @@ from post import models as m2
 
 class Maps(models.Model):
     map_id = models.BigAutoField(primary_key = True)
-    name = models.CharField(
-        max_length = 50,
+    name = models.TextField(
         null = True,
         blank = True
-        )
-    category = models.ForeignKey(
+    )
+    category = models.ForeignKey( 
         m1.CodeT, 
         on_delete=models.SET_NULL,
-        null = True
-        )
-    signature_menu = models.CharField(
-        max_length = 50,
         null = True,
-        blank = True,
+        db_column= "category",
+        related_name='category_maps'
     )
-    address_cd = models.TextField(
+    address_cd = models.ForeignKey(
+        m1.CodeT,
+        on_delete = models.SET_NULL,
+        db_column = 'address_cd',
+        null = True,
+        related_name='address_maps'
+    )
+    address_detail = models.TextField(
         null = False,
-        blank = False,
-        unique = True
+        blank = False
     )
     latitude = models.FloatField(
         null = False,
         blank = False
-        )
-    longitutde = models.FloatField(
+    )
+    longitude = models.FloatField(
         null = False,
         blank = False
     )
-    post = models.ForeignKey(
-        m2.Posts,
-        null = True,
-        blank = True,
-        on_delete=models.SET_NULL
-    )
+    class Meta:
+        db_table = 'maps'
