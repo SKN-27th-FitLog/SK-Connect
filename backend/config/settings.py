@@ -47,8 +47,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
 
     # custom apps
-    'users',
     'common',
+    'users',
     'maps',
     'post',
     'interaction',
