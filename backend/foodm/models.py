@@ -1,11 +1,11 @@
 from django.db import models
-from maps.models import Maps
+from maps import models as m1
 # Create your models here.
-class FoodMap(Maps):
-    maps_ptr = models.OneToOneField(
-        Maps,
+class FoodMap(models.Model):
+    maps_prt = models.ForeignKey(
+        m1.Maps,
         on_delete=models.CASCADE,
-        parent_link=True,     
+        related_name='foodmap_map_id', 
         db_column='map_id'     
     )
     signature_menu = models.TextField(

@@ -105,10 +105,11 @@ class PostCreateSerializer(PostBaseSerializer):
             address_detail=address_detail 
         )
 
-        for url in image_urls:
-            ImageURL.objects.create(
-                post=post,
-                image_url=url
-            )
+        image_objects = [
+            ImageURL(post=post, image_url=url) 
+            for url in image_urls
+        ]
+
+        ImageURL.objects.bulk_create(image_objects)
 
         return post
