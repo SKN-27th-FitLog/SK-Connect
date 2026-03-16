@@ -72,6 +72,18 @@ export const postListStyles = StyleSheet.create({
     tabTextActive: {
         ...ui.chipTextActive,
     },
+    tabsRow: {
+    marginTop: 14,
+    },
+
+    categoryTabsWrapper: {
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    marginBottom: 8,
+    },
 
     list: {
         flex: 1,
@@ -238,6 +250,12 @@ export const postCreateStyles = StyleSheet.create({
     contentContainer: {
         padding: ui.scale(16),
         paddingBottom: ui.verticalScale(28),
+    },
+    screenTitle: {
+        fontSize: ui.scale(24),
+        fontWeight: "800",
+        color: ui.colors.primary,
+        marginBottom: ui.verticalScale(18),
     },
 
     section: {
@@ -565,5 +583,11 @@ export const postCreateStyles = StyleSheet.create({
         fontSize: ui.scale(14),
         color: "#94A3B8",
         marginTop: 8,
+    },
+    screenTitle: {
+        fontSize: ui.scale(24),
+        fontWeight: "800",
+        color: ui.colors.primary,
+        marginBottom: ui.verticalScale(18),
     },
 });

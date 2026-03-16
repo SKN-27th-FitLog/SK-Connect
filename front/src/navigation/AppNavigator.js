@@ -15,6 +15,11 @@ export default function AppNavigator() {
       }} 
     >
       <Stack.Screen name="MainTabs" component={RootNavigator} />
+      <Stack.Screen 
+        name="PostList" 
+        component={PostListScreen} 
+        options={{ headerShown: false }}
+      />
 
       <Stack.Screen
         name="PostCreate"
