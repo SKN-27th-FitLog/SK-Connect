@@ -5,7 +5,7 @@ from django.db import models
 
 class CodeT(models.Model):
     cd = models.CharField(                    # 코드 (문자(=2) + 숫자(=2))
-        max_length = 4,
+        max_length = 6,
         primary_key = True
     )
     name = models.CharField(                     # 코드명
@@ -21,7 +21,7 @@ class CodeT(models.Model):
         blank = False
     )
     cd_upper = models.CharField(                    # 상위코드 => 코드 
-        max_length = 4,
+        max_length = 6,
         null = True,
         blank = True,
         editable = False
