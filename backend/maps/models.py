@@ -10,7 +10,7 @@ class Maps(models.Model):
         null = True,
         blank = True
     )
-    category = models.ForeignKey(
+    category = models.ForeignKey( 
         m1.CodeT, 
         on_delete=models.SET_NULL,
         null = True,
@@ -35,13 +35,6 @@ class Maps(models.Model):
     longitude = models.FloatField(
         null = False,
         blank = False
-    )
-    post = models.ForeignKey(
-        m2.Posts,
-        null = True,
-        blank = True,
-        on_delete=models.SET_NULL,
-        db_column = 'post_id'
     )
     class Meta:
         db_table = 'maps'

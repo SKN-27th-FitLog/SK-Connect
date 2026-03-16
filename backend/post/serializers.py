@@ -3,6 +3,7 @@ from .models import Posts, ImageURL
 from common.models import CodeT
 from maps.models import Maps
 from foodm.models import FoodMap
+from users.models import User
 
 
 class CodeTBaseSerializer(serializers.ModelSerializer): #공통 코드 테이블 기본 정보
@@ -26,34 +27,115 @@ class FoodMapSerializer(serializers.ModelSerializer): #맛집 주소
         model = FoodMap
         fields = ['map', 'signature_menu']
 
+class UserSerializer(serializers.ModelSerializer): #유저 정보
+    class Meta:
+        model = User
+        fields = ['user_id']
+
 '''==============================================================='''
 
-class PostBaseSerializer(serializers.ModelSerializer): #post관련 공통으로 사용
-    cd_table = CodeTBaseSerializer(source = 'status_cd') #공통 코드 시리얼라이저 사용
-    map = MapBaseSerializer(source='map_id') #공통 맵 시리얼라이저 사용
-    image = imageSerializer(source='post_image_set') #역참조이므로 _set
+class PostBaseSerializer(serializers.ModelSerializer):
+    map = serializers.SerializerMethodField()
+    image = imageSerializer(source='image_url_set', read_only=True)
+
     class Meta:
         model = Posts
-        fields = [ 'title', 'content']
-        read_only_fields = ['post_id','created_at', 'modify_at', 'cd_table', 'map', 'image']
+        fields = ['id', 'title', 'content', 'created_at', 'map', 'image']
+        read_only_fields = ['id', 'created_at', 'modify_at']
 
-class PostListSerializer(PostBaseSerializer): # 게시글 목록 조회
-    status_cd = CodeTBaseSerializer(source='status_cd')
-    class Meta(PostBaseSerializer):
-        fields = PostBaseSerializer.Meta.fields + []
-        
-        read_only_fields = fields
+    def get_map(self, obj):
+        try:
+            # map_obj = Maps.objects.get(post=obj) 
+            # return MapBaseSerializer(map_obj).data
+            return MapBaseSerializer(obj.map).data  # post→map 방향
+        except Exception: # Maps.DoesNotExist
+            return None
+
+'''==============================================================='''
+
+class PostListSerializer(PostBaseSerializer):
+    cd_table = CodeTBaseSerializer(source='post_cd', read_only=True)
+    post_cd = serializers.ReadOnlyField(source='post_cd.cd')
+
+    class Meta(PostBaseSerializer.Meta):
+        fields = PostBaseSerializer.Meta.fields\
+            + ['post_cd', 'cd_table']
+
+class PostDetailSerializer(PostBaseSerializer):
+    category = CodeTBaseSerializer(source='post_cd', read_only=True)    
+    status_cd = serializers.ReadOnlyField(source='status_cd.cd')
+    post_cd = serializers.ReadOnlyField(source='post_cd.cd')
+    user = UserSerializer(source='user_id', read_only=True)
+
+    class Meta(PostBaseSerializer.Meta):
+        fields = PostBaseSerializer.Meta.fields\
+            + ['status_cd', 'post_cd', 'category', 'user']
+
+class PostCreateSerializer(PostBaseSerializer):
+    latitude = serializers.FloatField(write_only=True)
+    longitude = serializers.FloatField(write_only=True)
+    address_cd = serializers.CharField(write_only=True)
+    address_detail = serializers.CharField(write_only=True)
+
+    image_url = serializers.ListField(
+        child=serializers.URLField(), write_only=True, required=False
+    )
+
+    class Meta(PostBaseSerializer.Meta):
+        fields = PostBaseSerializer.Meta.fields + [
+            'post_cd', 'status_cd', 'latitude', 'longitude', 'address_cd', 'address_detail', 'image_url'
+        ]
+
+    # def create(self, validated_data):
+
+        # latitude = validated_data.pop('latitude')
+        # longitude = validated_data.pop('longitude')
+        # address_cd = validated_data.pop('address_cd')
+        # address_detail = validated_data.pop('address_detail')
+        # image_urls = validated_data.pop('image_url', [])
+
+        # post = Posts.objects.create(**validated_data)
+
+        # address_code_instance = CodeT.objects.get(cd = address_cd)
+
+        # Maps.objects.create(
+        #     post=post,
+        #     latitude=latitude,
+        #     longitude=longitude,
+        #     address_cd=address_code_instance,
+        #     address_detail=address_detail 
+        # )
+
+        # for url in image_urls:
+        #     ImageURL.objects.create(
+        #         post=post,
+        #         image_url=url
+        #     )
+
+        # return post
 
 
-class PostDetailSerializer(PostBaseSerializer): # 게시글 상세 조회
-    category = serializers.CharField()
-    class Meta(PostBaseSerializer):
-        fields = PostBaseSerializer.Meta.fields + ['category_cd', 'latitude', 'longitude', 'status_cd']
+def create(self, validated_data):
+    latitude = validated_data.pop('latitude')
+    longitude = validated_data.pop('longitude')
+    address_cd = validated_data.pop('address_cd')
+    address_detail = validated_data.pop('address_detail')
+    image_urls = validated_data.pop('image_url', [])
 
-        read_only_fields = fields
+    address_code_instance = CodeT.objects.get(cd=address_cd)
 
+    # map 먼저 생성
+    map_obj = Maps.objects.create(
+        latitude=latitude,
+        longitude=longitude,
+        address_cd=address_code_instance,
+        address_detail=address_detail
+    )
 
-class PostCreateSerializer(PostBaseSerializer): #게시글 생성
-    class Meta(PostBaseSerializer):
-        fields = PostBaseSerializer.Meta.fields +['category_cd', 'latitude', 'longitude', 'address']
+    # post 생성할 때 map 연결
+    post = Posts.objects.create(map=map_obj, **validated_data)
 
+    for url in image_urls:
+        ImageURL.objects.create(post=post, image_url=url)
+
+    return post

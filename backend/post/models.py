@@ -48,12 +48,20 @@ class Posts(models.Model):
     null = True,
     db_column = 'user_id'
     )
+    map = models.ForeignKey(  # 추가
+        'maps.Maps',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='map_id'
+    )
+
     class Meta:
         db_table = 'posts'
 
 class ImageURL(models.Model):
     image_id = models.BigAutoField(primary_key = True)
-    image_url = models.TextField(
+    image_url = models.URLField(
         unique = True,
         null = False,
         blank = False,
