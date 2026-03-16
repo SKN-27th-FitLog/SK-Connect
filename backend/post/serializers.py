@@ -45,8 +45,9 @@ class PostBaseSerializer(serializers.ModelSerializer):
 
     def get_map(self, obj):
         try:
-            map_obj = Maps.objects.get(post=obj) 
-            return MapBaseSerializer(map_obj).data
+            # map_obj = Maps.objects.get(post=obj) 
+            # return MapBaseSerializer(map_obj).data
+            return MapBaseSerializer(obj.map).data  # post→map 방향
         except Exception: # Maps.DoesNotExist
             return None
 
@@ -104,10 +105,10 @@ class PostCreateSerializer(PostBaseSerializer):
             address_cd=address_code_instance,
             address_detail=address_detail 
         )
-
         ImageURL.objects.create(
             post=post, 
             image_url=image_urls
         )
+
 
         return post

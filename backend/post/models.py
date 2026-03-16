@@ -48,6 +48,14 @@ class Posts(models.Model):
     null = True,
     db_column = 'user_id'
     )
+    map = models.ForeignKey(  # 추가
+        'maps.Maps',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='map_id'
+    )
+
     class Meta:
         db_table = 'posts'
 

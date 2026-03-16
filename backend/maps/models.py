@@ -36,12 +36,5 @@ class Maps(models.Model):
         null = False,
         blank = False
     )
-    post = models.ForeignKey(
-        m2.Posts,
-        null = True,
-        blank = True,
-        on_delete=models.SET_NULL,
-        db_column = 'post_id'
-    )
     class Meta:
         db_table = 'maps'
