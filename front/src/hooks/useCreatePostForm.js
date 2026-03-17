@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { Alert } from "react-native";
 import { validatePostForm } from "../utils/validators";
-import { addPost } from "../store/postStore";
+import { createPost } from "../api/postApi";
 
-export default function usePostCreateForm(navigation) {
+export default function useCreatePostForm(navigation) {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
@@ -22,7 +22,7 @@ export default function usePostCreateForm(navigation) {
         Alert.alert("안내", "이미지 선택 기능은 추후 API 연동 예정입니다.");
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         const error = validatePostForm({
         title,
         content,
@@ -34,24 +34,28 @@ export default function usePostCreateForm(navigation) {
         return;
         }
 
-        const newPost = {
-        id: Date.now().toString(),
-        title,
-        content,
-        category: selectedCategory,
-        location,
-        imageUrl: imageUri,
-        author: "익명",
-        createdAt: new Date().toISOString(),
-        likeCount: 0,
-        commentCount: 0,
-        comments: [],
-        liked: false,
-        };
+        try {
+        await createPost({
+            title,
+            content,
+            selectedCategory,
+            imageUrls: imageUri ? [imageUri] : [],
+        });
 
-        addPost(newPost);
+        Alert.alert("등록 완료", "게시글이 등록되었습니다.");
 
-        navigation.navigate("PostList", { newPost });
+        navigation.navigate("PostList", {
+            refresh: true, // [추가] 목록 다시 조회
+        });
+        } catch (error) {
+        console.log("게시글 등록 실패:", error);
+        Alert.alert(
+            "등록 실패",
+            error?.response?.data?.detail ||
+            error?.message ||
+            "게시글 등록 중 오류가 발생했습니다."
+        );
+        }
     };
 
     return {

@@ -1,20 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
-import { getPosts } from "../store/postStore";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { fetchPostList } from "../api/postApi";
 
 export default function usePosts(route) {
-    const [posts, setPosts] = useState(() => getPosts() ?? []);
+    const [posts, setPosts] = useState([]);
     const [activeTab, setActiveTab] = useState("latest");
     const [selectedCategory, setSelectedCategory] = useState("전체");
 
-    useEffect(() => {
-        setPosts(getPosts() ?? []);
+    const loadPosts = useCallback(async () => {
+        try {
+        const data = await fetchPostList();
+        setPosts(Array.isArray(data) ? data : []);
+        } catch (error) {
+        console.log("게시글 불러오기 실패:", error);
+        setPosts([]);
+        }
     }, []);
 
     useEffect(() => {
-        if (route?.params?.newPost || route?.params?.updatedPost) {
-        setPosts(getPosts() ?? []);
+        loadPosts();
+    }, [loadPosts]);
+
+    useEffect(() => {
+        if (route?.params?.refresh || route?.params?.updatedPost) {
+        loadPosts();
         }
-    }, [route?.params?.newPost, route?.params?.updatedPost]);
+    }, [route?.params?.refresh, route?.params?.updatedPost, loadPosts]);
 
     const filteredPosts = useMemo(() => {
         let result = Array.isArray(posts) ? [...posts] : [];
@@ -42,5 +52,6 @@ export default function usePosts(route) {
         selectedCategory,
         setActiveTab,
         setSelectedCategory,
+        reloadPosts: loadPosts, // [추가] 필요하면 화면에서 직접 재호출 가능
     };
     }
