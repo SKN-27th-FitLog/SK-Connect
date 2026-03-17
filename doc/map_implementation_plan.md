@@ -102,9 +102,9 @@ MapScreen
 
 | 경로 | 역할 |
 |------|------|
-| `front/src/navigation/RootNavigator.js` | Map 탭: Platform.OS에 따라 MapScreen(MapScreen.web) 로드 |
-| `front/src/screens/MapScreen.js` | 지도 화면 (네이티브) |
-| `front/src/screens/MapScreen.web.js` | 지도 화면 (웹, react-kakao-maps-sdk) |
+| `front/src/navigation/RootNavigator.js` | Map 탭: MapScreen 로드 (앱 기준) |
+| `front/src/screens/MapScreen.js` | 지도 화면 (앱 전용, KakaoMapNative 사용) |
+| `front/src/screens/MapScreen.web.js` | 더 이상 사용하지 않음 (웹 실행 미지원 상태) |
 | `front/src/styles/map.js` | 지도 관련 스타일 통합 |
 | `front/src/components/map/MapPostPreviewCard.js` | 게시글 미리보기 팝업 |
 | `front/src/components/map/MapPinPopup.js` | 단순 핀 팝업 (선택 시 사용) |
@@ -226,26 +226,53 @@ npx expo run:android   # 또는 npx expo run:ios
 
 ---
 
-## 7. 미확정·검토 필요 항목
+## 7. 미확정·검토 필요 항목 (현재 작업 범위: 앱 실행 기준)
 
 ### 7.1 웹 의존성 (react-native-web, @expo/metro-runtime)
 
-- **상태**: package.json에 추가됨. 웹 실행에 필요.
-- **이슈**: 여러 브랜치에서 실행 시 버전·실행환경 고정 문제가 남아 있음.
-- **후속**: 버전 관리 전략, 브랜치별 실행환경 일관성 검토 필요.
+- **상태**: 현재 작업 범위에서는 웹 실행을 고려하지 않음. 필요 시 별도 검토.
+- **이슈**: 여러 브랜치에서 웹 실행을 병행할 경우 버전·실행환경 고정 문제가 발생할 수 있음.
+- **후속**: 웹 지원을 재개할 때 버전 관리 전략, 브랜치별 실행환경 일관성 검토.
 
-### 7.2 지도 로드 실패 시 표시 화면
+### 7.2 지도 로드 실패 시 표시 화면 (웹)
 
-- **상태**: MapScreen.web.js에 임시 안내(도메인 등록 등) 구현됨. 확정 여부 미결정.
-- **고려사항**: 실제 사용자 환경에서 지도 로드 실패 시나리오를 상정한다면, 에러 화면을 별도로 기획·설계하는 작업이 필요함.
-- **후속**: 에러 화면 UX 기획 후 구현 확정.
-
+- **상태**: 웹 실행을 현재 고려하지 않아, 우선순위에서 제외.
+- **고려사항**: 웹 지원을 재개한다면, 지도 로드 실패 시나리오(도메인 등록, API 키 문제 등)에 대한 에러 화면을 별도 기획·설계할 필요가 있음.
+- **후속**: 웹 지원 재개 시점에 UX 기획 후 구현 여부 결정.
 ---
 
 ## 8. 평가 기준
 
 - **동작**: 지도 진입 시 초기 표시, config 중심/줌, pin 표시·클릭 시 팝업, 드래그 이동이 기대대로 동작하는지.
 - **작성**: config·mapApi·화면 역할 분리, 스타일은 map.js에서만 정의, 주석과 플랜 문서 참조가 일치하는지.
+
+---
+
+## 9. 지도 기능 관련 의존성 정리 (FE 버전 관리 참고용)
+
+- `@jiggag/react-native-kakao-maps`  
+  - 역할: 앱(네이티브)용 카카오맵 모듈. `MapScreen.js`에서 `KakaoMapView`로 사용.  
+  - 비고: front/package.json에는 아직 없으며, 실제 사용을 위해 추가 및 버전 고정 필요.
+
+- `react-kakao-maps-sdk`  
+  - 역할: 웹용 카카오맵 컴포넌트(`Map`, `MapMarker`, `useKakaoLoader`). 기존 `MapScreen.web.js`에서 사용.  
+  - 비고: MapScreen 단일화 이후에도 유지할지, WebView 기반으로 통일할지 결정 필요.
+
+- `react-native-web`, `@expo/metro-runtime`  
+  - 역할: `npm run web` 기반 웹 실행을 위한 Expo 의존성.  
+  - 비고: 여러 브랜치에서 실행 시 버전·실행환경 고정 문제가 있어, 웹을 정식 지원할지 여부와 함께 버전 관리 전략 필요.
+
+- `react-native-webview` (후보)  
+  - 역할: 앱/웹 모두 WebView + 카카오 JS SDK 방식으로 통일할 경우 필요한 패키지.  
+  - 비고: 웹 지도 구현 전략 확정 후 채택 여부 및 버전 결정.
+
+- `expo-location` (후보)  
+  - 역할: “현재 위치 기준 지도 표시(요구사항 3)” 구현 시 기기 위치(`coords.latitude`, `coords.longitude`) 조회.  
+  - 비고: 현 단계에서는 설치만 고려하고, 실제 사용 시점에 권한 UX 및 API 설계를 함께 정의.
+
+- 환경 변수: `EXPO_PUBLIC_KAKAO_MAPS_JAVASCRIPT_KEY`  
+  - 역할: 카카오 JS 키를 웹 실행 환경에 주입.  
+  - 비고: Expo의 `EXPO_PUBLIC_` prefix를 사용하므로, 별도의 dotenv 라이브러리는 필수는 아님.
 
 ---
 
