@@ -29,12 +29,12 @@ const mapListPost = (item) => {
     id: item?.id?.toString?.() ?? "",
     title: item?.title ?? "",
     content: item?.content ?? "",
-    author: "익명", // [주석] 현재 목록 API에는 작성자 정보 없음
+    author: "익명", // [주석] 목록 serializer에는 작성자 없음
     authorBadge: "익",
     createdAt: formatDate(item?.created_at),
     imageUrl: firstImage || "",
-    likeCount: 0, // [주석] 현재 목록 API에는 없음
-    commentCount: 0, // [주석] 현재 목록 API에는 없음
+    likeCount: 0, // [주석] 현재 API에 없음
+    commentCount: 0, // [주석] 현재 API에 없음
     liked: false,
     category: item?.cd_table?.name ?? "",
     categoryCd: item?.post_cd ?? "",
@@ -57,27 +57,30 @@ const mapDetailPost = (item) => {
     authorBadge: (item?.user?.user_id ?? "익명")?.[0] ?? "익",
     createdAt: formatDate(item?.created_at),
     imageUrl: firstImage || "",
-    likeCount: 0, // [주석] 현재 상세 API에는 없음
-    liked: false, // [주석] 현재 상세 API에는 없음
+    likeCount: 0, // [주석] 현재 상세 API에 없음
+    liked: false, // [주석] 현재 상세 API에 없음
     category: item?.category?.name ?? "",
     categoryCd: item?.post_cd ?? "",
     location: item?.map?.address_detail ?? "",
-    comments: [], // [주석] 현재 상세 API에는 없음
+    comments: [], // [주석] 현재 상세 API에 없음
     statusCd: item?.status_cd ?? "",
   };
 };
 
+// 목록 조회: GET /posts
 export const fetchPostList = async () => {
-  const response = await api.get("/posts/");
+  const response = await api.get("/posts");
   const list = Array.isArray(response.data) ? response.data : [];
   return list.map(mapListPost);
 };
 
+// 상세 조회: GET /posts/:id
 export const fetchPostDetail = async (postId) => {
-  const response = await api.get(`/posts/${postId}/`);
+  const response = await api.get(`/posts/${postId}`);
   return mapDetailPost(response.data);
 };
 
+// 생성: POST /api/posts
 export const createPost = async ({
   title,
   content,
@@ -89,7 +92,8 @@ export const createPost = async ({
     content: content ?? "",
     post_cd: selectedCategory ?? "",
 
-    // [주석] map 기능 미완료라 임시 기본값
+    // [주석] serializer 필수값이라 임시값
+    // 실제 코드값은 백엔드와 맞춰야 함
     status_cd: "STATUS_DEFAULT",
     latitude: 0,
     longitude: 0,
@@ -99,7 +103,7 @@ export const createPost = async ({
     image_url: Array.isArray(imageUrls) ? imageUrls : [],
   };
 
-  const response = await api.post("/posts/create/", payload);
+  const response = await api.post("/api/posts", payload);
   return response.data;
 };
 

@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import CommentItem from "../components/comment/CommentItem";
-import { updatePost } from "../store/postStore"; // [주석] 지금 구조 유지용
+import { updatePost } from "../store/postStore"; // [주석] 기존 구조 유지용
 import { postDetailStyles as styles } from "../styles/postStyles";
 import usePostDetail from "../hooks/usePostDetail";
 
@@ -58,9 +58,11 @@ export default function PostDetailScreen({ navigation, route }) {
   };
 
   const handleGoBack = () => {
-    updatePost(updatedPost); // [주석] 현재 로컬 store 구조 유지
+    updatePost(updatedPost);
+
+    // [변경] PostList 대신 Home으로 통일
     navigation.navigate("MainTabs", {
-      screen: "PostList",
+      screen: "Home",
       params: { updatedPost },
     });
   };

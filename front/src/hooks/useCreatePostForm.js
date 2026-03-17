@@ -44,8 +44,10 @@ export default function useCreatePostForm(navigation) {
 
         Alert.alert("등록 완료", "게시글이 등록되었습니다.");
 
-        navigation.navigate("PostList", {
-            refresh: true, // [추가] 목록 다시 조회
+        // [변경] PostList 대신 Home으로 통일
+        navigation.navigate("MainTabs", {
+            screen: "Home",
+            params: { refresh: true },
         });
         } catch (error) {
         console.log("게시글 등록 실패:", error);

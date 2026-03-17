@@ -52,6 +52,6 @@ export default function usePosts(route) {
         selectedCategory,
         setActiveTab,
         setSelectedCategory,
-        reloadPosts: loadPosts, // [추가] 필요하면 화면에서 직접 재호출 가능
+        reloadPosts: loadPosts,
     };
     }
