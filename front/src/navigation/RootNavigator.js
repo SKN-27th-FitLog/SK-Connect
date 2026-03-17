@@ -5,8 +5,12 @@ import { Ionicons } from "@expo/vector-icons";
 import PostListScreen from "../screens/PostListScreen";
 import CommunityScreen from "../screens/CommunityScreen";
 import ChatScreen from "../screens/ChatScreen";
-import MapScreen from "../screens/MapScreen";
 import MyPageScreen from "../screens/MyPageScreen";
+
+const MapScreen =
+  Platform.OS === "web"
+    ? require("../screens/MapScreen.web").default
+    : require("../screens/MapScreen").default;
 import { colors, spacing } from "../theme";
 
 const Tab = createBottomTabNavigator();
