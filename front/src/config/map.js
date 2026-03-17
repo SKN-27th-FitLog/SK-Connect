@@ -5,9 +5,11 @@
  *
  * FR-MAP-02: 위치 권한 없을 때 대체
  * FR-MAP-04, PR-MAP-01: 마커 데이터 (백엔드 연동 전)
+ *
+ * [작업 가이드] 전체: doc/map_implementation_plan.md §4 요구사항 4, 5, 7, 8
  */
 
-/** 기본 표시 위치 (강남역) - 내 위치 API 미사용 시 사용 */
+/** 기본 표시 위치 (강남역) - 내 위치·지도 초기 중심용. 실제 구현 전까지 config 값 사용. 플랜: 요구사항 4 */
 export const DEFAULT_LOCATION = {
   lat: 37.497942,
   lng: 127.027638,
@@ -15,9 +17,18 @@ export const DEFAULT_LOCATION = {
 };
 
 /**
+ * [작업 가이드] 지도 확대·축소 관련 상수
+ * - 초기 화면 기본 확대 배율(DEFAULT_ZOOM_LEVEL), 확대·축소 허용 범위(MIN/MAX) 추가
+ * - Map 컴포넌트의 level props 및 우측 확대/축소 버튼에서 사용
+ * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 7, 8
+ */
+// TODO: DEFAULT_ZOOM_LEVEL, ZOOM_LEVEL_MIN, ZOOM_LEVEL_MAX 상수 정의
+
+/**
  * 지도 마커 목록 (config 고정)
- * 추후: 백엔드 API로 중심좌표 기준 조회
- * FR-MAP-04, PR-MAP-01 참고
+ * - 지도에 표시할 pin 소스. 현재는 이 배열을 그대로 사용
+ * - 추후: 백엔드 API로 중심좌표 기준 조회 (FR-MAP-04, PR-MAP-01)
+ * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 5
  */
 export const MAP_PINS = [
   {

@@ -1,3 +1,8 @@
+/**
+ * 지도 화면 (웹)
+ * - 카카오맵으로 초기 표시, config 기준 중심/줌, 우측 확대·축소·현재위치, pin 표시
+ * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 2, 6, 8, 9
+ */
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -31,6 +36,7 @@ export default function MapScreen() {
     loadData();
   }, []);
 
+  /** [작업 가이드] pin은 getMapMarkers(center)로만 조회. 현재 위치는 config(DEFAULT_LOCATION) 사용. 플랜: doc/map_implementation_plan.md §4 요구사항 4, 10 */
   const loadData = async () => {
     const { lat, lng } = DEFAULT_LOCATION;
     const markers = await getMapMarkers({ lat, lng });
@@ -78,6 +84,7 @@ export default function MapScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.mapArea}>
+        {/* [작업 가이드] 초기 중심 = DEFAULT_LOCATION, 초기 줌 = config의 DEFAULT_ZOOM_LEVEL 사용. 드래그 이동은 SDK 기본. 플랜: doc/map_implementation_plan.md §4 요구사항 4, 8, 9 */}
         <Map
           center={{ lat: DEFAULT_LOCATION.lat, lng: DEFAULT_LOCATION.lng }}
           style={{ width: "100%", height: MAP_HEIGHT, minHeight: 400 }}
@@ -90,6 +97,7 @@ export default function MapScreen() {
               onClick={() => handlePinPress(pin)}
             />
           ))}
+          {/* [작업 가이드] 우측에 ZoomControl(position="RIGHT") + "내 위치로 이동" 버튼 추가. 내 위치 이동 시 Map ref로 setCenter(DEFAULT_LOCATION). 플랜: doc/map_implementation_plan.md §4 요구사항 6, 7 */}
         </Map>
       </View>
 

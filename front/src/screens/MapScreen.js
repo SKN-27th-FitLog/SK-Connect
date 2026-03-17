@@ -1,3 +1,8 @@
+/**
+ * 지도 화면 (네이티브)
+ * - 현재는 실제 지도 미지원, placeholder만 표시. 현재 위치·pin은 config 기준으로 안내
+ * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 2
+ */
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -5,6 +10,7 @@ import { colors, radius, spacing } from "../theme";
 import { DEFAULT_LOCATION } from "../config/map";
 import { getMapMarkers } from "../api/mapApi";
 
+/** [작업 가이드] 네이티브에서는 지도 영역 대신 안내 문구. 필요 시 "현재 위치: config 기준" 등 문구 추가 가능. 플랜: doc/map_implementation_plan.md §4 요구사항 2, 4 */
 function MapPlaceholder() {
   return (
     <View style={styles.mapArea}>
@@ -24,6 +30,7 @@ export default function MapScreen() {
     loadData();
   }, []);
 
+  /** [작업 가이드] pin은 getMapMarkers(center)로만 조회. 현재 위치는 config(DEFAULT_LOCATION) 사용. 플랜: doc/map_implementation_plan.md §4 요구사항 4, 10 */
   const loadData = async () => {
     const { lat, lng } = DEFAULT_LOCATION;
     const markers = await getMapMarkers({ lat, lng });
