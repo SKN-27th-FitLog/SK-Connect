@@ -104,7 +104,7 @@ class PostCreateSerializer(PostBaseSerializer):
         post = Posts.objects.create(
             map=new_map,
             post_cd = CodeT.objects.filter(cd=post_cd_val).first() if post_cd_val else None,
-            status_cd = CodeT.objects.filter(cd=status_cd).first() if status_cd else None
+            status_cd = CodeT.objects.filter(cd=status_cd).first() if status_cd else None,
             **validated_data
         )
 
