@@ -43,7 +43,7 @@ export default function PostListScreen({ navigation, route }) {
             onChangeTab={(tabKey) => {
               setActiveTab(tabKey);
               if (tabKey !== "category") {
-                setSelectedCategory("전체");
+                setSelectedCategory(null);
               }
             }}
           />

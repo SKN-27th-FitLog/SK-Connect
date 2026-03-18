@@ -44,14 +44,15 @@ export default function PostFormFields({
             <Text style={styles.label}>카테고리</Text>
             <View style={styles.categoryGrid}>
             {(CATEGORY_OPTIONS ?? [])
-                .filter((item) => item.key !== "전체")
+                .filter((item) => item.value !== "ALL")
                 .map((category) => {
-                const selected = selectedCategory === category.key;
+                const selected =
+                    selectedCategory?.value === category.value;
 
                 return (
                     <TouchableOpacity
-                    key={category.key}
-                    onPress={() => setSelectedCategory(category.key)}
+                    key={category.value}
+                    onPress={() => setSelectedCategory(category)}
                     style={[
                         styles.categoryButton,
                         selected && styles.categoryButtonSelected,
@@ -105,4 +106,4 @@ export default function PostFormFields({
         </View>
         </View>
     );
-    }
+}

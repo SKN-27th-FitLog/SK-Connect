@@ -6,12 +6,16 @@ import { createPost } from "../api/postApi";
 export default function useCreatePostForm(navigation) {
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState(null);
     const [location, setLocation] = useState("");
     const [imageUri, setImageUri] = useState("");
 
     const isFormValid = useMemo(() => {
-        return !!title.trim() && !!content.trim() && !!selectedCategory.trim();
+        return (
+        !!title.trim() &&
+        !!content.trim() &&
+        !!selectedCategory?.value
+        );
     }, [title, content, selectedCategory]);
 
     const handleSelectLocation = () => {
@@ -26,7 +30,7 @@ export default function useCreatePostForm(navigation) {
         const error = validatePostForm({
         title,
         content,
-        category: selectedCategory,
+        category: selectedCategory?.label,
         });
 
         if (error) {
@@ -38,13 +42,12 @@ export default function useCreatePostForm(navigation) {
         await createPost({
             title,
             content,
-            selectedCategory,
+            selectedCategory: selectedCategory?.value, // 🔥 핵심
             imageUrls: imageUri ? [imageUri] : [],
         });
 
         Alert.alert("등록 완료", "게시글이 등록되었습니다.");
 
-        // [변경] PostList 대신 Home으로 통일
         navigation.navigate("MainTabs", {
             screen: "Home",
             params: { refresh: true },
@@ -76,4 +79,4 @@ export default function useCreatePostForm(navigation) {
         handleSelectImage,
         handleSubmit,
     };
-    }
+}

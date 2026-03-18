@@ -4,7 +4,7 @@ import { fetchPostList } from "../api/postApi";
 export default function usePosts(route) {
     const [posts, setPosts] = useState([]);
     const [activeTab, setActiveTab] = useState("latest");
-    const [selectedCategory, setSelectedCategory] = useState("전체");
+    const [selectedCategory, setSelectedCategory] = useState(null);
 
     const loadPosts = useCallback(async () => {
         try {
@@ -29,8 +29,8 @@ export default function usePosts(route) {
     const filteredPosts = useMemo(() => {
         let result = Array.isArray(posts) ? [...posts] : [];
 
-        if (selectedCategory !== "전체") {
-        result = result.filter((post) => post.category === selectedCategory);
+        if (selectedCategory) {
+        result = result.filter((post) => post.categoryCd === selectedCategory);
         }
 
         if (activeTab === "latest") {
@@ -54,4 +54,4 @@ export default function usePosts(route) {
         setSelectedCategory,
         reloadPosts: loadPosts,
     };
-    }
+}
