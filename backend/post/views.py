@@ -36,4 +36,4 @@ class PostCreateView(generics.CreateAPIView):
     serializer_class = PostCreateSerializer
 
     def perform_create(self, serializer):
-        serializer.save()
+        serializer.save(user_id=self.request.user)
