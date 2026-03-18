@@ -62,9 +62,8 @@ class Posts(models.Model):
 class ImageURL(models.Model):
     image_id = models.BigAutoField(primary_key = True)
     image_url = models.URLField(
-        unique = True,
-        null = False,
-        blank = False,
+        null = True,
+        blank = True,
         verbose_name = '이미지 링크'
     )
     post = models.ForeignKey(
