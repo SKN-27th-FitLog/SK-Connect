@@ -19,8 +19,12 @@ export default function PostListScreen({ navigation, route }) {
     setSelectedCategory,
   } = usePosts(route);
 
+  // [선택 변경] 기존 post 전달 유지 + postId 추가
   const handlePressPost = (post) => {
-    navigation.navigate("PostDetail", { post });
+    navigation.navigate("PostDetail", {
+      post,
+      postId: post.id, // [추가]
+    });
   };
 
   const handlePressWrite = () => {
@@ -39,7 +43,7 @@ export default function PostListScreen({ navigation, route }) {
             onChangeTab={(tabKey) => {
               setActiveTab(tabKey);
               if (tabKey !== "category") {
-                setSelectedCategory("전체");
+                setSelectedCategory(null);
               }
             }}
           />

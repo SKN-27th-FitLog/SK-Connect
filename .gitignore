@@ -307,11 +307,6 @@ postgres_data/
 # VS Code settings
 .vscode/
 
-
-### front 폴더 관련 .gitignore 설정 ###
-
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
 # dependencies
 node_modules/
 
