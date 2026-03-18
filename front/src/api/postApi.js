@@ -101,7 +101,7 @@ export const createPost = async ({
   title,
   content,
   selectedCategory,
-  imageUrls = [],
+  imageUrls = "",
 }) => {
   const payload = {
     title: title ?? "",
