@@ -76,10 +76,7 @@ class PostCreateSerializer(PostBaseSerializer):
     longitude = serializers.FloatField(write_only=True)
     address_cd = serializers.CharField(write_only=True)
     address_detail = serializers.CharField(write_only=True)
-
-    image_url = serializers.ListField(
-        child=serializers.URLField(), write_only=True, required=False
-    )
+    image_url = serializers.URLField(write_only = True)
 
     class Meta(PostBaseSerializer.Meta):
         fields = PostBaseSerializer.Meta.fields + [
@@ -92,11 +89,11 @@ class PostCreateSerializer(PostBaseSerializer):
         longitude = validated_data.pop('longitude')
         address_cd = validated_data.pop('address_cd')
         address_detail = validated_data.pop('address_detail')
-        image_urls = validated_data.pop('image_url', [])
+        image_url = validated_data.pop('image_url', None)
+        post_cd_val = validated_data.pop('post_cd', None)
 
-        post = Posts.objects.create(**validated_data)
 
-        address_code_instance = CodeT.objects.get(cd = address_cd)
+        address_code_instance = CodeT.objects.filter(cd = address_cd).first()
 
         new_map = Maps.objects.create(
             latitude=latitude,
@@ -104,12 +101,13 @@ class PostCreateSerializer(PostBaseSerializer):
             address_cd=address_code_instance,
             address_detail=address_detail 
         )
-
         post = Posts.objects.create(
-            map=new_map
+            map=new_map,
+            post_cd = CodeT.objects.filter(cd=post_cd_val).first() if post_cd_val else None,
+            **validated_data
         )
 
-        for url in image_urls:
-            ImageURL.objects.create(post=post, image_url=url)
+        if image_url:
+            ImageURL.objects.create(post=post, image_url=image_url)
 
         return post
