@@ -14,10 +14,10 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='CodeT',
             fields=[
-                ('cd', models.CharField(max_length=4, primary_key=True, serialize=False)),
+                ('cd', models.CharField(max_length=6, primary_key=True, serialize=False)),
                 ('name', models.CharField(editable=False, max_length=30, unique=True)),
                 ('cd_info', models.TextField(editable=False)),
-                ('cd_upper', models.CharField(blank=True, editable=False, max_length=4, null=True)),
+                ('cd_upper', models.CharField(blank=True, editable=False, max_length=6, null=True)),
             ],
             options={
                 'db_table': 'codeT',

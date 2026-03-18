@@ -94,21 +94,21 @@ class PostCreateSerializer(PostBaseSerializer):
         address_detail = validated_data.pop('address_detail')
         image_urls = validated_data.pop('image_url', [])
 
-        post = Posts.objects.create(**validated_data)
-
         address_code_instance = CodeT.objects.get(cd = address_cd)
 
-        Maps.objects.create(
-            post=post,
+        new_map = Maps.objects.create(
             latitude=latitude,
             longitude=longitude,
             address_cd=address_code_instance,
             address_detail=address_detail 
         )
-        ImageURL.objects.create(
-            post=post, 
-            image_url=image_urls
+
+        post = Posts.objects.create(
+            map=new_map,
+            **validated_data
         )
 
+        for url in image_urls:
+            ImageURL.objects.create(post=post, image_url=url)
 
         return post
