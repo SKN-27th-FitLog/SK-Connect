@@ -20,6 +20,47 @@ const mapScreenStyles = StyleSheet.create({
     textAlign: "center",
     fontSize: 14,
   },
+  /* WebView 카카오맵 (높이 필수) */
+  mapWebViewContainer: {
+    flex: 1,
+    width: "100%",
+    minHeight: 320,
+    backgroundColor: colors.gray[300],
+  },
+  mapWebView: {
+    flex: 1,
+    width: "100%",
+    minHeight: 320,
+    backgroundColor: colors.gray[300],
+  },
+  mapWebViewFallback: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  /* 지도 우측 플로팅 컨트롤 (줌·내 위치) */
+  mapControlsColumn: {
+    position: "absolute",
+    right: spacing.md,
+    top: "28%",
+    gap: spacing.sm,
+  },
+  mapControlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    backgroundColor: colors.white,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  mapControlButtonDisabled: {
+    opacity: 0.5,
+  },
   /* 주변 게시글 목록 (마커 클릭 대체 UX) */
   pinListScroll: {
     position: "absolute",

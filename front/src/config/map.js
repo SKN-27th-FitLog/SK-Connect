@@ -17,12 +17,12 @@ export const DEFAULT_LOCATION = {
 };
 
 /**
- * [작업 가이드] 지도 확대·축소 관련 상수
- * - 초기 화면 기본 확대 배율(DEFAULT_ZOOM_LEVEL), 확대·축소 허용 범위(MIN/MAX) 추가
- * - Map 컴포넌트의 level props 및 우측 확대/축소 버튼에서 사용
- * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 7, 8
+ * 카카오맵 level: 숫자가 작을수록 확대(가까움), 클수록 축소(멀음). 허용 범위 보통 1~14.
+ * KakaoMapWebView 초기 level · 우측 줌 버튼에서 사용.
  */
-// TODO: DEFAULT_ZOOM_LEVEL, ZOOM_LEVEL_MIN, ZOOM_LEVEL_MAX 상수 정의
+export const MAP_DEFAULT_LEVEL = 3;
+export const MAP_LEVEL_MIN = 1;
+export const MAP_LEVEL_MAX = 14;
 
 /**
  * 지도 마커 목록 (config 고정)

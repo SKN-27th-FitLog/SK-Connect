@@ -25,6 +25,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "지도에서 내 위치를 표시하기 위해 위치 권한이 필요합니다.",
+          "locationWhenInUsePermission": "지도에서 내 위치를 표시하기 위해 위치 권한이 필요합니다."
+        }
+      ]
+    ]
   }
 }

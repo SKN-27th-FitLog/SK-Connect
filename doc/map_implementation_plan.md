@@ -9,9 +9,9 @@
 
 | 항목 | 내용 |
 |------|------|
-| 현재 단계 | react-native-maps → @jiggag 교체 완료. 웹 버전 MapScreen.web.js 정리 완료. 웹 실행을 위한 RootNavigator·의존성 적용. |
-| 완료한 항목 | 요구사항 2(지도 화면 구현), 4(config 현재위치), 5(config pin), 10(pin 중간 다리), 스타일 통합, MapPostPreviewCard 연동, 카카오맵 교체(MapScreen.js, package.json), 웹 버전(MapScreen.web.js, react-kakao-maps-sdk), RootNavigator Platform 분기(요구사항 1) |
-| 다음 할 일 | 요구사항 6(우측 컨트롤), 7·8(config 줌 레벨), KAKAO_APP_KEY 설정 후 Development Build |
+| 현재 단계 | 지도는 **WebView + 카카오 JS SDK** (`KakaoMapWebView`). `@jiggag` 네이티브 카카오맵 **미사용·제거**. 화면 진입: `screens/MapScreen.js`. |
+| 완료한 항목 | 요구사항 2·4·5·10, 스타일·MapPostPreviewCard, `react-native-webview`, `EXPO_PUBLIC_KAKAO_MAP_JS_KEY` 기반 지도 |
+| 다음 할 일 | 요구사항 3(기본 중심을 실제 현재 위치로 고정 여부), 기타 UX 다듬기 |
 | 검토 필요 | 웹 의존성(react-native-web 등) 버전·실행환경 고정, 지도 로드 실패 시 에러 화면 기획 |
 
 ---
@@ -34,6 +34,8 @@
 | 2026-03-17 | front/src/navigation/RootNavigator.js | Platform.OS로 MapScreen (web/native) 분기 | 웹에서 첫 페이지 미표시 해결. 요구사항 1 부득이 수정 |
 | 2026-03-17 | front/package.json | react-native-web, @expo/metro-runtime 추가 | 웹 실행 필수. 다중 브랜치 버전·실행환경 고정 이슈 검토 필요 |
 | 2026-03-17 | front/src/screens/MapScreen.web.js | 지도 로드 실패 시 도메인 등록 안내 메시지 추가 | 확정 여부 미결정. 에러 화면 별도 기획 검토 필요 |
+| 2026-03-18 | front | @jiggag/react-native-kakao-maps **코드·의존성 제거**. `KakaoMapWebView` + `screens/MapScreen.js`로 전환 | Expo Go에서 지도 확인 가능 |
+| 2026-03-18 | front | `MAP_DEFAULT_LEVEL`·MIN/MAX, `MapMapControls`(줌·내위치), `expo-location`, `KakaoMapWebView` ref inject, `.env.example`, app.json location 플러그인 | 플랜 요구사항 6·7·8 반영 |
 
 ---
 
@@ -45,7 +47,7 @@
 
 | 구분 | 스타일 키 | 용도 |
 |------|-----------|------|
-| **MapScreen** | container, mapArea, mapPlaceholderText | 지도 화면 영역 |
+| **MapScreen** | container, mapArea, mapPlaceholderText, mapWebViewContainer, mapWebView, mapWebViewFallback | 지도 화면·WebView 영역 |
 | **팝업 공통** | popupOverlay, popup, popupHeader, popupCategory, popupClose, popupTitle, popupContent, popupLocation, popupButton, popupButtonText | 팝업 레이아웃·텍스트 |
 | **MapPostPreviewCard** | postPreviewCard, postPreviewHeaderRow, postPreviewCategory, postPreviewClose, postPreviewTitle, postPreviewContent, postPreviewLocation, postPreviewButton, postPreviewButtonText | 게시글 미리보기 카드 |
 | **MapPinPopup** | pinPopupContainer, pinPopupTitle, pinPopupDescription, pinPopupButtonRow, pinPopupButtonPrimary, pinPopupButtonSecondary, pinPopupButtonText | 단순 핀 팝업 |
@@ -55,6 +57,8 @@
 | 파일 | 역할 | 스타일 소스 |
 |------|------|-------------|
 | `front/src/screens/MapScreen.js` | UX 정의(상태, 핸들러, 표시 조건) | map.js |
+| `front/src/components/map/KakaoMapWebView.js` | WebView + JS SDK, ref(setCenter/zoom), 마커 클릭 postMessage | map.js |
+| `front/src/components/map/MapMapControls.js` | 우측 확대·축소·내 위치 버튼 | map.js |
 | `front/src/components/map/MapPostPreviewCard.js` | 게시글 미리보기 카드 | map.js |
 | `front/src/components/map/MapPinPopup.js` | 단순 핀 정보 팝업 | map.js |
 
@@ -87,15 +91,9 @@ index.js
 ```
 MapScreen
   ├── mapScreenStyles (front/src/styles/map.js)
-  ├── MapPlaceholder (지도 + 마커)
-  │     ├── pins (props)
-  │     └── KakaoMapView (@jiggag/react-native-kakao-maps)
-  │           - markerList, centerPoint, width, height
-  ├── ScrollView (주변 게시글 목록 - 마커 클릭 대체 UX)
-  │     └── TouchableOpacity[] (pins → 선택 시 MapPostPreviewCard)
+  ├── KakaoMapWebView (center, pins, onMarkerPress)
+  ├── ScrollView (주변 게시글 목록)
   └── MapPostPreviewCard (선택된 핀 팝업)
-        ├── post, onClose, onPressViewPost (props)
-        └── mapScreenStyles (map.js)
 ```
 
 ### 4.3 의존 파일 목록
@@ -103,7 +101,7 @@ MapScreen
 | 경로 | 역할 |
 |------|------|
 | `front/src/navigation/RootNavigator.js` | Map 탭: MapScreen 로드 (앱 기준) |
-| `front/src/screens/MapScreen.js` | 지도 화면 (앱 전용, KakaoMapNative 사용) |
+| `front/src/screens/MapScreen.js` | 지도 화면 (KakaoMapWebView) |
 | `front/src/screens/MapScreen.web.js` | 더 이상 사용하지 않음 (웹 실행 미지원 상태) |
 | `front/src/styles/map.js` | 지도 관련 스타일 통합 |
 | `front/src/components/map/MapPostPreviewCard.js` | 게시글 미리보기 팝업 |
@@ -126,21 +124,17 @@ npm run web
 
 ---
 
-**네이티브 (Android/iOS)**: `@jiggag/react-native-kakao-maps`는 네이티브 모듈을 사용하므로 **Expo Go에서 동작하지 않습니다**. Development Build가 필요합니다.
+**앱 (Expo Go / 에뮬레이터)**: `.env`에 **JavaScript 키**를 넣는다.
 
-1. **KAKAO_APP_KEY 설정**  
-   - [카카오 개발자 콘솔](https://developers.kakao.com/)에서 앱 키 발급  
-   - Android: `android/app/src/main/res/values/strings.xml`에 `<string name="kakao_app_key">YOUR_APP_KEY</string>` 추가  
-   - iOS: `Info.plist`에 `KAKAO_APP_KEY` 키 추가
-
-2. **빌드 및 실행**
+- `EXPO_PUBLIC_KAKAO_MAP_JS_KEY` — [카카오 개발자 콘솔](https://developers.kakao.com/) 앱 키 중 **JavaScript 키**와 동일 값.
 
 ```bash
 cd front
-npm install
-npx expo prebuild   # android/, ios/ 생성 (최초 1회)
-npx expo run:android   # 또는 npx expo run:ios
+npm install   # 또는 yarn
+npx expo start
 ```
+
+지도는 WebView에서 JS SDK를 로드하므로 **별도 네이티브 카카오맵 SDK(@jiggag 등)는 사용하지 않는다.**
 
 ---
 
@@ -166,7 +160,7 @@ npx expo run:android   # 또는 npx expo run:ios
 ### 요구사항 2 · 지도 화면 구현 (지도 API로 초기 표시)
 
 - **적용 파일**: `front/src/screens/MapScreen.js`
-- **상태**: @jiggag/react-native-kakao-maps KakaoMapView 사용, config(DEFAULT_LOCATION) 기반 초기 표시. 마커 클릭 미지원으로 주변 게시글 목록으로 선택 UX.
+- **상태**: KakaoMapWebView, DEFAULT_LOCATION 기준 중심·핀 표시. 마커 클릭·하단 목록 모두 선택 가능.
 
 ---
 
@@ -193,22 +187,21 @@ npx expo run:android   # 또는 npx expo run:ios
 
 ### 요구사항 6 · 지도 우측: 내 현재위치로 이동, 확대, 축소
 
-- **적용 파일**: `front/src/screens/MapScreen.js` (네이티브)
-- **가이드**: react-native-maps 기준으로 우측에 버튼 배치. Map ref로 setCamera/setRegion 사용.
+- **적용 파일**: `front/src/screens/MapScreen.js`, `MapMapControls.js`, `KakaoMapWebView.js`
+- **상태**: `MapMapControls` + `expo-location`으로 내 위치, `KakaoMapWebView` ref로 줌 인/아웃.
 
 ---
 
 ### 요구사항 7 · 확대·축소 정도 지정 가능
 
-- **적용 파일**: `front/src/config/map.js`, `front/src/screens/MapScreen.js`
-- **가이드**: config에 DEFAULT_ZOOM_LEVEL, ZOOM_LEVEL_MIN, ZOOM_LEVEL_MAX 추가. latitudeDelta/longitudeDelta 매핑.
+- **적용 파일**: `front/src/config/map.js` (`MAP_LEVEL_MIN`, `MAP_LEVEL_MAX`, `MAP_DEFAULT_LEVEL`)
+- **상태**: Kakao맵 level 범위로 줌 한 단계씩 제한.
 
 ---
 
 ### 요구사항 8 · 초기 화면 기본 확대 배율 지정
 
-- **적용 파일**: `front/src/config/map.js`, `front/src/screens/MapScreen.js`
-- **상태**: 현재 latitudeDelta/longitudeDelta 0.01 하드코딩. config 상수로 분리 예정.
+- **적용 파일**: `front/src/config/map.js` (`MAP_DEFAULT_LEVEL`), `MapScreen.js` → `KakaoMapWebView`에 전달.
 
 ---
 
@@ -250,29 +243,23 @@ npx expo run:android   # 또는 npx expo run:ios
 
 ## 9. 지도 기능 관련 의존성 정리 (FE 버전 관리 참고용)
 
-- `@jiggag/react-native-kakao-maps`  
-  - 역할: 앱(네이티브)용 카카오맵 모듈. `MapScreen.js`에서 `KakaoMapView`로 사용.  
-  - 비고: front/package.json에는 아직 없으며, 실제 사용을 위해 추가 및 버전 고정 필요.
+- **`react-native-webview`** (필수)  
+  - 역할: 카카오맵 JS SDK를 로드하는 WebView. `KakaoMapWebView.js`에서 사용.  
+  - 설치: `npx expo install react-native-webview` (Expo SDK와 맞는 버전).
 
-- `react-kakao-maps-sdk`  
-  - 역할: 웹용 카카오맵 컴포넌트(`Map`, `MapMarker`, `useKakaoLoader`). 기존 `MapScreen.web.js`에서 사용.  
-  - 비고: MapScreen 단일화 이후에도 유지할지, WebView 기반으로 통일할지 결정 필요.
+- **`@jiggag/react-native-kakao-maps`**  
+  - **사용하지 않음. package.json·코드에서 제거됨.**
 
-- `react-native-web`, `@expo/metro-runtime`  
-  - 역할: `npm run web` 기반 웹 실행을 위한 Expo 의존성.  
-  - 비고: 여러 브랜치에서 실행 시 버전·실행환경 고정 문제가 있어, 웹을 정식 지원할지 여부와 함께 버전 관리 전략 필요.
+- **`react-kakao-maps-sdk`**  
+  - 현재 지도 구현과 무관(과거 웹 전용 시도). 사용 시에만 추가.
 
-- `react-native-webview` (후보)  
-  - 역할: 앱/웹 모두 WebView + 카카오 JS SDK 방식으로 통일할 경우 필요한 패키지.  
-  - 비고: 웹 지도 구현 전략 확정 후 채택 여부 및 버전 결정.
+- **환경 변수: `EXPO_PUBLIC_KAKAO_MAP_JS_KEY`**  
+  - 카카오 콘솔 **JavaScript 키**와 동일. 지도 SDK `appkey`로 사용.
 
-- `expo-location` (후보)  
-  - 역할: “현재 위치 기준 지도 표시(요구사항 3)” 구현 시 기기 위치(`coords.latitude`, `coords.longitude`) 조회.  
-  - 비고: 현 단계에서는 설치만 고려하고, 실제 사용 시점에 권한 UX 및 API 설계를 함께 정의.
-
-- 환경 변수: `EXPO_PUBLIC_KAKAO_MAPS_JAVASCRIPT_KEY`  
-  - 역할: 카카오 JS 키를 웹 실행 환경에 주입.  
-  - 비고: Expo의 `EXPO_PUBLIC_` prefix를 사용하므로, 별도의 dotenv 라이브러리는 필수는 아님.
+- **`expo-location`**  
+  - 내 위치 버튼(`MapMapControls`). `app.json`에 플러그인 권한 문구 설정.
+- **`.env.example`**  
+  - `EXPO_PUBLIC_KAKAO_MAP_JS_KEY` 안내.
 
 ---
 

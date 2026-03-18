@@ -1,26 +1,30 @@
 /**
- * 지도 화면 (앱 전용)
- * - UX 정의: 이 파일에서 처리 (상태, 핸들러, 표시 조건)
- * - 스타일: front/src/styles/map.js
- * - 하위 컴포넌트: front/src/components/map
- * - 네이티브 지도: @jiggag/react-native-kakao-maps (KakaoMapNative)
- * - 참고: 네이티브 패키지는 마커 클릭 이벤트 미지원 → 하단 목록으로 선택
+ * 지도 화면 — 지도 관련 화면 로직은 이 파일에 모음
+ * - 스타일: styles/map.js
+ * - 지도 WebView: components/map/KakaoMapWebView
+ * - 우측 컨트롤: components/map/MapMapControls
  */
-import React, { useEffect, useState } from "react";
-import { View, ScrollView, TouchableOpacity, Text } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, ScrollView, TouchableOpacity, Text, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as Location from "expo-location";
 
-import { DEFAULT_LOCATION } from "../config/map";
+import {
+  DEFAULT_LOCATION,
+  MAP_DEFAULT_LEVEL,
+} from "../config/map";
 import { getMapMarkers } from "../api/mapApi";
 import mapScreenStyles from "../styles/map";
 import MapPostPreviewCard from "../components/map/MapPostPreviewCard";
-import KakaoMapNative from "../components/map/KakaoMapNative";
+import KakaoMapWebView from "../components/map/KakaoMapWebView";
+import MapMapControls from "../components/map/MapMapControls";
 
-//지도화면 함수 정의 {navigation, pins, selectedPin 상태 관리} 
 export default function MapScreen() {
   const navigation = useNavigation();
+  const mapRef = useRef(null);
   const [pins, setPins] = useState([]);
   const [selectedPin, setSelectedPin] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -34,17 +38,57 @@ export default function MapScreen() {
 
   const handlePinPress = (pin) => setSelectedPin(pin);
 
+  const handleMarkerPress = useCallback(
+    (pinId) => {
+      const pin = pins.find((p) => p.id === pinId);
+      if (pin) setSelectedPin(pin);
+    },
+    [pins]
+  );
+
   const handleViewPost = () => {
     if (!selectedPin) return;
     navigation.navigate("PostDetail", { postId: selectedPin.postId });
     setSelectedPin(null);
   };
 
+  const handleMyLocation = useCallback(async () => {
+    setLocationLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("위치 권한", "내 위치로 이동하려면 위치 권한을 허용해 주세요.");
+        return;
+      }
+      const { coords } = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      mapRef.current?.setCenter(coords.latitude, coords.longitude);
+    } catch (e) {
+      Alert.alert("위치", "현재 위치를 가져오지 못했습니다.");
+    } finally {
+      setLocationLoading(false);
+    }
+  }, []);
+
   return (
     <View style={mapScreenStyles.container}>
-      <KakaoMapNative pins={pins} />
+      <View style={mapScreenStyles.mapArea}>
+        <KakaoMapWebView
+          ref={mapRef}
+          center={{ lat: DEFAULT_LOCATION.lat, lng: DEFAULT_LOCATION.lng }}
+          pins={pins}
+          mapLevel={MAP_DEFAULT_LEVEL}
+          onMarkerPress={handleMarkerPress}
+        />
+        <MapMapControls
+          onZoomIn={() => mapRef.current?.zoomIn()}
+          onZoomOut={() => mapRef.current?.zoomOut()}
+          onMyLocation={handleMyLocation}
+          locationLoading={locationLoading}
+        />
+      </View>
 
-      {/* 주변 게시글 목록 - 마커 클릭 미지원 대체 UX */}
       {pins.length > 0 && !selectedPin && (
         <ScrollView
           horizontal
@@ -70,7 +114,6 @@ export default function MapScreen() {
         </ScrollView>
       )}
 
-      {/* 선택된 핀이 있을 경우 MapPostPreviewCard로 팝업 표시 */}
       {selectedPin && (
         <View style={mapScreenStyles.popupOverlay}>
           <MapPostPreviewCard
