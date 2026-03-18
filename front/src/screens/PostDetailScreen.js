@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   SafeAreaView,
   View,
@@ -8,15 +8,16 @@ import {
   Image,
   TextInput,
   Alert,
-} from "react-native"; 
+} from "react-native";
 import CommentItem from "../components/comment/CommentItem";
-import { updatePost } from "../store/postStore";
+import { updatePost } from "../store/postStore"; // [주석] 기존 구조 유지용
 import { postDetailStyles as styles } from "../styles/postStyles";
+import usePostDetail from "../hooks/usePostDetail";
 
 export default function PostDetailScreen({ navigation, route }) {
   const postFromRoute = route?.params?.post;
 
-  const post = useMemo(
+  const initialPost = useMemo(
     () =>
       postFromRoute || {
         id: "1",
@@ -35,73 +36,36 @@ export default function PostDetailScreen({ navigation, route }) {
     [postFromRoute]
   );
 
-  const [liked, setLiked] = useState(post.liked ?? false);
-  const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
-  const [comments, setComments] = useState(post.comments ?? []);
-  const [commentText, setCommentText] = useState("");
-
-  const deleteComment = () => {};
-
-  const saveCommentToServer = () => {};
-
-  const syncPostToServer = () => {};
-
-  const formatDateTime = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    const date = now.getDate();
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
-
-    return `${year}. ${month}. ${date}. ${hours}:${minutes}`;
-  };
-
-  const handleLikePress = () => {
-    const nextLiked = !liked;
-    const nextLikeCount = nextLiked
-      ? likeCount + 1
-      : Math.max(likeCount - 1, 0);
-
-    setLiked(nextLiked);
-    setLikeCount(nextLikeCount);
-  };
+  const {
+    post,
+    liked,
+    likeCount,
+    comments,
+    commentText,
+    setCommentText,
+    handleLikePress,
+    handleSubmitComment,
+    updatedPost,
+  } = usePostDetail(initialPost);
 
   const handleCommentSubmit = () => {
-    const trimmed = commentText.trim();
-
-    if (!trimmed) {
+    if (!commentText.trim()) {
       Alert.alert("입력 확인", "댓글 내용을 입력해주세요.");
       return;
     }
 
-    const newComment = {
-      id: Date.now().toString(),
-      author: "익명",
-      authorBadge: "익",
-      createdAt: formatDateTime(),
-      content: trimmed,
-    };
-
-    const nextComments = [...comments, newComment];
-
-    setComments(nextComments);
-    setCommentText("");
+    handleSubmitComment();
   };
 
   const handleGoBack = () => {
-    const updatedPost = {
-      ...post,
-      liked,
-      likeCount,
-      commentCount: comments.length,
-      comments,
-    };
-
     updatePost(updatedPost);
 
-    navigation.navigate("MainTabs",{screen:"PostList",params:{updatedPost}});
-};
+    // [변경] PostList 대신 Home으로 통일
+    navigation.navigate("MainTabs", {
+      screen: "Home",
+      params: { updatedPost },
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
