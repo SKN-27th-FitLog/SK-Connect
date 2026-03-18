@@ -36,4 +36,8 @@ class PostCreateView(generics.CreateAPIView):
     serializer_class = PostCreateSerializer
 
     def perform_create(self, serializer):
-        serializer.save(user_id=self.request.user)
+        user = self.request.user
+        if user.is_authenticated:
+            serializer.save(user_id=user)
+        else:
+            serializer.save(user_id=None)
