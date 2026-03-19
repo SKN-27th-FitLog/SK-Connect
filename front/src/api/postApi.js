@@ -101,9 +101,7 @@ export const createPost = async ({
   title,
   content,
   selectedCategory,
-
-  imageUrl = ["https://example.com/default.jpg"],
-
+  imageUrls = [],
 }) => {
   const payload = {
     title: title ?? "",
@@ -114,9 +112,8 @@ export const createPost = async ({
     longitude: 0,
     address_cd: "ADDR_DEFAULT",
     address_detail: "기본 위치",
-    image_url: imageUrl[0],
+    image_url: Array.isArray(imageUrls) ? imageUrls : [],
   };
-
 
   try {
     console.log("create payload:", payload);
