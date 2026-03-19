@@ -115,6 +115,7 @@ export const createPost = async ({
     image_url: Array.isArray(imageUrls) ? imageUrls : [],
   };
 
+  
   try {
     console.log("create payload:", payload);
 
