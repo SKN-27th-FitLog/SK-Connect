@@ -75,7 +75,7 @@ class PostCreateSerializer(PostBaseSerializer):
     longitude = serializers.FloatField(write_only=True)
     address_cd = serializers.CharField(write_only=True)
     address_detail = serializers.CharField(write_only=True)
-    image_url = serializers.CharField(write_only=True)
+    image_url = serializers.URLField(write_only=True)
 
     class Meta(PostBaseSerializer.Meta):
         fields = PostBaseSerializer.Meta.fields + [
