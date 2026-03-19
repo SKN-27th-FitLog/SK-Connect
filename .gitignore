@@ -1,5 +1,7 @@
-# Created by https://www.toptal.com/developers/gitignore/api/windows,python,django,reactnative,dbeaver,node
-# Edit at https://www.toptal.com/developers/gitignore?templates=windows,python,django,reactnative,dbeaver,node
+package.json
+
+# Created by https://www.toptal.com/developers/gitignore/api/windows,django,python,dbeaver
+# Edit at https://www.toptal.com/developers/gitignore?templates=windows,django,python,dbeaver
 
 ### DBeaver ###
 # ide config file

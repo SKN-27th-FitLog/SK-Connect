@@ -45,9 +45,10 @@ class PostBaseSerializer(serializers.ModelSerializer):
 
     def get_map(self, obj):
         try:
-
-            return MapBaseSerializer(obj.map).data 
-        except Exception:
+            # map_obj = Maps.objects.get(post=obj) 
+            # return MapBaseSerializer(map_obj).data
+            return MapBaseSerializer(obj.map).data  # post→map 방향
+        except Exception: # Maps.DoesNotExist
             return None
 
 '''==============================================================='''
@@ -86,14 +87,11 @@ class PostCreateSerializer(PostBaseSerializer):
 
         latitude = validated_data.pop('latitude')
         longitude = validated_data.pop('longitude')
-        address_cd = validated_data.pop('address_cd', None)
+        address_cd = validated_data.pop('address_cd')
         address_detail = validated_data.pop('address_detail')
-        image_url = validated_data.pop('image_url', None)
-        post_cd_val = validated_data.pop('post_cd', None)
-        status_cd = validated_data.pop('status_cd', None)
+        image_urls = validated_data.pop('image_url', [])
 
-
-        address_code_instance = CodeT.objects.filter(cd = address_cd).first()
+        address_code_instance = CodeT.objects.get(cd = address_cd)
 
         new_map = Maps.objects.create(
             latitude=latitude,
@@ -101,14 +99,13 @@ class PostCreateSerializer(PostBaseSerializer):
             address_cd=address_code_instance,
             address_detail=address_detail 
         )
+
         post = Posts.objects.create(
             map=new_map,
-            post_cd = CodeT.objects.filter(cd=post_cd_val).first() if post_cd_val else None,
-            status_cd = CodeT.objects.filter(cd=status_cd).first() if status_cd else None,
             **validated_data
         )
 
-        if image_url:
-            ImageURL.objects.create(post=post, image_url=image_url)
+        for url in image_urls:
+            ImageURL.objects.create(post=post, image_url=url)
 
         return post
