@@ -160,4 +160,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False, 
-}
+}     
+
+
+    
