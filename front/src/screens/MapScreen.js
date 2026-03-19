@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location"; //사용자 위치 획득 
 
 //config : 백앤드 작업 전 위치 값 목록, 맵의 줌 레벨 제어 
-import { DEFAULT_LOCATION, MAP_DEFAULT_LEVEL } from "../config/map";
+import { DEFAULT_LOCATION, MAP_DEFAULT_LEVEL, PIN_STYLES } from "../config/map";
 
 //api : 지도 조회용 api (카카오맵 api 연동 & 백앤드 작업 전 마커 목록 획득 사전구현 )
 import { getMapMarkers } from "../api/mapApi";
@@ -38,7 +38,12 @@ export default function MapScreen() {
   };
 
   //마커 선택 시 호출 함수 -> 마커 선택 시 해당 마커를 업데이트 하고 선택 된 마커 상태로 변경함 
-  const handlePinPress = (pin) => setSelectedPin(pin);
+  const handlePinPress = (pin) => {
+    setSelectedPin(pin);
+    if (mapRef.current) {
+      mapRef.current.setCenter(pin.lat, pin.lng);
+    }
+  };
 
   //
   const handleMarkerPress = useCallback(
@@ -55,10 +60,15 @@ export default function MapScreen() {
     setSelectedPin(null);
   };
 
-  //내 위치로 갱신 
+  //내 위치로 갱신 (현재는 실제 GPS 대신 임시로 DEFAULT_LOCATION 사용)
   const handleMyLocation = useCallback(async () => {
     setLocationLoading(true);
     try {
+      // 임시: 실제 위치 대신 config의 기본 위치를 내 위치로 간주
+      const { lat, lng } = DEFAULT_LOCATION;
+      mapRef.current?.setCenter(lat, lng);
+      
+      /* 기존 실제 GPS 로직은 임시 주석 처리
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("위치 권한", "내 위치로 이동하려면 위치 권한을 허용해 주세요.");
@@ -68,6 +78,7 @@ export default function MapScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
       mapRef.current?.setCenter(coords.latitude, coords.longitude);
+      */
     } catch (e) {
       Alert.alert("위치", "현재 위치를 가져오지 못했습니다.");
     } finally {
@@ -86,6 +97,7 @@ export default function MapScreen() {
           ref={mapRef} //생성한 맵 객체 연결 
           center={{ lat: DEFAULT_LOCATION.lat, lng: DEFAULT_LOCATION.lng }} //기본 위치 값 (화면 중앙)
           pins={pins} //표시할 마커 목록 
+          pinStyles={PIN_STYLES} //마커 타입별 스타일 정보 전달
           mapLevel={MAP_DEFAULT_LEVEL} //기본 줌 레벨 
           onMarkerPress={handleMarkerPress} //마커 클릭 시 호출 함수 
         />
@@ -98,8 +110,8 @@ export default function MapScreen() {
         />
       </View>
 
-      {/* 마커 목록 스크롤 영역 (선택된 마커가 없을 때 표시) */}
-      {pins.length > 0 && !selectedPin && (
+      {/* 마커 목록 스크롤 영역 (항상 표시) */}
+      {pins.length > 0 && (
         <ScrollView
           horizontal //가로 방향 스크롤 
           style={mapScreenStyles.pinListScroll} //마커 목록 스크롤 영역 스타일 
@@ -107,21 +119,26 @@ export default function MapScreen() {
           showsHorizontalScrollIndicator={false} //가로 스크롤 인dicator 숨김 
         >
           {/* 마커 목록 아이템 렌더링 */}
-          {pins.map((pin) => (
-            <TouchableOpacity
-              key={pin.id} //마커 고유 id 
-              style={[
-                mapScreenStyles.pinListItem, //마커 목록 아이템 스타일 
-                selectedPin?.id === pin.id && mapScreenStyles.pinListItemSelected,
-              ]}
-              onPress={() => handlePinPress(pin)} //마커 클릭 시 호출 함수 (해당 마커를 선택 상태로 변경함 )
-            >
-              <Text style={mapScreenStyles.pinListTitle} numberOfLines={1}>
-                {pin.title} {/* 마커 제목 */}
-              </Text>
-              <Text style={mapScreenStyles.pinListCategory}>{pin.category}</Text> 
-            </TouchableOpacity>
-          ))}
+          {pins.map((pin) => {
+            const pinStyle = PIN_STYLES[pin.type] || PIN_STYLES["post"];
+            return (
+              <TouchableOpacity
+                key={pin.id} //마커 고유 id 
+                style={[
+                  mapScreenStyles.pinListItem, //마커 목록 아이템 스타일 
+                  selectedPin?.id === pin.id && mapScreenStyles.pinListItemSelected,
+                ]}
+                onPress={() => handlePinPress(pin)} //마커 클릭 시 호출 함수 (해당 마커를 선택 상태로 변경함 )
+              >
+                <Text style={mapScreenStyles.pinListTitle} numberOfLines={1}>
+                  {pin.title} {/* 마커 제목 */}
+                </Text>
+                <Text style={mapScreenStyles.pinListCategory}>
+                  {pinStyle.emoji} {pin.category}
+                </Text> 
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       )}
 

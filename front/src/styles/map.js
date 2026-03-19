@@ -77,9 +77,10 @@ const mapScreenStyles = StyleSheet.create({
   /* 주변 게시글 목록 (마커 클릭 대체 UX) */
   pinListScroll: {
     position: "absolute",
-    bottom: spacing.lg,
+    top: spacing.lg,
     left: 0,
     right: 0,
+    zIndex: 10,
   },
   pinListContent: {
     paddingHorizontal: spacing.md,

@@ -12,8 +12,9 @@ import mapScreenStyles from "../../styles/map";
 
 const APP_KEY = process.env.EXPO_PUBLIC_KAKAO_MAP_JS_KEY || "";
 
-function buildHtml(centerLat, centerLng, level, pinsPayload) {
+function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload) {
   const pinsJson = JSON.stringify(pinsPayload);
+  const pinStylesJson = JSON.stringify(pinStylesPayload || {});
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -30,6 +31,7 @@ function buildHtml(centerLat, centerLng, level, pinsPayload) {
   <script>
     (function () {
       var pins = ${pinsJson};
+      var pinStyles = ${pinStylesJson};
       var centerLat = ${centerLat};
       var centerLng = ${centerLng};
       var level = ${level};
@@ -45,13 +47,53 @@ function buildHtml(centerLat, centerLng, level, pinsPayload) {
         for (var i = 0; i < pins.length; i++) {
           (function (p) {
             var pos = new kakao.maps.LatLng(p.lat, p.lng);
-            var marker = new kakao.maps.Marker({ position: pos });
-            marker.setMap(map);
-            kakao.maps.event.addListener(marker, "click", function () {
+            var pinStyle = pinStyles[p.type] || pinStyles["post"] || { color: "#FF5A5F", iconUrl: "" };
+
+            var content = document.createElement('div');
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.alignItems = 'center';
+            content.style.cursor = 'pointer';
+
+            var iconImg = document.createElement('img');
+            iconImg.src = pinStyle.iconUrl || "https://cdn-icons-png.flaticon.com/512/149/149059.png";
+            iconImg.style.width = '32px';
+            iconImg.style.height = '32px';
+            iconImg.style.backgroundColor = 'white';
+            iconImg.style.borderRadius = '50%';
+            iconImg.style.border = '2px solid ' + pinStyle.color;
+            iconImg.style.boxShadow = '0px 2px 4px rgba(0,0,0,0.3)';
+            iconImg.style.objectFit = 'contain';
+            iconImg.style.padding = '2px';
+
+            var titleDiv = document.createElement('div');
+            titleDiv.style.backgroundColor = pinStyle.color;
+            titleDiv.style.color = 'white';
+            titleDiv.style.padding = '2px 6px';
+            titleDiv.style.borderRadius = '10px';
+            titleDiv.style.fontSize = '10px';
+            titleDiv.style.fontWeight = 'bold';
+            titleDiv.style.marginTop = '4px';
+            titleDiv.style.boxShadow = '0px 1px 2px rgba(0,0,0,0.2)';
+            titleDiv.style.whiteSpace = 'nowrap';
+            titleDiv.innerText = p.title || "";
+
+            content.appendChild(iconImg);
+            content.appendChild(titleDiv);
+
+            content.onclick = function() {
               if (window.ReactNativeWebView) {
                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: "marker", id: p.id }));
               }
+            };
+
+            var customOverlay = new kakao.maps.CustomOverlay({
+              position: pos,
+              content: content,
+              clickable: true,
+              yAnchor: 1
             });
+            customOverlay.setMap(map);
           })(pins[i]);
         }
       }
@@ -72,7 +114,7 @@ function inject(webRef, code) {
 }
 
 const KakaoMapWebView = forwardRef(function KakaoMapWebView(
-  { center, pins, mapLevel = 3, onMarkerPress },
+  { center, pins, mapLevel = 3, onMarkerPress, pinStyles },
   ref
 ) {
   const webRef = useRef(null);
@@ -99,16 +141,16 @@ const KakaoMapWebView = forwardRef(function KakaoMapWebView(
   }));
 
   const pinsPayload = useMemo(
-    () => (pins || []).map((p) => ({ id: p.id, lat: Number(p.lat), lng: Number(p.lng) })),
+    () => (pins || []).map((p) => ({ id: p.id, lat: Number(p.lat), lng: Number(p.lng), type: p.type, title: p.title })),
     [pins]
   );
 
   const html = useMemo(
     () =>
       APP_KEY && center
-        ? buildHtml(center.lat, center.lng, mapLevel, pinsPayload)
+        ? buildHtml(center.lat, center.lng, mapLevel, pinsPayload, pinStyles)
         : "",
-    [center, mapLevel, pinsPayload]
+    [center, mapLevel, pinsPayload, pinStyles]
   );
 
   if (!APP_KEY) {

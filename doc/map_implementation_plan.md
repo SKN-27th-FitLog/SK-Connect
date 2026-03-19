@@ -36,6 +36,7 @@
 | 2026-03-17 | front/src/screens/MapScreen.web.js | 지도 로드 실패 시 도메인 등록 안내 메시지 추가 | 확정 여부 미결정. 에러 화면 별도 기획 검토 필요 |
 | 2026-03-18 | front | @jiggag/react-native-kakao-maps **코드·의존성 제거**. `KakaoMapWebView` + `screens/MapScreen.js`로 전환 | Expo Go에서 지도 확인 가능 |
 | 2026-03-18 | front | `MAP_DEFAULT_LEVEL`·MIN/MAX, `MapMapControls`(줌·내위치), `expo-location`, `KakaoMapWebView` ref inject, `.env.example`, app.json location 플러그인 | 플랜 요구사항 6·7·8 반영 |
+| 2026-03-19 | front | 마커 타입별 설정(색상, 외부아이콘, 이모지) 반영, CustomOverlay를 통한 마커 커스텀(아이콘+제목), 핀 리스트 상단 상시 노출, 리스트 내 핀 클릭 시 지도 중심 이동 구현 | 커스텀 마커 UI 적용 및 UX 개선 |
 
 ---
 
@@ -216,6 +217,17 @@ npx expo start
 
 - **적용 파일**: `front/src/api/mapApi.js`
 - **상태**: getMapMarkers(center?) 시그니처 유지. 현재 config 고정 반환. 추후 내부만 API 연동.
+
+---
+
+### 요구사항 11 · 마커 커스텀 스타일 및 핀 리스트 UI/UX 개선
+
+- **적용 파일**: `front/src/config/map.js`, `front/src/components/map/KakaoMapWebView.js`, `front/src/screens/MapScreen.js`, `front/src/styles/map.js`
+- **상태**: 
+  - `PIN_STYLES` 설정을 통해 타입별 색상, 외부 아이콘 이미지, 이모지 구분
+  - `CustomOverlay`를 사용하여 마커에 아이콘과 개별 핀의 고유 제목(`title`) 표시
+  - 맵 화면 내 하단에 있던 핀 리스트를 상단에 항상 노출되도록 변경하고 항목에 이모지 표시
+  - 리스트 내 핀 클릭 시 지도의 중심이 해당 핀 좌표로 자동 이동하도록 구현 완료
 
 ---
 
