@@ -117,7 +117,7 @@ export const createPost = async ({
     image_url: imageUrl[0],
   };
 
-
+  
   try {
     console.log("create payload:", payload);
 
