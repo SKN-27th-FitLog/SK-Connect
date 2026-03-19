@@ -3,48 +3,61 @@
  * - MapScreen, MapPostPreviewCard, MapPinPopup 등 지도 화면/컴포넌트에서 공통 사용
  * - 스타일 정보는 이 파일에서만 정의하고, 하위 컴포넌트는 여기서 import 해서 사용
  */
-import { StyleSheet } from "react-native";
-import { colors, radius, spacing } from "../theme";
+import { StyleSheet } from "react-native"; //react-native 기본 스타일 
+import { colors, radius, spacing } from "../theme"; //theme 폴더에서 정의한 디자인 토큰 객체 로드 
 
+
+// 각 컴포넌트에서 사용할 스타일 객체를 dict로 정리 -> 사용 시 dict의 key로 접근 
+// 리엑트 기본 제공 함수인 StyleSheet.create 를 이용해서 스타일 객체를 생성하게 됨 
 const mapScreenStyles = StyleSheet.create({
   /* ---------- MapScreen ---------- */
-  container: { flex: 1, backgroundColor: colors.gray[200] },
+  container: { 
+    flex: 1, 
+    backgroundColor: 
+    colors.gray[200] 
+  },  //화면 전체 컨테이너 
   mapArea: {
     flex: 1,
     width: "100%",
     height: "100%",
-    backgroundColor: colors.gray[300],
-  },
-  mapPlaceholderText: {
-    color: colors.gray[500],
-    textAlign: "center",
-    fontSize: 14,
-  },
-  /* WebView 카카오맵 (높이 필수) */
+    backgroundColor: colors.gray[300], //지도 영역 배경 색 -> 지도 로드 안될 경우 배경으로 표시 
+  }, //지도 영역 정의 
   mapWebViewContainer: {
     flex: 1,
     width: "100%",
     minHeight: 320,
     backgroundColor: colors.gray[300],
-  },
+  },// WebView 카카오맵 컨테이너 (높이 필수)
   mapWebView: {
     flex: 1,
     width: "100%",
     minHeight: 320,
     backgroundColor: colors.gray[300],
+  }, // 카카오 지도 표시 영역 
+
+  /* ---------- MapError ---------- */
+  // 지도에서 에러 텍스트 표시할 경우 텍스트 스타일
+  // 화면 로드 실패할 경우 표시 스타일, 필요하면 통합 처리 한다.
+  mapPlaceholderText: {
+    color: colors.gray[500],
+    textAlign: "center",
+    fontSize: 14,
   },
+  /* 지도에서 에러 발생 시 화면 레이아웃 정의(현재는 API 키 미설정 시 Fallback 전용, 통합 필요하면 변경 ) */
   mapWebViewFallback: {
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
   },
-  /* 지도 우측 플로팅 컨트롤 (줌·내 위치) */
+
+  /* ---------- MapControls ---------- */
+  // 지도 우측 플로팅 컨트롤 (줌·내 위치)
   mapControlsColumn: {
     position: "absolute",
     right: spacing.md,
     top: "28%",
     gap: spacing.sm,
-  },
+  }, 
   mapControlButton: {
     width: 44,
     height: 44,
@@ -132,7 +145,10 @@ const mapScreenStyles = StyleSheet.create({
     fontWeight: "700",
     color: colors.primary,
   },
-  popupClose: { color: colors.gray[400], fontSize: 18 },
+  popupClose: { 
+    color: colors.gray[400], 
+    fontSize: 18 
+  },
   popupTitle: {
     fontSize: 17,
     fontWeight: "700",
@@ -186,7 +202,10 @@ const mapScreenStyles = StyleSheet.create({
     fontWeight: "700",
     color: colors.primary,
   },
-  postPreviewClose: { fontSize: 18, color: colors.gray[500] },
+  postPreviewClose: { 
+    fontSize: 18, 
+    color: colors.gray[500] 
+  },
   postPreviewTitle: {
     fontSize: 17,
     fontWeight: "700",

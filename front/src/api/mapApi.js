@@ -50,6 +50,6 @@ export async function getAddressFromCoords(lat, lng) {
  * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 10
  */
 export async function getMapMarkers(center) {
-  // [백엔드 연동 전] config 고정 데이터 반환
+  // [백엔드 연동 전] config 고정 데이터 반환 -> 해당 부분을 api를 통해 가져오도록 만들어야 함 
   return MAP_PINS;
 }
