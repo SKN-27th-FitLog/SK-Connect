@@ -108,4 +108,5 @@ class PostCreateSerializer(PostBaseSerializer):
         for url in image_urls:
             ImageURL.objects.create(post=post, image_url=url)
 
-        return post
+        return post   
+  
