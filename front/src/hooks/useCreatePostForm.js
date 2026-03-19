@@ -12,9 +12,9 @@ export default function useCreatePostForm(navigation) {
 
     const isFormValid = useMemo(() => {
         return (
-            !!title.trim() &&
-            !!content.trim() &&
-            !!selectedCategory?.value
+        !!title.trim() &&
+        !!content.trim() &&
+        !!selectedCategory?.value
         );
     }, [title, content, selectedCategory]);
 
@@ -28,43 +28,38 @@ export default function useCreatePostForm(navigation) {
 
     const handleSubmit = async () => {
         const error = validatePostForm({
-            title,
-            content,
-            category: selectedCategory?.label,
+        title,
+        content,
+        category: selectedCategory?.label,
         });
 
         if (error) {
-            Alert.alert("입력 확인", error);
-            return;
+        Alert.alert("입력 확인", error);
+        return;
         }
 
         try {
-            const postData = {
-                title,
-                content,
-                selectedCategory: selectedCategory?.value,
-            };
+        await createPost({
+            title,
+            content,
+            selectedCategory: selectedCategory?.value, // 🔥 핵심
+            imageUrls: imageUri ? [imageUri] : [],
+        });
 
-            if (imageUri) {
-                postData.imageUrl = imageUri;
-            }
+        Alert.alert("등록 완료", "게시글이 등록되었습니다.");
 
-            await createPost(postData);
-
-            Alert.alert("등록 완료", "게시글이 등록되었습니다.");
-
-            navigation.navigate("MainTabs", {
-                screen: "Home",
-                params: { refresh: true },
-            });
+        navigation.navigate("MainTabs", {
+            screen: "Home",
+            params: { refresh: true },
+        });
         } catch (error) {
-            console.log("게시글 등록 실패:", error);
-            Alert.alert(
-                "등록 실패",
-                error?.response?.data?.detail ||
-                error?.message ||
-                "게시글 등록 중 오류가 발생했습니다."
-            );
+        console.log("게시글 등록 실패:", error);
+        Alert.alert(
+            "등록 실패",
+            error?.response?.data?.detail ||
+            error?.message ||
+            "게시글 등록 중 오류가 발생했습니다."
+        );
         }
     };
 

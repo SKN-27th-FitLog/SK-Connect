@@ -1,38 +1,58 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { View, ScrollView, TouchableOpacity, Text, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { colors, radius, spacing } from "../theme";
-import { DEFAULT_LOCATION } from "../config/map";
+import * as Location from "expo-location"; //사용자 위치 획득 
+
+//config : 백앤드 작업 전 위치 값 목록, 맵의 줌 레벨 제어 
+import { DEFAULT_LOCATION, MAP_DEFAULT_LEVEL, PIN_STYLES } from "../config/map";
+
+//api : 지도 조회용 api (카카오맵 api 연동 & 백앤드 작업 전 마커 목록 획득 사전구현 )
 import { getMapMarkers } from "../api/mapApi";
 
-function MapPlaceholder() {
-  return (
-    <View style={styles.mapArea}>
-      <Text style={styles.mapPlaceholderText}>
-        [지도]{"\n"}웹에서만 지원됩니다.
-      </Text>
-    </View>
-  );
-} 
+//styles
+import mapScreenStyles from "../styles/map";
 
+//components 
+import MapPostPreviewCard from "../components/map/MapPostPreviewCard"; //pin 선택 시 게시글 미리보기 
+import KakaoMapWebView from "../components/map/KakaoMapWebView"; //맵 화면 구현 ( 웹 -> 앱환경 )
+import MapMapControls from "../components/map/MapMapControls"; //맵 화면제어 관련 
+
+//맵 화면 정의 
 export default function MapScreen() {
-  const navigation = useNavigation();
-  const [pins, setPins] = useState([]);
-  const [selectedPin, setSelectedPin] = useState(null);
+  const navigation = useNavigation(); //네비게이션 객체 
+  const mapRef = useRef(null); //카카오 맵 웹 버전을 해당 객체로 생성해서 사용하기 위함  
+  const [pins, setPins] = useState([]); //맵에서 표시할 마커 목록 
+  const [selectedPin, setSelectedPin] = useState(null); //선택된 마커 정보 (해당 마커만 업데이트)
+  const [locationLoading, setLocationLoading] = useState(false);
 
+  //랜더링 이후 표시데이터 로드 
   useEffect(() => {
-    loadData();
+    loadData(); //데이터 로드 
   }, []);
 
+  //맵 표시정보 업데이트 (api 연동 이후 )
   const loadData = async () => {
-    const { lat, lng } = DEFAULT_LOCATION;
-    const markers = await getMapMarkers({ lat, lng });
-    setPins(markers);
+    const { lat, lng } = DEFAULT_LOCATION; //지도상의 내 위치 (백앤드 연동 전)
+    const markers = await getMapMarkers({ lat, lng }); //api 호출 [백엔드 연동 전] config 고정 데이터 반환 -> 해당 부분을 api를 통해 가져오도록 만들어야 함 
+    setPins(markers); //맵에서 표시할 마커 목록 업데이트 
   };
 
+  //마커 선택 시 호출 함수 -> 마커 선택 시 해당 마커를 업데이트 하고 선택 된 마커 상태로 변경함 
   const handlePinPress = (pin) => {
     setSelectedPin(pin);
+    if (mapRef.current) {
+      mapRef.current.setCenter(pin.lat, pin.lng);
+    }
   };
+
+  //
+  const handleMarkerPress = useCallback(
+    (pinId) => {
+      const pin = pins.find((p) => p.id === pinId);
+      if (pin) setSelectedPin(pin);
+    },
+    [pins]
+  );
 
   const handleViewPost = () => {
     if (!selectedPin) return;
@@ -40,98 +60,98 @@ export default function MapScreen() {
     setSelectedPin(null);
   };
 
-  return (
-    <View style={styles.container}>
-      <MapPlaceholder />
+  //내 위치로 갱신 (현재는 실제 GPS 대신 임시로 DEFAULT_LOCATION 사용)
+  const handleMyLocation = useCallback(async () => {
+    setLocationLoading(true);
+    try {
+      // 임시: 실제 위치 대신 config의 기본 위치를 내 위치로 간주
+      const { lat, lng } = DEFAULT_LOCATION;
+      mapRef.current?.setCenter(lat, lng);
+      
+      /* 기존 실제 GPS 로직은 임시 주석 처리
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("위치 권한", "내 위치로 이동하려면 위치 권한을 허용해 주세요.");
+        return;
+      }
+      const { coords } = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      mapRef.current?.setCenter(coords.latitude, coords.longitude);
+      */
+    } catch (e) {
+      Alert.alert("위치", "현재 위치를 가져오지 못했습니다.");
+    } finally {
+      setLocationLoading(false);
+    }
+  }, []);
 
-      {selectedPin && (
-        <View style={styles.popupOverlay}>
-          <View style={styles.popup}>
-            <View style={styles.popupHeader}>
-              <Text style={styles.popupCategory}>
-                {selectedPin.category} · 게시글
-              </Text>
-              <TouchableOpacity onPress={() => setSelectedPin(null)}>
-                <Text style={styles.popupClose}>✕</Text>
+  //맵 화면 랜더링
+  return (
+    /* 전체 화면 */  
+    <View style={mapScreenStyles.container}>
+      {/* 지도 영역 */}
+      <View style={mapScreenStyles.mapArea}>
+        {/* 카카오 맵 웹뷰 컨테이너 */}
+        <KakaoMapWebView
+          ref={mapRef} //생성한 맵 객체 연결 
+          center={{ lat: DEFAULT_LOCATION.lat, lng: DEFAULT_LOCATION.lng }} //기본 위치 값 (화면 중앙)
+          pins={pins} //표시할 마커 목록 
+          pinStyles={PIN_STYLES} //마커 타입별 스타일 정보 전달
+          mapLevel={MAP_DEFAULT_LEVEL} //기본 줌 레벨 
+          onMarkerPress={handleMarkerPress} //마커 클릭 시 호출 함수 
+        />
+        {/* 맵 화면제어 관련 컴포넌트(화면 우측 메뉴) */}
+        <MapMapControls
+          onZoomIn={() => mapRef.current?.zoomIn()} //확대 버튼  
+          onZoomOut={() => mapRef.current?.zoomOut()} //축소 버튼 
+          onMyLocation={handleMyLocation} //내 위치로 이동 (화면 중심 갱신)
+          locationLoading={locationLoading} //내 위치 로딩 상태 여부 -> 내 위치를 가져오는 api 통신 시 딜레이를 감안해서 만들어 놓음 
+        />
+      </View>
+
+      {/* 마커 목록 스크롤 영역 (항상 표시) */}
+      {pins.length > 0 && (
+        <ScrollView
+          horizontal //가로 방향 스크롤 
+          style={mapScreenStyles.pinListScroll} //마커 목록 스크롤 영역 스타일 
+          contentContainerStyle={mapScreenStyles.pinListContent} //마커 목록 컨테이너 스타일 
+          showsHorizontalScrollIndicator={false} //가로 스크롤 인dicator 숨김 
+        >
+          {/* 마커 목록 아이템 렌더링 */}
+          {pins.map((pin) => {
+            const pinStyle = PIN_STYLES[pin.type] || PIN_STYLES["post"];
+            return (
+              <TouchableOpacity
+                key={pin.id} //마커 고유 id 
+                style={[
+                  mapScreenStyles.pinListItem, //마커 목록 아이템 스타일 
+                  selectedPin?.id === pin.id && mapScreenStyles.pinListItemSelected,
+                ]}
+                onPress={() => handlePinPress(pin)} //마커 클릭 시 호출 함수 (해당 마커를 선택 상태로 변경함 )
+              >
+                <Text style={mapScreenStyles.pinListTitle} numberOfLines={1}>
+                  {pin.title} {/* 마커 제목 */}
+                </Text>
+                <Text style={mapScreenStyles.pinListCategory}>
+                  {pinStyle.emoji} {pin.category}
+                </Text> 
               </TouchableOpacity>
-            </View>
-            <Text style={styles.popupTitle}>{selectedPin.title}</Text>
-            <Text style={styles.popupContent}>{selectedPin.content}</Text>
-            <Text style={styles.popupLocation}>
-              📍 {selectedPin.location_name}
-            </Text>
-            <TouchableOpacity
-              style={styles.popupButton}
-              onPress={handleViewPost}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.popupButtonText}>게시글 보기</Text>
-            </TouchableOpacity>
-          </View>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* 선택된 마커 정보 표시 영역 */}
+      {selectedPin && (
+        <View style={mapScreenStyles.popupOverlay}>
+          <MapPostPreviewCard
+            post={{ ...selectedPin, location: selectedPin.location_name }} //선택된 마커 정보 
+            onClose={() => setSelectedPin(null)} //닫기 버튼 클릭 시 호출 함수 
+            onPressViewPost={handleViewPost} //게시글 보기 버튼 클릭 시 호출 함수 
+          />
         </View>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.gray[200] },
-  mapArea: {
-    flex: 1,
-    backgroundColor: colors.gray[300],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapPlaceholderText: {
-    color: colors.gray[500],
-    textAlign: "center",
-    fontSize: 14,
-  },
-  popupOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    padding: spacing.lg,
-    alignItems: "center",
-  },
-  popup: {
-    backgroundColor: colors.white,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    width: "100%",
-    maxWidth: 320,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  popupHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  popupClose: { color: colors.gray[400], fontSize: 18 },
-  popupTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.foreground,
-  },
-  popupContent: { color: colors.gray[600], fontSize: 14, marginTop: 4 },
-  popupLocation: {
-    color: colors.gray[500],
-    fontSize: 14,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  popupButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
-    alignItems: "center",
-  },
-  popupButtonText: { color: colors.white, fontWeight: "500" },
-});
