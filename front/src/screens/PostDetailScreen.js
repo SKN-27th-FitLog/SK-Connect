@@ -69,18 +69,22 @@ export default function PostDetailScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={handleGoBack}
+          style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 20, paddingVertical: 10 }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.backButton}>‹</Text>
+          <Text style={styles.headerTitle}>게시글</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleGoBack}>
-            <Text style={styles.backButton}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>게시글</Text>
-        </View>
-
         {post.imageUrl ? (
           <Image source={{ uri: post.imageUrl }} style={styles.image} />
         ) : null}

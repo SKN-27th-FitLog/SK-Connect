@@ -45,6 +45,11 @@ function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload) {
         var map = new kakao.maps.Map(container, options);
         window.__kakaoMap = map;
         for (var i = 0; i < pins.length; i++) {
+          var p = pins[i];
+          
+          /* 필터 검사: HTML 내부에서도 렌더링 시 필터 검사를 할 수 있으나
+             가장 좋은 방법은 기존에 생성된 마커를 지우고 새로 그리는 것임.
+             여기서는 매번 pins가 바뀔 때마다 WebView 전체가 리로드(HTML 재작성)됨. */
           (function (p) {
             var pos = new kakao.maps.LatLng(p.lat, p.lng);
             var pinStyle = pinStyles[p.type] || pinStyles["post"] || { color: "#FF5A5F", iconUrl: "" };
@@ -151,8 +156,8 @@ const pinsPayload = useMemo(
       () =>
         (pins || []).map((p) => ({
           id: getMarkerKey(p),
-          lat: Number(p.latitude),
-          lng: Number(p.longitude),
+          lat: Number(p.latitude) || Number(p.lat) || 0, // [수정] lat 필드 호환성 강화
+          lng: Number(p.longitude) || Number(p.lng) || 0, // [수정] lng 필드 호환성 강화
           type: p.type,
           title: p.title || p.name,
         })),
@@ -160,11 +165,14 @@ const pinsPayload = useMemo(
   );
 
   const html = useMemo(
-    () =>
-      APP_KEY && center
+    () => {
+      // pinsPayload가 변경될 때마다 HTML을 새로 생성하여 WebView가 리로드되게 함
+      // 이를 통해 지도 상의 핀도 필터링된 배열(pinsPayload)에 맞게 새로 그려짐
+      return APP_KEY && center
         ? buildHtml(center.lat, center.lng, mapLevel, pinsPayload, pinStyles)
-        : "",
-    [center, mapLevel, pinsPayload, pinStyles]
+        : "";
+    },
+    [center?.lat, center?.lng, mapLevel, pinsPayload, pinStyles]
   );
 
   if (!APP_KEY) {

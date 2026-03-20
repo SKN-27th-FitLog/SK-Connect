@@ -21,13 +21,22 @@ export default function PostCreateScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 20, paddingVertical: 10 }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.backButton}>‹</Text>
+          <Text style={styles.headerTitle}>게시글 작성</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.screenTitle}>게시글 작성</Text>
-
         <PostFormFields
           title={title}
           setTitle={setTitle}

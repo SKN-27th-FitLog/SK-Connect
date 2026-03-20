@@ -12,7 +12,7 @@
  * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 10
  */
 
-import { DEFAULT_LOCATION, MAP_PINS } from "../config/map";
+import { DEFAULT_LOCATION } from "../config/map";
 
 /**
  * 좌표로 주소/이름 조회 (역지오코딩)
@@ -36,20 +36,4 @@ export async function getAddressFromCoords(lat, lng) {
     address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
     name: null,
   };
-}
-
-/**
- * 지도에 표시할 마커 목록 조회 (Pin 중간 다리)
- *
- * [TODO] PR-MAP-02: 중심좌표 변경 시 백엔드에서 재조회
- * - 현재: config 고정 반환
- * - 추후: center + 개수 등으로 API 호출 시 이 함수 시그니처 유지하고 내부만 변경
- *
- * @param {Object} [center] - 중심 좌표 { lat, lng } (추후 중심 기준 로딩 시 사용)
- * @returns {Promise<Array>} 마커 목록
- * 플랜 문서: doc/map_implementation_plan.md §4 요구사항 10
- */
-export async function getMapMarkers(center) {
-  // [백엔드 연동 전] config 고정 데이터 반환 -> 해당 부분을 api를 통해 가져오도록 만들어야 함 
-  return MAP_PINS;
 }

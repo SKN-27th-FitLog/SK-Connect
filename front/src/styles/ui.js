@@ -1,4 +1,4 @@
-import { Dimensions, Platform } from "react-native";
+import { Dimensions, Platform, StatusBar } from "react-native";
 import { colors, spacing, radius } from "../theme";
 
 const { width, height } = Dimensions.get("window");

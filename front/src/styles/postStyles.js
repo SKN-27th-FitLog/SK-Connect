@@ -221,7 +221,8 @@ export const postCreateStyles = StyleSheet.create({
     },
 
     header: {
-        height: ui.verticalScale(60),
+        paddingTop: ui.verticalScale(38),
+        paddingBottom: ui.verticalScale(16),
         paddingHorizontal: ui.scale(14),
         flexDirection: "row",
         alignItems: "center",
@@ -416,7 +417,8 @@ export const postCreateStyles = StyleSheet.create({
     },
 
     header: {
-        height: ui.verticalScale(60),
+        paddingTop: ui.verticalScale(38),
+        paddingBottom: ui.verticalScale(16),
         paddingHorizontal: ui.scale(14),
         flexDirection: "row",
         alignItems: "center",
