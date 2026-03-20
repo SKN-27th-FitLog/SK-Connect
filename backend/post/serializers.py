@@ -89,7 +89,7 @@ class PostCreateSerializer(PostBaseSerializer):
         address_cd = validated_data.pop('address_cd', None)
         address_detail = validated_data.pop('address_detail')
         image_url = validated_data.pop('image_url', None)
-        post_cd_val = validated_data.pop('post_cd', None)
+        post_cd = validated_data.pop('post_cd', None)
         status_cd = validated_data.pop('status_cd', None)
 
 
@@ -103,8 +103,8 @@ class PostCreateSerializer(PostBaseSerializer):
         )
         post = Posts.objects.create(
             map=new_map,
-            post_cd = CodeT.objects.filter(cd=post_cd_val).first() if post_cd_val else None,
-            status_cd = CodeT.objects.filter(cd=status_cd).first() if status_cd else None,
+            post_cd = post_cd,
+            status_cd = status_cd,
             **validated_data
         )
 
