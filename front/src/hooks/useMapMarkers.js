@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMapMarkers } from "../api/mapApi";
+import { getMapMarkers } from "./api/remapApi";
 
 export default function useMapMarkers() {
     const [pins, setPins] = useState([]);

@@ -140,9 +140,23 @@ const KakaoMapWebView = forwardRef(function KakaoMapWebView(
     },
   }));
 
-  const pinsPayload = useMemo(
-    () => (pins || []).map((p) => ({ id: p.id, lat: Number(p.lat), lng: Number(p.lng), type: p.type, title: p.title })),
-    [pins]
+  const getMarkerKey = (p) => {
+  if (p.type === "post") {
+    return `post-${p.map_id}-${p.post_id}`;
+  }
+  return `restaurant-${p.map_id}`;
+};
+
+const pinsPayload = useMemo(
+      () =>
+        (pins || []).map((p) => ({
+          id: getMarkerKey(p),
+          lat: Number(p.latitude),
+          lng: Number(p.longitude),
+          type: p.type,
+          title: p.title || p.name,
+        })),
+      [pins]
   );
 
   const html = useMemo(
