@@ -13,6 +13,7 @@ export default function MapPostPreviewCard({ post, onClose, onPressViewPost }) {
 
   return (
     <View style={mapScreenStyles.postPreviewCard}>
+      <View style={mapScreenStyles.postPreviewDragHandle} />
       <View style={mapScreenStyles.postPreviewHeaderRow}>
         <Text style={mapScreenStyles.postPreviewCategory}>
           📚 {post.category} · 게시글

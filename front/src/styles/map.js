@@ -77,7 +77,7 @@ const mapScreenStyles = StyleSheet.create({
   /* 주변 게시글 목록 (마커 클릭 대체 UX) */
   pinListScroll: {
     position: "absolute",
-    top: spacing.lg,
+    bottom: 20,
     left: 0,
     right: 0,
     zIndex: 10,
@@ -119,9 +119,7 @@ const mapScreenStyles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    padding: spacing.lg,
-    alignItems: "center",
+    zIndex: 100, // 목록 위에 뜨도록 zIndex 추가
   },
   popup: {
     backgroundColor: colors.white,
@@ -182,15 +180,25 @@ const mapScreenStyles = StyleSheet.create({
 
   /* ---------- MapPostPreviewCard (게시글 미리보기 카드) ---------- */
   postPreviewCard: {
-    width: 250,
+    width: "100%",
     backgroundColor: colors.white,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    paddingBottom: 40,
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 10,
+  },
+  postPreviewDragHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.gray[300],
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: spacing.md,
   },
   postPreviewHeaderRow: {
     flexDirection: "row",
@@ -263,6 +271,58 @@ const mapScreenStyles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   pinPopupButtonText: { color: colors.white },
+  /* ---------- 드롭다운/필터 관련 ---------- */
+  filterContainer: {
+    position: "absolute",
+    top: 50,
+    left: spacing.md,
+    zIndex: 20,
+    width: 100,
+  },
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    width: "100%",
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.foreground,
+  },
+  filterDropdown: {
+    marginTop: 8,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    width: "100%",
+  },
+  filterOption: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+  },
+  filterOptionText: {
+    fontSize: 14,
+    color: colors.foreground,
+  },
+  filterOptionSelected: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
 });
 
 export default mapScreenStyles;

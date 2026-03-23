@@ -115,8 +115,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
-    paddingBottom: Platform.OS === "ios" ? 28 : spacing.md,
-    height: Platform.OS === "ios" ? 88 : 68,
+    paddingBottom: Platform.OS === "ios" ? 49 : spacing.md + 35,
+    height: Platform.OS === "ios" ? 113 : 103,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
