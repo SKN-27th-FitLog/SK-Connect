@@ -227,6 +227,31 @@ const mapScreenStyles = StyleSheet.create({
     color: colors.gray[600],
     marginBottom: 12,
   },
+  postPreviewMenu: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
+    marginBottom: 12,
+  },
+  postPreviewRestaurantInfo: {
+    marginBottom: 12,
+    backgroundColor: colors.gray[50],
+    padding: 12,
+    borderRadius: radius.md,
+  },
+  postPreviewSection: {
+    marginBottom: 8,
+  },
+  postPreviewSectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.gray[800],
+    marginBottom: 4,
+  },
+  postPreviewSectionContent: {
+    fontSize: 14,
+    color: colors.gray[600],
+  },
   postPreviewLocation: {
     fontSize: 14,
     color: colors.gray[500],

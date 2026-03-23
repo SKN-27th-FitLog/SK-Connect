@@ -28,6 +28,15 @@ export default function MapScreen() {
 
   useEffect(() => {
     loadData();
+    // 맵이 처음 렌더링될 때 중앙 위치를 설정해줌 (웹뷰가 준비된 후에 동작하도록 약간의 지연)
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.setCenter(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+        if (mapRef.current.setLevel) {
+          mapRef.current.setLevel(MAP_DEFAULT_LEVEL);
+        }
+      }
+    }, 500);
   }, []);
 
   // 선택된 핀이 바뀔 때 슬라이드 업/다운 애니메이션 실행
@@ -119,6 +128,10 @@ export default function MapScreen() {
     try {
       const { lat, lng } = DEFAULT_LOCATION;
       mapRef.current?.setCenter(lat, lng);
+      // 내 위치로 이동 시 기본 줌 레벨로 확대 설정
+      if (mapRef.current && mapRef.current.setLevel) {
+        mapRef.current.setLevel(MAP_DEFAULT_LEVEL);
+      }
     } catch (e) {
       Alert.alert("위치", "현재 위치를 가져오지 못했습니다.");
     } finally {
@@ -179,6 +192,7 @@ export default function MapScreen() {
             pins={filteredPins}
             onMarkerPress={handleMarkerPress}
             pinStyles={PIN_STYLES}
+            currentLocation={DEFAULT_LOCATION}
           />
         )}
 
@@ -198,7 +212,19 @@ export default function MapScreen() {
           style={mapScreenStyles.pinListScroll}
         >
           {filteredPins.map((pin) => {
-            const pinStyle = PIN_STYLES[pin.type] || PIN_STYLES["post"];
+            let pinStyle = PIN_STYLES[pin.type] || PIN_STYLES["post"];
+            
+            // 카테고리명을 확실하게 문자열로 추출 (객체일 수 있음)
+            const categoryName = typeof pin.category === "object" ? (pin.category?.name || "") : (pin.category || "");
+            
+            // 식당인 경우 카테고리에 따라 스타일 세분화
+            if (pin.type === "restaurant") {
+              if (categoryName.includes("카페") || categoryName.includes("커피")) {
+                pinStyle = PIN_STYLES["cafe"] || PIN_STYLES["restaurant"];
+              } else {
+                pinStyle = PIN_STYLES["restaurant"];
+              }
+            }
             const markerKey = getMarkerKey(pin);
 
             return (
@@ -216,7 +242,7 @@ export default function MapScreen() {
                   {pin.title || pin.name}
                 </Text>
                 <Text style={mapScreenStyles.pinListCategory}>
-                  {pinStyle.emoji} {pin.category}
+                  {pinStyle.emoji} {categoryName}
                 </Text>
               </TouchableOpacity>
             );
