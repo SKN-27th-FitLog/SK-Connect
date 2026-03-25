@@ -12,9 +12,10 @@ import mapScreenStyles from "../../styles/map";
 
 const APP_KEY = process.env.EXPO_PUBLIC_KAKAO_MAP_JS_KEY || "";
 
-function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload) {
+function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload, currentLocation) {
   const pinsJson = JSON.stringify(pinsPayload);
   const pinStylesJson = JSON.stringify(pinStylesPayload || {});
+  const currentLocStr = currentLocation ? JSON.stringify(currentLocation) : "null";
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -35,6 +36,7 @@ function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload) {
       var centerLat = ${centerLat};
       var centerLng = ${centerLng};
       var level = ${level};
+      var currentLoc = ${currentLocStr};
       function init() {
         if (typeof kakao === "undefined" || !kakao.maps) return;
         var container = document.getElementById("map");
@@ -44,6 +46,50 @@ function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload) {
         };
         var map = new kakao.maps.Map(container, options);
         window.__kakaoMap = map;
+
+        // 현재 위치 마커 추가
+        if (currentLoc && currentLoc.lat && currentLoc.lng) {
+          var locPos = new kakao.maps.LatLng(currentLoc.lat, currentLoc.lng);
+          var locContent = document.createElement('div');
+          locContent.style.position = 'relative';
+          locContent.style.width = '24px';
+          locContent.style.height = '24px';
+          locContent.style.display = 'flex';
+          locContent.style.alignItems = 'center';
+          locContent.style.justifyContent = 'center';
+
+          // 반투명 배경
+          var locBg = document.createElement('div');
+          locBg.style.position = 'absolute';
+          locBg.style.width = '100%';
+          locBg.style.height = '100%';
+          locBg.style.backgroundColor = 'rgba(0, 108, 255, 0.3)';
+          locBg.style.borderRadius = '50%';
+
+          // 파란색 중심점
+          var locDot = document.createElement('div');
+          locDot.style.position = 'absolute';
+          locDot.style.width = '14px';
+          locDot.style.height = '14px';
+          locDot.style.backgroundColor = '#006cff';
+          locDot.style.border = '2px solid white';
+          locDot.style.borderRadius = '50%';
+          locDot.style.boxShadow = '0px 2px 4px rgba(0,0,0,0.3)';
+
+          locContent.appendChild(locBg);
+          locContent.appendChild(locDot);
+
+          var locOverlay = new kakao.maps.CustomOverlay({
+            position: locPos,
+            content: locContent,
+            clickable: false,
+            yAnchor: 0.5,
+            xAnchor: 0.5,
+            zIndex: 10
+          });
+          locOverlay.setMap(map);
+        }
+
         for (var i = 0; i < pins.length; i++) {
           var p = pins[i];
           
@@ -52,7 +98,21 @@ function buildHtml(centerLat, centerLng, level, pinsPayload, pinStylesPayload) {
              여기서는 매번 pins가 바뀔 때마다 WebView 전체가 리로드(HTML 재작성)됨. */
           (function (p) {
             var pos = new kakao.maps.LatLng(p.lat, p.lng);
-            var pinStyle = pinStyles[p.type] || pinStyles["post"] || { color: "#FF5A5F", iconUrl: "" };
+            var pinStyle;
+            if (p.type === "restaurant") {
+              var catStr = p.category || "";
+              if (catStr.indexOf("카페") !== -1 || catStr.indexOf("커피") !== -1) {
+                pinStyle = pinStyles["cafe"];
+              } else {
+                pinStyle = pinStyles["restaurant"];
+              }
+              // 만약 pinStyle이 정의되지 않았다면 fallback 처리
+              if (!pinStyle) {
+                pinStyle = pinStyles["post"] || { color: "#FF5A5F", iconUrl: "" };
+              }
+            } else {
+              pinStyle = pinStyles[p.type] || pinStyles["post"] || { color: "#FF5A5F", iconUrl: "" };
+            }
 
             var content = document.createElement('div');
             content.style.display = 'flex';
@@ -119,7 +179,7 @@ function inject(webRef, code) {
 }
 
 const KakaoMapWebView = forwardRef(function KakaoMapWebView(
-  { center, pins, mapLevel = 3, onMarkerPress, pinStyles },
+  { center, pins, mapLevel = 3, onMarkerPress, pinStyles, currentLocation },
   ref
 ) {
   const webRef = useRef(null);
@@ -129,6 +189,12 @@ const KakaoMapWebView = forwardRef(function KakaoMapWebView(
       inject(
         webRef,
         `if(window.__kakaoMap&&typeof kakao!=="undefined"){window.__kakaoMap.setCenter(new kakao.maps.LatLng(${Number(lat)},${Number(lng)}));}`
+      );
+    },
+    setLevel(level) {
+      inject(
+        webRef,
+        `if(window.__kakaoMap&&typeof kakao!=="undefined"){window.__kakaoMap.setLevel(${Number(level)});}`
       );
     },
     zoomIn() {
@@ -154,13 +220,21 @@ const KakaoMapWebView = forwardRef(function KakaoMapWebView(
 
 const pinsPayload = useMemo(
       () =>
-        (pins || []).map((p) => ({
-          id: getMarkerKey(p),
-          lat: Number(p.latitude) || Number(p.lat) || 0, // [수정] lat 필드 호환성 강화
-          lng: Number(p.longitude) || Number(p.lng) || 0, // [수정] lng 필드 호환성 강화
-          type: p.type,
-          title: p.title || p.name,
-        })),
+        (pins || []).map((p) => {
+          // p.category가 객체라면 .name을, 문자열이면 그대로 사용
+          let catName = "";
+          if (p.category) {
+            catName = typeof p.category === "object" ? (p.category.name || "") : p.category;
+          }
+          return {
+            id: getMarkerKey(p),
+            lat: Number(p.latitude) || Number(p.lat) || 0,
+            lng: Number(p.longitude) || Number(p.lng) || 0,
+            type: p.type,
+            category: catName, // 확실하게 문자열로 넘김
+            title: p.title || p.name,
+          };
+        }),
       [pins]
   );
 
@@ -169,10 +243,10 @@ const pinsPayload = useMemo(
       // pinsPayload가 변경될 때마다 HTML을 새로 생성하여 WebView가 리로드되게 함
       // 이를 통해 지도 상의 핀도 필터링된 배열(pinsPayload)에 맞게 새로 그려짐
       return APP_KEY && center
-        ? buildHtml(center.lat, center.lng, mapLevel, pinsPayload, pinStyles)
+        ? buildHtml(center.lat, center.lng, mapLevel, pinsPayload, pinStyles, currentLocation)
         : "";
     },
-    [center?.lat, center?.lng, mapLevel, pinsPayload, pinStyles]
+    [center?.lat, center?.lng, mapLevel, pinsPayload, pinStyles, currentLocation]
   );
 
   if (!APP_KEY) {

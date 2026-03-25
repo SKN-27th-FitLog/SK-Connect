@@ -11,9 +11,9 @@
 
 /** 기본 표시 위치 (강남역) - 내 위치·지도 초기 중심용. 실제 구현 전까지 config 값 사용. 플랜: 요구사항 4 */
 export const DEFAULT_LOCATION = {
-  lat: 37.497942,
-  lng: 127.027638,
-  name: "강남역",
+  lat: 37.468194,
+  lng: 126.886750,
+  name: "대륭 테크노타운 17차",
 };
 
 /**
@@ -30,17 +30,27 @@ export const MAP_LEVEL_MAX = 14;
 export const PIN_STYLES = {
   post: {
     color: "#FF5A5F",
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149059.png",
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/3209/3209265.png",
     emoji: "📝",
   },
   community: {
     color: "#00A699",
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/615/615075.png",
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/476/476863.png",
     emoji: "👥",
   },
   recommend: {
     color: "#FC642D",
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/1828/1828884.png",
     emoji: "⭐",
+  },
+  restaurant: {
+    color: "#F59E0B",
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/1046/1046857.png",
+    emoji: "🍽️",
+  },
+  cafe: {
+    color: "#8B5CF6",
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/3233/3233004.png",
+    emoji: "☕",
   },
 };
