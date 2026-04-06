@@ -12,20 +12,3 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sk_connect_web
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    env_file:
-      - ./backend/.env
-    environment:
-      DB_HOST: db
-    depends_on:
-      - db
-
-volumes:
-  postgres_data:
