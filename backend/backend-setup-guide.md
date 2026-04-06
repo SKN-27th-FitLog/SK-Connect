@@ -10,6 +10,7 @@
 ```
 <레포 루트>/
 ├── docker-compose.yml  # Docker (DB + web) — 루트에서 실행
+├── Dockerfile          # web 이미지 빌드 (context = 레포 루트)
 ├── postgres-init/      # PostgreSQL 초기화 스크립트 (선택)
 └── backend/
     ├── .venv/          # Python 가상환경
@@ -20,7 +21,6 @@
     │   ├── urls.py     # API 라우팅
     │   ├── wsgi.py
     │   └── asgi.py
-    ├── Dockerfile
     ├── requirements.txt
     └── .env
 ```

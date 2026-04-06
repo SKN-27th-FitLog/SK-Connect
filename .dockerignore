@@ -1,0 +1,60 @@
+# Git / CI
+.git
+.github
+
+# Docker 메타 (이미지 안에 불필요)
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# 시크릿 — 런타임은 compose env_file 로 주입
+backend/.env
+backend/.env.local
+backend/.env.*.local
+**/.env
+
+# Python
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.egg-info
+.pytest_cache
+.mypy_cache
+
+# 가상환경 (이미지에서 pip 로 설치)
+**/.venv
+**/venv
+**/ENV
+
+# 이 레포에서 Django 이미지에 쓰이지 않는 트리
+frontend
+study
+doc
+etl
+ai
+infra
+database
+.expo
+
+# Node / 프론트 산출물
+**/node_modules
+**/.next
+**/dist
+**/build
+.npm
+.yarn
+
+# IDE / OS
+.idea
+.vscode
+*.swp
+.DS_Store
+Thumbs.db
+
+# 로그·DB 덤프 등
+*.log
+*.sqlite3
+*.sqlite3-journal

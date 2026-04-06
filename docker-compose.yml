@@ -11,11 +11,10 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d:ro
 
   web:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: sk_connect_web
     restart: unless-stopped
