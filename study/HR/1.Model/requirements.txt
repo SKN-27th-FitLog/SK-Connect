@@ -1,0 +1,16 @@
+# 개발 패키지
+jupyter==1.1.1 # 주피터 노트북
+python-dotenv==1.1.1 # 환경 변수 관리
+
+# LangChain 패키지
+langchain==1.0.2 # LangChain 메인 패키지
+langchain-core==1.0.0 # LangChain 코어 기능
+langchain-community==0.4 # LangChain 커뮤니티 확장
+
+# 모델별 패키지
+langchain-openai==1.0.1 # OpenAI 모델 통합
+langchain-groq==1.0.0 # Groq 모델 통합
+langchain-ollama==1.0.0 # Ollama 모델 통합
+langchain-huggingface==1.0.0 # Hugging Face 모델 통합
+transformers==4.57.1 # Hugging Face 트랜스포머 라이브러리
+torch==2.9.0 # PyTorch 딥러닝 프레임워크
