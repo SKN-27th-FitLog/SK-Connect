@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "ex01",
+			"path": "."
+		},
+		{
+			"name": "data",
+			"path": "../../../../../course/course_LLM/5. RAG/1. colab/1. Naive RAG/1. Loader/data"
+		}
+	],
+	"settings": {}
+}

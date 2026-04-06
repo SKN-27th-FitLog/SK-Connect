@@ -9,3 +9,5 @@ class FoodMapSerializer(serializers.ModelSerializer):
     class Meta:
         model = FoodMap
         fields = ['map_id', 'signature_menu']  # 반환할 필드
+
+    
