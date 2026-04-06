@@ -52,7 +52,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample
 from .models import FoodMap
 from .serializers import FoodMapSerializer
 
-
+# 전체 조회 + 조건 조회 API
 class FoodMapView(APIView):
 
     @extend_schema(
@@ -73,9 +73,11 @@ class FoodMapView(APIView):
             # 전체 맛집 메뉴 조회
             foodmaps = FoodMap.objects.all()
 
+            # 조회된 데이터를 JSON 형태로 변환
         serializer = FoodMapSerializer(foodmaps, many=True)
         return Response({"results": serializer.data})
 
+# 특정 맛집 상세 조회 API
 class FoodMapDetailView(APIView):
 
     @extend_schema(
