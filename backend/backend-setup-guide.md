@@ -8,18 +8,21 @@
 # 📁 프로젝트 폴더 구조
 
 ```
-backend/
-├── .venv/              # Python 가상환경
-├── manage.py           # Django 실행 진입점 (서버, DB 관리)
-├── config/             # 프로젝트 설정
-│   ├── __init__.py
-│   ├── settings.py     # DB, 앱, 환경설정
-│   ├── urls.py         # API 라우팅
-│   ├── wsgi.py
-│   └── asgi.py
-├── docker-compose.yml
-├── requirements.txt
-└── .env
+<레포 루트>/
+├── docker-compose.yml  # Docker (DB + web) — 루트에서 실행
+├── Dockerfile          # web 이미지 빌드 (context = 레포 루트)
+├── postgres-init/      # PostgreSQL 초기화 스크립트 (선택)
+└── backend/
+    ├── .venv/          # Python 가상환경
+    ├── manage.py       # Django 실행 진입점 (서버, DB 관리)
+    ├── config/         # 프로젝트 설정
+    │   ├── __init__.py
+    │   ├── settings.py # DB, 앱, 환경설정
+    │   ├── urls.py     # API 라우팅
+    │   ├── wsgi.py
+    │   └── asgi.py
+    ├── requirements.txt
+    └── .env
 ```
 
 ---
@@ -28,16 +31,17 @@ backend/
 
 ```bash
 git clone <repository-url>
-cd backend
+cd <레포-폴더명>
 ```
 
 ---
 
 ## ✅ 2. 가상환경 생성
 
-패키지 충돌 방지를 위해 backend 내부에 생성합니다.
+패키지 충돌 방지를 위해 `backend` 내부에 생성합니다.
 
 ```bash
+cd backend
 uv venv .venv --python 3.12
 ```
 
@@ -119,9 +123,10 @@ SECRET_KEY=생성된값
 
 ## ✅ 8. Docker 실행
 
-backend 폴더에서 실행:
+**레포지토리 루트**(`docker-compose.yml`이 있는 디렉터리)에서 실행합니다.
 
 ```bash
+cd ..   # 이미 backend 안에 있다면 루트로
 docker compose up -d --build
 ```
 
@@ -171,8 +176,9 @@ OK
 
 ```bash
 git clone <repository-url>
-cd backend
+cd <레포-폴더명>
 
+cd backend
 uv venv .venv --python 3.12
 .\.venv\Scripts\activate
 
@@ -180,8 +186,10 @@ uv pip install -r requirements.txt
 
 copy .env.example .env
 
+cd ..
 docker compose up -d --build
 
+cd backend
 python manage.py migrate
 
 ```
