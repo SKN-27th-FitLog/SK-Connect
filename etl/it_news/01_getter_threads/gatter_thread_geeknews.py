@@ -12,6 +12,8 @@ DOM 대응 선택자(참고):
     - 요약 링크: div.topicdesc > a[href^=topic?id=]
     - 메타: div.topicinfo (points, user, 상대시간, 댓글 링크)
 
+CSV 열: time_text(원문), posted_at(상대시각 역산 ISO8601 KST; 미매칭 시 collected_at과 동일), collected_at(수집 시작 시각).
+
 사용 예:
     python gatter_thread_geeknews.py
     python gatter_thread_geeknews.py --limit 10 -o thread_geeknews.csv
@@ -24,8 +26,37 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from zoneinfo import ZoneInfo
+
+_KST = ZoneInfo("Asia/Seoul")
+
+# 목록 상대시각 → timedelta(n). 달/개월은 달력월이 아닌 30일 근사, 년은 365일 근사(윤년 미반영).
+_TIME_RULES: list[tuple[re.Pattern[str], Callable[[int], timedelta]]] = [
+    (re.compile(r"^(\d+)시간전$"), lambda n: timedelta(hours=n)),
+    (re.compile(r"^(\d+)일전$"), lambda n: timedelta(days=n)),
+    (re.compile(r"^(\d+)주전$"), lambda n: timedelta(weeks=n)),
+    (re.compile(r"^(\d+)달전$"), lambda n: timedelta(days=30 * n)),
+    (re.compile(r"^(\d+)개월전$"), lambda n: timedelta(days=30 * n)),
+    (re.compile(r"^(\d+)년전$"), lambda n: timedelta(days=365 * n)),
+]
+
+
+def geeknews_relative_to_posted_at(time_text: str, collected_at: datetime) -> str:
+    """상대시각 문자열을 collected_at 기준으로 역산한 ISO8601(+offset) 문자열. 패턴 불일치 시 collected_at."""
+    if collected_at.tzinfo is None:
+        raise ValueError("collected_at must be timezone-aware")
+    s = time_text.strip()
+    fallback = collected_at.isoformat()
+    for pat, mk_delta in _TIME_RULES:
+        m = pat.match(s)
+        if m:
+            n = int(m.group(1))
+            return (collected_at - mk_delta(n)).isoformat()
+    return fallback
 
 # request에서 요청 시 유저 기기를 지정하는 고정 변수값 
 # 일부 사이트는 기본 UA를 거부하므로 필요 시 문자열·헤더(Referer 등)를 바꿔서 시도할 수 있음.
@@ -94,8 +125,9 @@ def list_url_for_page(base_url: str, page: int) -> str:
     return urlunparse((p.scheme, p.netloc, path, "", query, p.fragment))
 
 
-def parse_page_rows(html: str) -> list[dict]:
-    """한 페이지 HTML에서 topic_row를 모두 순서대로 파싱."""
+def parse_page_rows(html: str, *, collected_at: datetime) -> list[dict]:
+    """한 페이지 HTML에서 topic_row를 모두 순서대로 파싱. collected_at은 상대시각 역산·미매칭 시 posted_at 기준."""
+    collected_iso = collected_at.isoformat()
     rows: list[dict] = []
     for m in _ROW_RE.finditer(html):
         (
@@ -134,6 +166,8 @@ def parse_page_rows(html: str) -> list[dict]:
                 "author_user_id": user_id,
                 "author_display_name": user_name.strip(),
                 "time_text": time_text,
+                "posted_at": geeknews_relative_to_posted_at(time_text, collected_at),
+                "collected_at": collected_iso,
                 "comment_count": parse_comment_count(comment_cell),
             }
         )
@@ -168,6 +202,7 @@ def main() -> int:
     rows: list[dict] = []
     page = 1
     stop_reason = ""
+    collected_at = datetime.now(_KST)
 
     while len(rows) < limit and page <= max_pages:
         page_url = list_url_for_page(base_url, page)
@@ -180,7 +215,7 @@ def main() -> int:
             print(f"{type(e).__name__}: page={page} {page_url} — {e}", file=sys.stderr)
             return 1
 
-        batch = parse_page_rows(html)
+        batch = parse_page_rows(html, collected_at=collected_at)
         for item in batch:
             rows.append(item)
             if len(rows) >= limit:
@@ -215,6 +250,8 @@ def main() -> int:
         "author_user_id",
         "author_display_name",
         "time_text",
+        "posted_at",
+        "collected_at",
         "comment_count",
     ]
     _write_dict_csv(out, fieldnames, rows)
