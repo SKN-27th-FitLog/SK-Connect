@@ -45,11 +45,66 @@ def save_dataframe_to_csv(dataframe, filename):
 
 # thread_geeknews_with_content.csv 로드해서 전처리 후 데이터 프레임에 반환
 def cleaning_geeknews(df:pd.DataFrame):
+
+    # 원본 데이터 파일 로드 (일단은 절대 경로로... 작업되고 나면 상대경로 지정하거나 파일 경로 변수로 관리)
+    _geeknews  = load_csv("etl\\it_news\\01_getter_threads\\thread_geeknews_with_content.csv")
+
+    # 원본 데이터 중에서 _geeknews['state'] == 'ok' 아니면 해당 row는 드랍
+    _geeknews = _geeknews[_geeknews['state'] == 'ok']
+
+    # 빈 데이터 프레임 준비 
+    df_geeknews = pd.DataFrame()
+
+    # 원본 데이터 중에서 수집 대상인 컬럼을 데이터프레임으로 추가 
+    df_geeknews['crawling_id'] = None
+    df_geeknews['title'] = _geeknews['title'].map(lambda x: x[:200]) # 최대 200자 까지만 텍스트로 잘라서 저장 
+    df_geeknews['content'] = _geeknews['content'].map(lambda x: x[:4000]) # 최대 4천자 까지만 텍스트로 잘라서 저장 
+    df_geeknews['thread'] = _geeknews['topic_id'].map(lambda x: f'geek_{x}') # id의 경우는 데이터 넣는 과정에서 다시 설정될 듯 하니 일단은 내부 구분용으로 
+    df_geeknews['article_url'] = _geeknews['article_url'].map(lambda x: x[:5000]) # 최대 5천자 까지만 텍스트로 잘라서 저장 
+    df_geeknews['created_at'] = _geeknews['posted_at']
+    df_geeknews['view_count'] = 0 # 해당 스레드에는 view가 없음 
+    df_geeknews['comment_count'] = _geeknews['comment_count']
+    df_geeknews['point'] = _geeknews['points']
+    df_geeknews['author'] = _geeknews['author_user_id']
+    df_geeknews['map_id'] = None
+    df_geeknews['category_cd'] = None
+    
+    # df에 df_geeknews 데이터 채움 > df 데이터 마지막 row에서부터 추가 
+    df = pd.concat([df, df_geeknews], ignore_index=True)
+
     return df
 
 
 # thread_pytorch_with_content.csv 로드해서 전처리 후 데이터 프레임에 반환
 def cleaning_pytorch(df:pd.DataFrame):
+
+    # 원본 데이터 파일 로드 (일단은 절대 경로로... 작업되고 나면 상대경로 지정하거나 파일 경로 변수로 관리)
+    _pytorch  = load_csv("etl\\it_news\\01_getter_threads\\thread_pytorch_with_content.csv")
+
+    # 원본 데이터 중에서 _geeknews['state'] == 'ok' 아니면 해당 row는 드랍
+    _pytorch = _pytorch[_pytorch['state'] == 'ok']
+
+    # 빈 데이터 프레임 준비 
+    df_pytorch = pd.DataFrame()
+
+    # 원본 데이터 중에서 수집 대상인 컬럼을 데이터프레임으로 추가 
+    df_pytorch['crawling_id'] = None
+    df_pytorch['title'] = _pytorch['title'].map(lambda x: x[:200]) # 최대 200자 까지만 텍스트로 잘라서 저장 
+    df_pytorch['content'] = _pytorch['content'].map(lambda x: x[:4000]) # 최대 4천자 까지만 텍스트로 잘라서 저장 
+    df_pytorch['thread'] = _pytorch['topic_id'].map(lambda x: f'pyto_{x}') # id의 경우는 데이터 넣는 과정에서 다시 설정될 듯 하니 일단은 내부 구분용으로 
+    df_pytorch['article_url'] = _pytorch['topic_url'].map(lambda x: x[:5000]) # 최대 5천자 까지만 텍스트로 잘라서 저장 
+    df_pytorch['created_at'] = _pytorch['created_at']
+    df_pytorch['view_count'] = _pytorch['views']
+    df_pytorch['comment_count'] = _pytorch['reply_count']
+    df_pytorch['point'] = 0 # 해당 테이블에 값이 없음 
+    df_pytorch['author'] = _pytorch['last_poster_username']
+    df_pytorch['map_id'] = None
+    df_pytorch['category_cd'] = None
+    
+    # df에 df_pytorch 데이터 채움 > df 데이터 마지막 row에서부터 추가 
+    df = pd.concat([df, df_pytorch], ignore_index=True)
+
+
     return df
 
     
