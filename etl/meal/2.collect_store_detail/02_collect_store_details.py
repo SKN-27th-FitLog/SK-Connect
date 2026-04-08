@@ -10,7 +10,7 @@ import pandas as pd
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-PRICE_PATTERN = re.compile(r"([0-9]{1,3}(?:,[0-9]{3})*)(?:원)?")
+PRICE_PATTERN = re.compile(r"([0-9,]+)\s*원")
 RATING_PATTERN = re.compile(r"\b([0-5](?:\.\d)?)\b")
 REVIEW_COUNT_PATTERN = re.compile(r"(\d+)건\s*의\s*리뷰")
 
@@ -132,8 +132,10 @@ def collect_menus(page, max_items: int = 50) -> List[Dict[str, str]]:
         if not price_match:
             continue
         price = price_match.group(1).replace(",", "")
-        name = text.replace(price_match.group(0), "").strip(" -:\n\t")
-        if not name or len(name) > 50:
+        # 가격 문자열을 제외하고 남은 부분의 줄바꿈과 탭 등 불필요한 공백 제거
+        name = text.replace(price_match.group(0), "")
+        name = re.sub(r"\s+", " ", name).strip(" -:")
+        if not name or len(name) > 100:  # 메뉴 설명이 길 수 있으므로 100자까지 허용
             continue
         key = (name, price)
         if key in seen:
