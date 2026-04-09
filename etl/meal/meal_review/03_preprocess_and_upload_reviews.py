@@ -9,18 +9,7 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 
-DDL = """
-CREATE TABLE IF NOT EXISTS review (
-  review_id BIGSERIAL PRIMARY KEY,
-  shop_id BIGINT NOT NULL,
-  source_review_id VARCHAR(50),
-  rating FLOAT,
-  date VARCHAR(30),
-  content TEXT,
-  keywords TEXT,
-  image_paths TEXT
-);
-"""
+
 
 def process_jsons_to_df(json_dir: str, raw_csv: str) -> pd.DataFrame:
     # 1. URL -> Address 맵핑 (raw_store_data.csv)
@@ -72,6 +61,31 @@ def save_intermediate(df: pd.DataFrame, out_dir: str) -> None:
     if not df.empty:
         df.to_csv(path / "review.csv", index=False, encoding="utf-8-sig")
 
+def cleanup_files(json_dir: str, intermediate_csv: str) -> None:
+    try:
+        json_paths = glob.glob(os.path.join(json_dir, "*.json"))
+        for path in json_paths:
+            os.remove(path)
+        if os.path.exists(intermediate_csv):
+            os.remove(intermediate_csv)
+        print("✅ 성공적으로 임시 파일들(JSON, CSV)이 삭제되었습니다.")
+    except Exception as e:
+        print(f"❌ 임시 파일 삭제 실패: {e}")
+
+def get_or_create_crawler_user(cur) -> int:
+    # Check if we have crawler bot
+    cur.execute("SELECT user_id FROM users WHERE google_id = 'crawler_bot'")
+    row = cur.fetchone()
+    if row:
+        return row[0]
+    # In case not, create one
+    cur.execute("""
+        INSERT INTO users (email, nickname, google_id, status_cd)
+        VALUES ('crawler@sk.com', 'Data Crawler', 'crawler_bot', 'ST01')
+        RETURNING user_id
+    """)
+    return cur.fetchone()[0]
+
 def upload_reviews(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: bool) -> None:
     if df.empty:
         print("업로드할 리뷰 데이터가 없습니다.")
@@ -81,13 +95,17 @@ def upload_reviews(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: 
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute(DDL)
                 if truncate_first:
-                    cur.execute("TRUNCATE TABLE review RESTART IDENTITY CASCADE")
+                    # Truncate posts conditionally? We may not want to truncate ALL posts as they include user data.
+                    # We will comment this out to protect other posts.
+                    # cur.execute("TRUNCATE TABLE posts RESTART IDENTITY CASCADE")
+                    pass
 
-                # shop_id 맵핑 조회
+                user_id = get_or_create_crawler_user(cur)
+
+                # shop_id, map_id 맵핑 조회
                 cur.execute("""
-                    SELECT m.name, m.address_detail, s.shop_id 
+                    SELECT m.name, m.address_detail, s.shop_id, s.map_id 
                     FROM shop s 
                     JOIN maps m ON s.map_id = m.map_id
                 """)
@@ -95,11 +113,11 @@ def upload_reviews(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: 
                 
                 # 공백을 제거한 키를 사용하여 맵핑의 안정성을 높입니다.
                 shop_id_lookup = {}
-                for name_db, addr_db, shop_id in rows:
+                for name_db, addr_db, shop_id, map_id in rows:
                     if name_db and addr_db:
                         k1 = str(name_db).replace(" ", "")
                         k2 = str(addr_db).replace(" ", "")
-                        shop_id_lookup[(k1, k2)] = shop_id
+                        shop_id_lookup[(k1, k2)] = (shop_id, map_id)
 
                 review_values = []
                 missing_shop_ids_count = 0
@@ -108,44 +126,70 @@ def upload_reviews(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: 
                     n = str(row.get("store_name", "")).replace(" ", "")
                     a = str(row.get("store_address", "")).replace(" ", "")
                     
-                    shop_id = shop_id_lookup.get((n, a))
-                    if shop_id is None:
-                        missing_shop_ids_count += 1
-                        continue
-                        
-                    rating = row.get("rating")
-                    if pd.isna(rating):
-                        rating = None
-                        
-                    review_values.append((
-                        shop_id,
-                        row.get("source_review_id"),
-                        rating,
-                        row.get("date"),
-                        row.get("content"),
-                        row.get("keywords"),
-                        row.get("image_paths"),
-                    ))
+                miss_count = 0
+                inserted_posts = 0
+                inserted_images = 0
+                from datetime import datetime
 
-                if review_values:
-                    execute_values(
-                        cur, 
-                        "INSERT INTO review (shop_id, source_review_id, rating, date, content, keywords, image_paths) VALUES %s", 
-                        review_values
-                    )
-                    print(f"성공적으로 {len(review_values)}개의 리뷰를 DB에 삽입했습니다.")
+                for row in df.to_dict("records"):
+                    n = str(row.get("store_name", "")).replace(" ", "")
+                    a = str(row.get("store_address", "")).replace(" ", "")
+                    
+                    mapping = shop_id_lookup.get((n, a))
+                    if mapping is None:
+                        miss_count += 1
+                        continue
+                    
+                    shop_id, map_id = mapping
+                    
+                    rating_val = row.get("rating")
+                    rating_str = f"{rating_val:.1f}" if pd.notna(rating_val) else "N/A"
+                    keywords = row.get("keywords", "")
+                    content = f"[평점: {rating_str}점]\n{row.get('content', '')}\n\n(키워드: {keywords})"
+                    
+                    title = f"{row.get('store_name', '')} 리뷰"
+                    if len(title) > 100:
+                        title = title[:97] + "..."
+                        
+                    date_val = row.get("date")
+                    try:
+                        dt = datetime.strptime(str(date_val), "%Y-%m-%d")
+                    except Exception:
+                        dt = datetime.now()
+
+                    cur.execute("""
+                        INSERT INTO posts (title, content, created_at, modify_at, status_cd, post_cd, user_id, map_id, shop_id, crawling_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+                        RETURNING post_id
+                    """, (title, content, dt, dt, 'ST01', 'PT03', user_id, map_id, shop_id))
+                    
+                    post_id = cur.fetchone()[0]
+                    inserted_posts += 1
+
+                    img_paths_val = row.get("image_paths", "")
+                    if img_paths_val:
+                        img_paths = [p.strip() for p in str(img_paths_val).split(",") if p.strip()]
+                        for img in img_paths:
+                            cur.execute("""
+                                INSERT INTO images (image_url, table_name, table_id)
+                                VALUES (%s, %s, %s)
+                            """, (img, 'posts', post_id))
+                            inserted_images += 1
+
+                print(f"✅ 성공적으로 {inserted_posts}개의 리뷰와 {inserted_images}개의 이미지를 DB에 삽입했습니다.")
                 
-                if missing_shop_ids_count > 0:
-                    print(f"경고: DB (shop/maps 테이블)에서 가게 정보를 찾지 못해 스킵된 리뷰 {missing_shop_ids_count}개 존재")
+                if miss_count > 0:
+                    print(f"⚠️ 경고: DB (shop/maps 테이블)에서 가게 정보를 찾지 못해 스킵된 리뷰 {miss_count}개 존재")
                     
     finally:
         conn.close()
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 리뷰 JSON을 파싱 후 PostgreSQL에 업로드")
-    parser.add_argument("--json-dir", default="../review_data/jsons", help="리뷰 JSON 폴더")
-    parser.add_argument("--raw-csv", default="../data/raw_store_data.csv", help="store_url -> 주소 맵핑용 CSV 파일")
-    parser.add_argument("--output-dir", default="../review_data", help="중간 산출물(review.csv) 저장 폴더")
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    parser.add_argument("--json-dir", default=str(BASE_DIR / "review_data" / "jsons"), help="리뷰 JSON 폴더")
+    parser.add_argument("--raw-csv", default=str(BASE_DIR / "data" / "raw_store_data.csv"), help="store_url -> 주소 맵핑용 CSV 파일")
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "review_data"), help="중간 산출물(review.csv) 저장 폴더")
     
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=5432)
@@ -171,8 +215,13 @@ def main() -> None:
     }
     
     print("DB 업로드 시작...")
-    upload_reviews(df, conn_args, args.truncate_first)
-
+    try:
+        upload_reviews(df, conn_args, args.truncate_first)
+        print("✅ 리뷰 DB 처리 완료.")
+        cleanup_files(args.json_dir, str(Path(args.output_dir) / "review.csv"))
+    except Exception as e:
+        print(f"❌ 리뷰 DB 업로드 실패: {e}")
+        raise
 
 if __name__ == "__main__":
     main()

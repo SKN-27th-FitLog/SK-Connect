@@ -24,21 +24,23 @@ playwright install
 
 ---
 
-## 실행 순서
+## 실행 방법
 
-### 1. 가게 URL 수집
-```bash
-python 01_collect_store_links.py --targets targets_example.csv --headful
-```
+이제 시스템이 배치(Batch) 스타일로 고도화되어 전체 파이프라인(상세수집+리뷰수집)을 한 번에 실행할 수 있습니다.
 
-### 2. 상세 데이터 수집
 ```bash
-python 02_collect_store_details.py --headful
-```
+# etl/meal 폴더 최상단에서 실행하세요
+python run_batch_pipeline.py \
+    --targets "meal_detail/targets_example.csv" \
+    --host "DB주소" \
+    --dbname "디비명" \
+    --user "유저명" \
+    --password "암호" \
+    --kakao-api-key "카카오REST_API_KEY" \
+    --headful
 
-### 3. 전처리 및 업로드
-```bash
-python 03_preprocess_and_upload.py --host localhost --port 5432 --dbname mydb --user myuser --password mypw --truncate-first
+# 개별 실행이 필요한 경우 (예: 링크 수집만)
+python meal_detail/01_collect_store_links.py --targets targets_example.csv --headful
 ```
 
 ---
@@ -61,7 +63,8 @@ python 03_preprocess_and_upload.py --host localhost --port 5432 --dbname mydb --
 ## 주의사항
 - LISTING_URL_TEMPLATE는 반드시 실제 사이트 구조에 맞게 수정 필요
 - selector (CSS 선택자)는 사이트마다 다르므로 조정 필요
-- maps 테이블의 latitude/longitude는 반드시 존재해야 함
+- maps 테이블의 latitude/longitude 보강을 위해 카카오 API 키(`--kakao-api-key`) 설정 사용이 필수로 권장됩니다.
+- DB 업로드에 성공하면 로컬에 누적된 `csv`와 `json` 파일들은 보안 및 용량 최적화를 위해 **자동으로 영구 삭제(Clear)** 됩니다.
 
 ---
 

@@ -226,8 +226,9 @@ def crawl_one(page, candidate: Dict[str, str]) -> Dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="후보 URL에서 맛집 상세 수집")
-    parser.add_argument("--input", default="../data/shop_candidates.csv")
-    parser.add_argument("--output", default="../data/raw_store_data.csv")
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    parser.add_argument("--input", default=str(BASE_DIR / "data" / "shop_candidates.csv"))
+    parser.add_argument("--output", default=str(BASE_DIR / "data" / "raw_store_data.csv"))
     parser.add_argument("--headful", action="store_true")
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
@@ -259,9 +260,11 @@ def main() -> None:
 
         for _, candidate in df.iterrows():
             store_url = str(candidate.get("store_url", "")).strip()
-            if not store_url or store_url in processed:
+            if pd.isna(candidate.get("store_url")) or not store_url or store_url.lower() == "nan" or store_url in processed:
                 continue
-            row = crawl_one(page, candidate.to_dict())
+                
+            safe_candidate = {k: ("" if pd.isna(v) else str(v)) for k, v in candidate.to_dict().items()}
+            row = crawl_one(page, safe_candidate)
             append_row(row, args.output)
             processed.add(store_url)
             pause(1.0, 1.8)

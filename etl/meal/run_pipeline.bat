@@ -6,20 +6,18 @@ echo Food Crawling Pipeline Batch Program
 echo ==========================================
 
 :: ---------------------------------------------------------
-:: [1] DB 및 크롤링 설정 변수 (사용자 환경에 맞게 수정하세요)
+:: [1] 환경변수(.env) 로드
 :: ---------------------------------------------------------
-set DB_HOST=localhost
-set DB_PORT=5432
-set DB_NAME=mydb
-set DB_USER=myuser
-set DB_PASS=mypw
-
-:: 크롤링을 수행할 타겟 파일명 (data 퐅더 내)
-set TARGETS_FILE=targets_example.csv
-
-:: 화면을 표시하지 않고 백그라운드(Headless)로 실행하려면 값을 비워두세요.
-:: 개발/테스트용으로 화면을 보려면 "--headful" 이라고 적으세요.
-set HEAD_MODE=
+if exist "%~dp0.env" (
+    echo [INFO] .env 파일 로딩 중...
+    for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+        set "%%A=%%B"
+    )
+) else (
+    echo [ERROR] .env 파일이 없습니다! .env.example을 복사하여 .env를 생성하고 설정값을 입력하세요.
+    pause
+    exit /b 1
+)
 
 :: ---------------------------------------------------------
 :: 시스템 초기화
@@ -53,7 +51,7 @@ if %ERRORLEVEL% NEQ 0 goto :error
 
 echo.
 echo [STEP 3/5] 가게 정보 전처리 및 DB 업로드 중... (03_preprocess_and_upload.py)
-python 03_preprocess_and_upload.py --host %DB_HOST% --port %DB_PORT% --dbname %DB_NAME% --user %DB_USER% --password %DB_PASS% --truncate-first
+python 03_preprocess_and_upload.py --host %DB_HOST% --port %DB_PORT% --dbname %DB_NAME% --user %DB_USER% --password %DB_PASS% --kakao-api-key "%KAKAO_API_KEY%" --truncate-first
 if %ERRORLEVEL% NEQ 0 goto :error
 
 cd ..

@@ -373,10 +373,11 @@ def save_store_reviews_json(data: Dict[str, Any], output_dir: str, seq_no: int) 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 URL 정보를 바탕으로 다이닝코드 리뷰 및 이미지 추출")
-    parser.add_argument("--input", default="../data/raw_store_data.csv", help="앞 단계에서 수집된 raw_store_data.csv 경로")
-    parser.add_argument("--summary", default="../review_data/review_crawl_summary.csv", help="요약 CSV 경로")
-    parser.add_argument("--json-dir", default="../review_data/jsons", help="리뷰 JSON 저장 폴더")
-    parser.add_argument("--img-dir", default="../review_data/images", help="리뷰 이미지 저장 폴더")
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    parser.add_argument("--input", default=str(BASE_DIR / "data" / "raw_store_data.csv"), help="앞 단계에서 수집된 raw_store_data.csv 경로")
+    parser.add_argument("--summary", default=str(BASE_DIR / "review_data" / "review_crawl_summary.csv"), help="요약 CSV 경로")
+    parser.add_argument("--json-dir", default=str(BASE_DIR / "review_data" / "jsons"), help="리뷰 JSON 저장 폴더")
+    parser.add_argument("--img-dir", default=str(BASE_DIR / "review_data" / "images"), help="리뷰 이미지 저장 폴더")
     parser.add_argument("--headful", action="store_true", help="브라우저 창을 보이게 실행")
     parser.add_argument("--limit", type=int, default=None, help="상위 N개만 테스트")
     

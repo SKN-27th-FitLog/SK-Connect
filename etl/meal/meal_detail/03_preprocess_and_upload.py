@@ -1,3 +1,5 @@
+import os
+import requests
 import argparse
 import json
 from pathlib import Path
@@ -27,8 +29,8 @@ def load_and_transform(raw_csv: str, code_csv: str, default_category_cd: str, de
     df = df[(df["store_name"] != "") & (df["store_address"] != "")].copy()
 
     # 여기 좌표는 현재 단계에서 별도 보강해야 함. 일단 컬럼만 유지.
-    df["latitude"] = pd.NA
-    df["longitude"] = pd.NA
+    df["latitude"] = 0.0
+    df["longitude"] = 0.0
     
     def get_cat_cd(c) -> str:
         if pd.isna(c) or c == "":
@@ -42,10 +44,10 @@ def load_and_transform(raw_csv: str, code_csv: str, default_category_cd: str, de
                 return pd.Series([address_map[key], a_str[len(key):].strip()])
         return pd.Series([default_address_cd, a_str])
 
-    if "source_category" in df.columns:
-        df["category_cd"] = df["source_category"].apply(get_cat_cd)
-    else:
-        df["category_cd"] = default_category_cd
+    # maps category_cd is fixed to 'CA01' (맛집) per init.sql map constraint
+    # shop category_cd is the detailed food category (e.g. FC01)
+    df["shop_category_cd"] = df["source_category"].apply(get_cat_cd) if "source_category" in df.columns else default_category_cd
+    df["category_cd"] = "CA01"
         
     df[["address_cd", "store_address"]] = df["store_address"].apply(get_addr_info)
 
@@ -57,9 +59,9 @@ def load_and_transform(raw_csv: str, code_csv: str, default_category_cd: str, de
     )
 
     shop_df = (
-        df[["store_name", "store_address", "category_cd", "store_rating"]]
+        df[["store_name", "store_address", "shop_category_cd", "store_rating"]]
         .drop_duplicates()
-        .rename(columns={"store_rating": "rating"})
+        .rename(columns={"store_rating": "rating", "shop_category_cd": "category_cd"})
         .reset_index(drop=True)
     )
     shop_df["rating"] = pd.to_numeric(shop_df["rating"], errors="coerce")
@@ -83,31 +85,7 @@ def load_and_transform(raw_csv: str, code_csv: str, default_category_cd: str, de
     return maps_df, shop_df, menu_df
 
 
-DDL = """
-CREATE TABLE IF NOT EXISTS maps (
-  map_id BIGSERIAL PRIMARY KEY,
-  name TEXT,
-  category_cd VARCHAR(6),
-  address_cd VARCHAR(6),
-  address_detail TEXT NOT NULL,
-  latitude FLOAT,
-  longitude FLOAT
-);
 
-CREATE TABLE IF NOT EXISTS shop (
-  shop_id BIGSERIAL PRIMARY KEY,
-  map_id BIGINT NOT NULL,
-  category_cd VARCHAR(6),
-  rating FLOAT
-);
-
-CREATE TABLE IF NOT EXISTS menu (
-  menu_id BIGSERIAL PRIMARY KEY,
-  shop_id BIGINT NOT NULL,
-  name VARCHAR(100),
-  price INT
-);
-"""
 
 
 def save_intermediate(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.DataFrame, out_dir: str) -> None:
@@ -118,17 +96,35 @@ def save_intermediate(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.
     menu_df.to_csv(path / "menu.csv", index=False, encoding="utf-8-sig")
 
 
-def upload(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: bool) -> None:
+def fetch_coordinates_kakao(address: str, api_key: str) -> Tuple[float, float]:
+    if not api_key:
+        return 0.0, 0.0
+    url = "https://dapi.kakao.com/v2/local/search/address.json"
+    headers = {"Authorization": f"KakaoAK {api_key}"}
+    try:
+        resp = requests.get(url, headers=headers, params={"query": address}, timeout=5)
+        if resp.status_code == 200:
+            docs = resp.json().get("documents", [])
+            if docs:
+                return float(docs[0].get("y", 0.0)), float(docs[0].get("x", 0.0))
+    except Exception as e:
+        print(f"Kakao API Error for {address}: {e}")
+    return 0.0, 0.0
+
+def upload(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: bool, kakao_api_key: str = "") -> None:
     conn = psycopg2.connect(**conn_args)
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute(DDL)
                 if truncate_first:
                     cur.execute("TRUNCATE TABLE menu, shop, maps RESTART IDENTITY CASCADE")
 
                 map_id_lookup: Dict[Tuple[str, str], int] = {}
                 for row in maps_df.to_dict("records"):
+                    lat, lng = row["latitude"], row["longitude"]
+                    if lat == 0.0 and lng == 0.0 and kakao_api_key:
+                        lat, lng = fetch_coordinates_kakao(row["address_detail"], kakao_api_key)
+                        
                     cur.execute(
                         """
                         INSERT INTO maps (name, category_cd, address_cd, address_detail, latitude, longitude)
@@ -140,8 +136,8 @@ def upload(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.DataFrame, 
                             row["category_cd"],
                             row["address_cd"],
                             row["address_detail"],
-                            row["latitude"],
-                            row["longitude"],
+                            lat,
+                            lng,
                         ),
                     )
                     map_id = cur.fetchone()[0]
@@ -174,12 +170,24 @@ def upload(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.DataFrame, 
         conn.close()
 
 
+def cleanup_files(files: List[str]) -> None:
+    for f in files:
+        if os.path.exists(f):
+            try:
+                os.remove(f)
+                print(f"✅ 삭제 완료: {f}")
+            except Exception as e:
+                print(f"❌ 삭제 실패 {f}: {e}")
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 raw 데이터를 전처리 후 PostgreSQL 업로드")
-    parser.add_argument("--input", default="../data/raw_store_data.csv")
-    parser.add_argument("--output-dir", default="../data")
-    parser.add_argument("--code-table", default="../data/codeT.csv")
-    parser.add_argument("--default-category-cd", default="CA01")
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = BASE_DIR.parent.parent
+    
+    parser.add_argument("--input", default=str(BASE_DIR / "data" / "raw_store_data.csv"))
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "data"))
+    parser.add_argument("--code-table", default=str(PROJECT_ROOT / "database" / "data" / "codeT.csv"))
+    parser.add_argument("--default-category-cd", default="FC01")
     parser.add_argument("--default-address-cd", default="LA00")
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=5432)
@@ -187,23 +195,39 @@ def main() -> None:
     parser.add_argument("--user", required=True)
     parser.add_argument("--password", required=True)
     parser.add_argument("--truncate-first", action="store_true")
+    parser.add_argument("--kakao-api-key", default="", help="카카오 REST API 키 (위경도 파싱용)")
     args = parser.parse_args()
 
     maps_df, shop_df, menu_df = load_and_transform(args.input, args.code_table, args.default_category_cd, args.default_address_cd)
     save_intermediate(maps_df, shop_df, menu_df, args.output_dir)
-    upload(
-        maps_df,
-        shop_df,
-        menu_df,
-        {
-            "host": args.host,
-            "port": args.port,
-            "dbname": args.dbname,
-            "user": args.user,
-            "password": args.password,
-        },
-        truncate_first=args.truncate_first,
-    )
+    try:
+        upload(
+            maps_df,
+            shop_df,
+            menu_df,
+            {
+                "host": args.host,
+                "port": args.port,
+                "dbname": args.dbname,
+                "user": args.user,
+                "password": args.password,
+            },
+            truncate_first=args.truncate_first,
+            kakao_api_key=args.kakao_api_key,
+        )
+        print("✅ DB 업로드 완료. 임시 파일 삭제를 시작합니다.")
+        # Upload successful, cleanup CSVs
+        out_dir = Path(args.output_dir)
+        cleanup_files([
+            args.input,
+            str(out_dir / "maps.csv"),
+            str(out_dir / "shop.csv"),
+            str(out_dir / "menu.csv"),
+            str(out_dir / "shop_candidates.csv")
+        ])
+    except Exception as e:
+        print(f"❌ DB 업로드 실패: {e}")
+        raise
 
 
 if __name__ == "__main__":

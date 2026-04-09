@@ -22,16 +22,14 @@
   - JSON 텍스트 파싱 결과: `../review_data/jsons/{번호}_{가게명}.json`
   - 이미지 물리적 저장: `../review_data/images/{가게명}/...` 
 
-### [NEW] `meal_review/03_preprocess_and_upload_reviews.py`
+### [MODIFY] `meal_review/03_preprocess_and_upload_reviews.py`
 - `../review_data/jsons/*.json` 을 모두 읽어들여 단일 DataFrame으로 생성하며, `review.csv` 백업을 `../review_data/` 에 만듭니다.
-- DB테이블(`review`) 신규 생성 시 **`image_paths`** 컬럼을 추가해 각 리뷰당 저장된 이미지의 로컬 경로 리스트들을 DB에 함께 기록합니다.
+- **[핵심]** 파싱한 리뷰를 `posts` 및 `images` 통합 테이블 시스템으로 삽입합니다. (크롤러 봇 전용 계정 `crawler_bot` 자동 매핑) 내용에는 파싱된 평점과 키워드를 합칩니다 (`[평점: X.X] \n 본문...`).
+- **자동 정리(Auto Cleanup)**: DB 업로드가 안전하게 커밋 완료되면, 로컬에 생성된 JSON 및 CSV 임시 파일들을 모두 영구적으로 삭제하여 저장 공간을 절약하고 민감 정보를 남기지 않습니다.
 
 > [!TIP]
-> 이제 아래의 순서대로 `food crawlring/meal_review/` 폴더에서 실행만 하시면 모든 작업이 완료됩니다!
+> 상세 수집과 리뷰 수집 과정을 번거롭게 일일이 칠 필요 없이 상위 폴더(`etl/meal/run_batch_pipeline.py`)에서 원 클릭 배치 스크립트로 동작시키는 것이 규칙입니다!
 > ```bash
-> # 1. 리뷰 크롤링 실행 (가게별 json 생성)
-> python 02_collect_store_reviews.py --headful
-> 
-> # 2. 수집된 JSON 파일들을 DB로 업로드
-> python 03_preprocess_and_upload_reviews.py --host="DB주소" --dbname="디비명" --user="유저명" --password="암호"
+> # etl/meal 폴더에서 실행
+> python run_batch_pipeline.py --targets meal_detail/targets_example.csv --host ... --dbname ... --user ... --password ...
 > ```

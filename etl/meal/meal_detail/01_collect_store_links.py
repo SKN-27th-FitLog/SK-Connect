@@ -217,7 +217,8 @@ def read_targets(path: str) -> List[Dict[str, str]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 목록 페이지에서 후보 URL 수집")
     parser.add_argument("--targets", required=True, help="region/category CSV")
-    parser.add_argument("--output", default="../data/shop_candidates.csv", help="후보 URL CSV")
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    parser.add_argument("--output", default=str(BASE_DIR / "data" / "shop_candidates.csv"), help="후보 URL CSV")
     parser.add_argument("--max-pages", type=int, default=3, help="지역/카테고리별 최대 페이지")
     parser.add_argument("--headful", action="store_true")
     args = parser.parse_args()
