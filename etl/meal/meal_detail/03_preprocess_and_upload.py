@@ -12,7 +12,14 @@ SHOP_COLUMNS = ["map_id", "category_cd", "rating"]
 MENU_COLUMNS = ["shop_id", "name", "price"]
 
 
-def load_and_transform(raw_csv: str, default_category_cd: str, default_address_cd: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_code_tables(code_csv: str) -> Tuple[Dict[str, str], Dict[str, str]]:
+    df_cd = pd.read_csv(code_csv)
+    category_map = {str(row["name"]).strip(): str(row["cd"]).strip() for _, row in df_cd.iterrows() if str(row["cd"]).strip().startswith(("FC", "CA"))}
+    address_map = {str(row["name"]).strip(): str(row["cd"]).strip() for _, row in df_cd.iterrows() if str(row["cd_upper"]).strip() == "LA00"}
+    return category_map, address_map
+
+def load_and_transform(raw_csv: str, code_csv: str, default_category_cd: str, default_address_cd: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    category_map, address_map = load_code_tables(code_csv)
     df = pd.read_csv(raw_csv)
     df = df[df["status"] == "ok"].copy()
     df["store_name"] = df["store_name"].fillna("").astype(str).str.strip()
@@ -22,10 +29,25 @@ def load_and_transform(raw_csv: str, default_category_cd: str, default_address_c
     # 여기 좌표는 현재 단계에서 별도 보강해야 함. 일단 컬럼만 유지.
     df["latitude"] = pd.NA
     df["longitude"] = pd.NA
-    df["category_cd"] = default_category_cd
-    df["address_cd"] = default_address_cd
+    
+    def get_cat_cd(c) -> str:
+        if pd.isna(c) or c == "":
+            return default_category_cd
+        return category_map.get(str(c).strip(), default_category_cd)
+
+    def get_addr_info(a) -> pd.Series:
+        a_str = str(a).strip()
+        for key in sorted(address_map.keys(), key=len, reverse=True):
+            if a_str.startswith(key):
+                return pd.Series([address_map[key], a_str[len(key):].strip()])
+        return pd.Series([default_address_cd, a_str])
+
     if "source_category" in df.columns:
-        df.loc[df["source_category"].notna() & (df["source_category"].astype(str).str.strip() != ""), "category_cd"] = df["source_category"]
+        df["category_cd"] = df["source_category"].apply(get_cat_cd)
+    else:
+        df["category_cd"] = default_category_cd
+        
+    df[["address_cd", "store_address"]] = df["store_address"].apply(get_addr_info)
 
     maps_df = (
         df[["store_name", "category_cd", "address_cd", "store_address", "latitude", "longitude"]]
@@ -154,10 +176,11 @@ def upload(maps_df: pd.DataFrame, shop_df: pd.DataFrame, menu_df: pd.DataFrame, 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 raw 데이터를 전처리 후 PostgreSQL 업로드")
-    parser.add_argument("--input", default="raw_store_data.csv")
-    parser.add_argument("--output-dir", default="clean_output")
-    parser.add_argument("--default-category-cd", default="FOOD")
-    parser.add_argument("--default-address-cd", default="000000")
+    parser.add_argument("--input", default="data/raw_store_data.csv")
+    parser.add_argument("--output-dir", default="data")
+    parser.add_argument("--code-table", default="codeT.csv")
+    parser.add_argument("--default-category-cd", default="CA01")
+    parser.add_argument("--default-address-cd", default="LA00")
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=5432)
     parser.add_argument("--dbname", required=True)
@@ -166,7 +189,7 @@ def main() -> None:
     parser.add_argument("--truncate-first", action="store_true")
     args = parser.parse_args()
 
-    maps_df, shop_df, menu_df = load_and_transform(args.input, args.default_category_cd, args.default_address_cd)
+    maps_df, shop_df, menu_df = load_and_transform(args.input, args.code_table, args.default_category_cd, args.default_address_cd)
     save_intermediate(maps_df, shop_df, menu_df, args.output_dir)
     upload(
         maps_df,

@@ -155,11 +155,14 @@ def load_processed(output_csv: str) -> Set[str]:
         df = pd.read_csv(path)
     except Exception:
         return set()
+    if "status" in df.columns:
+        df = df[df["status"] == "ok"]
     return set(df.get("store_url", pd.Series(dtype=str)).dropna().astype(str))
 
 
 def append_row(row: Dict[str, Any], output_csv: str) -> None:
     out = Path(output_csv)
+    out.parent.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame([row])
     for col in OUTPUT_COLUMNS:
         if col not in df.columns:
@@ -186,11 +189,21 @@ def crawl_one(page, candidate: Dict[str, str]) -> Dict[str, Any]:
         "error_message": "",
     }
     try:
-        page.goto(row["store_url"], wait_until="domcontentloaded", timeout=60000)
+        response = page.goto(row["store_url"], wait_until="domcontentloaded", timeout=60000)
+        if response and response.status >= 400:
+            row["status"] = "error"
+            row["error_message"] = f"HTTP {response.status}"
+            return row
+            
         page.wait_for_timeout(2200)
         expand_menu_section(page)
         page.wait_for_timeout(1000)
         body = safe_text(page.locator("body"))
+        if "403 Forbidden" in body and len(body) < 500:
+            row["status"] = "error"
+            row["error_message"] = "403 Forbidden in body"
+            return row
+            
         menus = collect_menus(page)
         row.update(
             {
@@ -213,8 +226,8 @@ def crawl_one(page, candidate: Dict[str, str]) -> Dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="후보 URL에서 맛집 상세 수집")
-    parser.add_argument("--input", default="shop_candidates.csv")
-    parser.add_argument("--output", default="raw_store_data.csv")
+    parser.add_argument("--input", default="data/shop_candidates.csv")
+    parser.add_argument("--output", default="data/raw_store_data.csv")
     parser.add_argument("--headful", action="store_true")
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
@@ -222,6 +235,20 @@ def main() -> None:
     df = pd.read_csv(args.input)
     if args.limit is not None:
         df = df.head(args.limit).copy()
+
+    # 실패(error)했던 기존 기록들을 CSV에서 미리 제거하여, 아래에 계속 중복 추가되는 것을 방지
+    out_path = Path(args.output)
+    if out_path.exists():
+        try:
+            old_df = pd.read_csv(out_path)
+            if "status" in old_df.columns:
+                old_df = old_df[old_df["status"] == "ok"]
+            if "store_name" in old_df.columns:
+                old_df = old_df[old_df["store_name"] != "403 Forbidden"]
+                
+            old_df.to_csv(out_path, index=False, encoding="utf-8-sig")
+        except Exception:
+            pass
 
     processed = load_processed(args.output)
 

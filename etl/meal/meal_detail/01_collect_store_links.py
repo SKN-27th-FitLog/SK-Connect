@@ -52,6 +52,7 @@ def append_rows(rows: List[Dict], output_csv: str) -> None:
     if not rows:
         return
     output_path = Path(output_csv)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame(rows)
     for col in OUTPUT_COLUMNS:
         if col not in df.columns:
@@ -216,7 +217,7 @@ def read_targets(path: str) -> List[Dict[str, str]]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 목록 페이지에서 후보 URL 수집")
     parser.add_argument("--targets", required=True, help="region/category CSV")
-    parser.add_argument("--output", default="shop_candidates.csv", help="후보 URL CSV")
+    parser.add_argument("--output", default="data/shop_candidates.csv", help="후보 URL CSV")
     parser.add_argument("--max-pages", type=int, default=3, help="지역/카테고리별 최대 페이지")
     parser.add_argument("--headful", action="store_true")
     args = parser.parse_args()
