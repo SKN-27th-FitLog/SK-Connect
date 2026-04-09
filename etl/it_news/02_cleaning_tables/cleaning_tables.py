@@ -67,7 +67,7 @@ def cleaning_geeknews(df:pd.DataFrame):
     df_geeknews['point'] = _geeknews['points']
     df_geeknews['author'] = _geeknews['author_user_id']
     df_geeknews['map_id'] = None
-    df_geeknews['category_cd'] = None
+    df_geeknews['category_cd'] = 'CA07'
     
     # df에 df_geeknews 데이터 채움 > df 데이터 마지막 row에서부터 추가 
     df = pd.concat([df, df_geeknews], ignore_index=True)
@@ -99,7 +99,7 @@ def cleaning_pytorch(df:pd.DataFrame):
     df_pytorch['point'] = 0 # 해당 테이블에 값이 없음 
     df_pytorch['author'] = _pytorch['last_poster_username']
     df_pytorch['map_id'] = None
-    df_pytorch['category_cd'] = None
+    df_pytorch['category_cd'] = 'CA07'
     
     # df에 df_pytorch 데이터 채움 > df 데이터 마지막 row에서부터 추가 
     df = pd.concat([df, df_pytorch], ignore_index=True)
