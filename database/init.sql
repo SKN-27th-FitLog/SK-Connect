@@ -48,7 +48,8 @@ CREATE TABLE "posts"(
     post_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd), --post_cd를 통해 게시글과 커뮤니티, 댓글을 구분한다)--
     user_id BIGINT NOT NULL REFERENCES users(user_id),
     map_id BIGINT REFERENCES maps(map_id), --만약 커뮤니티나 맛집에 대한 내용이라면 map_id 작성--
-    shop_id BIGINT REFERENCES shop(shop_id) --만약 맛집에 대한 내용이라면 shop_id 작성--
+    shop_id BIGINT REFERENCES shop(shop_id), --만약 맛집에 대한 내용이라면 shop_id 작성--
+    crawling_id BIGINT NULL --크롤링 고유 번호-- (FK는 아래에서 추가)
 );
 
 CREATE TABLE "crawling"(
@@ -63,7 +64,8 @@ CREATE TABLE "crawling"(
     point FLOAT, --평점--
     author VARCHAR(100), --작성자--
     map_id BIGINT REFERENCES maps(map_id), --지도 고유 번호--
-    category_cd VARCHAR(6) REFERENCES "codeT"(cd) --it/정보--
+    category_cd VARCHAR(6) REFERENCES "codeT"(cd), --it/정보--
+    comment_id BIGINT NULL --댓글 고유 번호-- (FK는 아래에서 추가)
 );
 
 
@@ -97,5 +99,13 @@ CREATE TABLE "comments"(
     modify_at TIMESTAMP NOT NULL, --수정일--
     status_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd) --댓글 상태(정상/삭제)--
 );
+
+ALTER TABLE "posts"
+    ADD CONSTRAINT fk_posts_crawling
+    FOREIGN KEY (crawling_id) REFERENCES "crawling"(crawling_id);
+
+ALTER TABLE "crawling"
+    ADD CONSTRAINT fk_crawling_comment
+    FOREIGN KEY (comment_id) REFERENCES "comments"(comment_id);
 
 COPY "codeT" (cd, name, cd_info, cd_upper) FROM '/docker-entrypoint-initdb.d/data/codeT.csv' DELIMITER ',' CSV HEADER;
