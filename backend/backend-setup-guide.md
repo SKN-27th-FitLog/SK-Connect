@@ -1,4 +1,4 @@
-# 🚀 Backend 프로젝트 환경 설정 가이드
+# Backend 프로젝트 환경 설정 가이드
 
 이 문서는 **Python 3.12 + Django + Docker + PostgreSQL** 기반  
 백엔드 개발 환경을 팀원 모두가 동일하게 구축하기 위한 표준 가이드입니다.
@@ -9,20 +9,27 @@
 
 ```
 <레포 루트>/
-├── docker-compose.yml  # Docker (DB + web) — 루트에서 실행
-├── Dockerfile          # web 이미지 빌드 (context = 레포 루트)
-├── postgres-init/      # PostgreSQL 초기화 스크립트 (선택)
-└── backend/
-    ├── .venv/          # Python 가상환경
-    ├── manage.py       # Django 실행 진입점 (서버, DB 관리)
-    ├── config/         # 프로젝트 설정
-    │   ├── __init__.py
-    │   ├── settings.py # DB, 앱, 환경설정
-    │   ├── urls.py     # API 라우팅
-    │   ├── wsgi.py
-    │   └── asgi.py
-    ├── requirements.txt
-    └── .env
+├── backend/                    # Django 백엔드
+│   ├── .venv/                  # Python 가상환경(로컬)
+│   ├── manage.py               # Django 실행 진입점
+│   ├── requirements.txt
+│   ├── .env                    # 로컬 환경변수(개인)
+│   ├── config/                 # 프로젝트 설정
+│   │   ├── __init__.py
+│   │   ├── settings.py         # DB, 앱, 환경설정
+│   │   ├── urls.py             # API 라우팅
+│   │   ├── wsgi.py
+│   │   └── asgi.py
+│   ├── common/                 # 공통 모델/유틸
+│   ├── users/                  # 사용자
+│   ├── places/                 # 지도/가게/메뉴
+│   ├── crawling/               # 크롤링
+│   └── community/              # 게시글/댓글/좋아요
+├── database/                   # PostgreSQL (Docker)
+│   ├── docker-compose.yml      # DB 컨테이너 실행은 여기서
+│   ├── init.sql                # 테이블 생성/초기 데이터 로드
+│   └── data/                   # init.sql에서 참조하는 CSV 등
+└── doc/                        # ERD/문서
 ```
 
 ---
@@ -137,15 +144,13 @@ docker ps
 ```
 
 
-# 🚀 최초 실행 Quick Start (요약)
+#  최초 실행 Quick Start (요약)
 
 처음 세팅 시 아래 순서만 실행하면 됩니다.
 
 ```bash
 git clone <repository-url>
-cd <레포-폴더명>
 
-cd backend
 uv venv .venv --python 3.12
 .\.venv\Scripts\activate
 
@@ -153,11 +158,9 @@ uv pip install -r requirements.txt
 
 copy .env.example .env
 
-cd ..
+cd database
 docker compose up -d --build
 
-cd backend
-python manage.py migrate
 
 ```
 
