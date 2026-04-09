@@ -49,10 +49,9 @@ INSTALLED_APPS = [
     # custom apps
     'common',
     'users',
-    'maps',
-    'post',
-    'interaction',
-    'foodm'
+    'places',
+    'crawling',
+    'community',
 ]
 
 
