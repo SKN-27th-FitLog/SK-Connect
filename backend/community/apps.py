@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class FoodmConfig(AppConfig):
+class CommunityConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'foodm'
+    name = 'community'
