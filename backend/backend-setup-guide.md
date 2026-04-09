@@ -123,11 +123,11 @@ SECRET_KEY=생성된값
 
 ## ✅ 8. Docker 실행
 
-**레포지토리 루트**(`docker-compose.yml`이 있는 디렉터리)에서 실행합니다.
+**database폴더**(`docker-compose.yml`이 있는 디렉터리)에서 실행합니다.
 
 ```bash
 cd ..   # 이미 backend 안에 있다면 루트로
-docker compose up -d --build
+docker compose up -d
 ```
 
 실행 확인:
@@ -135,39 +135,6 @@ docker compose up -d --build
 ```bash
 docker ps
 ```
-
-다음 컨테이너가 보여야 정상:
-
-```
-web
-db
-```
-
----
-
-## ✅ 9. Web 컨테이너 접속
-
-~~Django 명령어는 **반드시 web 컨테이너 내부**에서 실행합니다.~~
-
-
----
-
-## ✅ 10. Database Migration ⭐ (매우 중요)
-
-```bash
-python manage.py migrate
-```
-
-정상 출력:
-
-```
-Applying ...
-OK
-```
-
-👉 이 과정에서 **DB 테이블이 생성됩니다**
-
----
 
 
 # 🚀 최초 실행 Quick Start (요약)
