@@ -6,6 +6,18 @@ CREATE TABLE codeT(
     cd_upper VARCHAR(6) NULL, --부모코드--
 );
 
+
+--사용자 테이블--
+CREATE TABLE users(
+    user_id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    nickname VARCHAR(100),
+    profile_image VARCHAR(255),
+    google_id VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status_cd VARCHAR(6) NOT NULL REFERENCES codeT(cd)
+);
+
 --지도테이블--
 CREATE TABLE maps(
     map_id BIGSERIAL PRIMARY KEY, 
