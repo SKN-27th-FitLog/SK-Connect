@@ -26,6 +26,7 @@ _DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it--sample/1.0)"
 
 
 def _fetch_json(url: str, timeout: float, *, user_agent: str = _DEFAULT_USER_AGENT) -> Any:
+    '''GET 응답을 UTF-8로 읽어 json.loads한 파이썬 객체를 반환한다.'''
     req = urllib.request.Request(url, headers={"User-Agent": user_agent})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
@@ -51,23 +52,28 @@ class _HTMLToText(HTMLParser):
         self._parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        '''블록 태그·br 시작 시 줄바꿈·공백을 넣어 텍스트 경계를 맞춘다.'''
         if tag.lower() == "br":
             self._parts.append("\n")
         elif tag.lower() in self._BLOCK:
             self._parts.append(" ")
 
     def handle_endtag(self, tag: str) -> None:
+        '''블록 태그 종료 시 공백을 넣어 단락 구분을 만든다.'''
         if tag.lower() in self._BLOCK:
             self._parts.append(" ")
 
     def handle_data(self, data: str) -> None:
+        '''태그 사이의 문자 데이터를 그대로 누적한다.'''
         self._parts.append(data)
 
     def get_text(self) -> str:
+        '''누적한 조각을 하나의 문자열로 이어 반환한다.'''
         return "".join(self._parts)
 
 
 def _html_fragment_to_plain(fragment: str) -> str:
+    '''HTML 조각을 _HTMLToText로 파싱해 공백 정리된 플레인 텍스트로 만든다. 파싱 실패 시 빈 문자열.'''
     p = _HTMLToText()
     try:
         p.feed(fragment)
@@ -94,6 +100,7 @@ def extract_first_post_plain(data: dict[str, Any]) -> str | None:
 
 
 def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+    '''fieldnames 순으로 dict 행을 UTF-8 BOM CSV로 기록한다(extrasaction=ignore).'''
     with path.open("w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
@@ -101,6 +108,7 @@ def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]
 
 
 def _merge_fieldnames(existing: list[str]) -> list[str]:
+    '''기존 헤더 뒤에 state·content 열이 없으면 순서대로 추가한 목록을 반환한다.'''
     out = list(existing)
     for col in ("state", "content"):
         if col not in out:
@@ -175,6 +183,7 @@ def enrich_rows(
 
 
 def main() -> int:
+    '''CLI: 입력 CSV를 읽어 topic_url의 Discourse JSON 원글 본문을 채운 뒤 _with_content CSV로 저장한다.'''
     p = argparse.ArgumentParser(
         description="PyTorchKR Discourse CSV: topic_url 토픽 JSON에서 원글 본문 → state(ok/fail), content",
     )

@@ -36,11 +36,13 @@ INSERT INTO "crawling" (
 
 
 def _env(name: str, default: str) -> str:
+    '''환경 변수 name을 읽고 비어 있으면 default를 반환한다.'''
     v = os.environ.get(name)
     return v if v is not None and v != "" else default
 
 
 def get_connection_params() -> dict[str, Any]:
+    '''psycopg.connect에 넘길 호스트·포트·DB명·사용자·비밀번호 dict를 환경 변수에서 만든다.'''
     return {
         "host": _env("PGHOST", "localhost"),
         "port": int(_env("PGPORT", "5432")),
@@ -51,6 +53,7 @@ def get_connection_params() -> dict[str, Any]:
 
 
 def check_connection() -> psycopg.Connection:
+    '''DB에 연결해 SELECT 1로 확인한 뒤 연결 객체를 반환한다. 실패 시 메시지 출력 후 예외를 다시 던진다.'''
     params = get_connection_params()
     try:
         conn = psycopg.connect(**params, connect_timeout=10)
@@ -62,6 +65,7 @@ def check_connection() -> psycopg.Connection:
 
 
 def get_max_created_at(conn: psycopg.Connection) -> Optional[datetime]:
+    '''crawling 테이블의 MAX(created_at) 한 건을 조회한다. 행이 없으면 None.'''
     with conn.cursor() as cur:
         cur.execute(SQL_MAX_CREATED_AT)
         row = cur.fetchone()
@@ -69,6 +73,7 @@ def get_max_created_at(conn: psycopg.Connection) -> Optional[datetime]:
 
 
 def _empty_to_none(v: Any) -> Any:
+    '''None·NaN·공백 문자열을 DB NULL에 맞게 None으로 정규화한다.'''
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return None
     if isinstance(v, str) and v.strip() == "":
@@ -77,6 +82,7 @@ def _empty_to_none(v: Any) -> Any:
 
 
 def _truncate(key: str, val: Any) -> Any:
+    '''LIMITS에 정의된 컬럼별 최대 길이를 넘는 문자열을 앞부분만 잘라낸다.'''
     if val is None or not isinstance(val, str):
         return val
     lim = LIMITS.get(key)
@@ -86,6 +92,7 @@ def _truncate(key: str, val: Any) -> Any:
 
 
 def _row_tuple(row: pd.Series) -> tuple[Any, ...]:
+    '''CSV 한 행을 INSERT 파라미터 튜플로 변환한다(자르기·날짜 UTC·숫자·map_id 정수화).'''
     title = _truncate("title", _empty_to_none(row.get("title")))
     content = _empty_to_none(row.get("content"))
     thread = _truncate("thread", _empty_to_none(row.get("thread")))
@@ -135,6 +142,7 @@ def _row_tuple(row: pd.Series) -> tuple[Any, ...]:
 
 
 def load_and_filter_csv(csv_path: Path, max_created_at: Optional[datetime]) -> pd.DataFrame:
+    '''CSV를 읽고 created_at 파싱 실패 행을 제외한 뒤, max_created_at보다 이후 행만 남긴다(증분 삽입).'''
     df = pd.read_csv(csv_path)
     if "created_at" not in df.columns:
         raise ValueError("CSV에 created_at 컬럼이 없습니다.")
@@ -164,6 +172,7 @@ def load_and_filter_csv(csv_path: Path, max_created_at: Optional[datetime]) -> p
 
 
 def insert_rows(conn: psycopg.Connection, df: pd.DataFrame) -> int:
+    '''데이터프레임 각 행을 INSERT_SQL로 executemany 삽입하고 건수를 반환한다. 빈 프레임이면 0.'''
     if df.empty:
         return 0
 
@@ -178,6 +187,7 @@ def insert_rows(conn: psycopg.Connection, df: pd.DataFrame) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    '''삽입할 CSV 경로(--csv) 등 CLI 인자를 파싱한다.'''
     default_csv = (
         Path(__file__).resolve().parent.parent
         / "02_cleaning_tables"
@@ -194,6 +204,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    '''연결·MAX(created_at)·CSV 필터·INSERT·커밋까지 수행하고 종료 코드를 반환한다.'''
     args = parse_args()
     csv_path: Path = args.csv
     if not csv_path.is_file():

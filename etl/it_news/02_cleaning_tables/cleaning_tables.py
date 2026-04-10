@@ -45,6 +45,7 @@ def save_dataframe_to_csv(dataframe, filename):
 
 # thread_geeknews_with_content.csv 로드해서 전처리 후 데이터 프레임에 반환
 def cleaning_geeknews(df:pd.DataFrame):
+    '''GeekNews with_content CSV를 읽어 state==ok 행만 골라 DB 스키마 컬럼으로 맞춘 뒤 df 아래에 이어 붙인다.'''
 
     # 원본 데이터 파일 로드 (일단은 절대 경로로... 작업되고 나면 상대경로 지정하거나 파일 경로 변수로 관리)
     _geeknews  = load_csv("etl\\it_news\\01_getter_threads\\thread_geeknews_with_content.csv")
@@ -77,6 +78,7 @@ def cleaning_geeknews(df:pd.DataFrame):
 
 # thread_pytorch_with_content.csv 로드해서 전처리 후 데이터 프레임에 반환
 def cleaning_pytorch(df:pd.DataFrame):
+    '''PyTorch with_content CSV를 읽어 state==ok 행만 골라 DB 스키마 컬럼으로 맞춘 뒤 df 아래에 이어 붙인다.'''
 
     # 원본 데이터 파일 로드 (일단은 절대 경로로... 작업되고 나면 상대경로 지정하거나 파일 경로 변수로 관리)
     _pytorch  = load_csv("etl\\it_news\\01_getter_threads\\thread_pytorch_with_content.csv")

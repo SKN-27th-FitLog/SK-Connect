@@ -20,9 +20,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-# ---------------------------------------------------------------------------
-# [EXTRACT: common/http_fetch.py] URL → JSON. 프로젝트 공용으로 뺄 때 이 블록만 이동.
-# ---------------------------------------------------------------------------
 # Discourse JSON API는 보통 단순 GET이면 되나, 403 시 UA·Accept 헤더를 조정하는 식으로 확장 가능.
 _DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it-thread-sample/1.0)"
 
@@ -33,10 +30,6 @@ def _fetch_json(url: str, timeout: float, *, user_agent: str = _DEFAULT_USER_AGE
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
 
-
-# ---------------------------------------------------------------------------
-# [EXTRACT: common/csv_io.py] dict 행 CSV 저장. 공용으로 뺄 때 이 블록만 이동.
-# ---------------------------------------------------------------------------
 def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     """열 순서는 fieldnames 고정. dict에만 있는 추가 키는 무시. utf-8-sig는 Excel에서 한글 열 때 유리."""
     with path.open("w", encoding="utf-8-sig", newline="") as f:
@@ -44,10 +37,6 @@ def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None
         w.writeheader()
         w.writerows(rows)
 
-
-# ---------------------------------------------------------------------------
-# [SCRIPT-SPECIFIC] PyTorchKR / Discourse 샘플 전용
-# ---------------------------------------------------------------------------
 # 다른 Discourse 인스턴스·카테고리를 쓰려면 BASE와 DEFAULT_JSON(또는 --json-url)만 바꾸면 됨.
 BASE = "https://discuss.pytorch.kr"
 DEFAULT_JSON = f"{BASE}/c/news/14.json"
