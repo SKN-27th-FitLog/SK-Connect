@@ -11,7 +11,7 @@ class Maps(models.Model):
     map_id = models.BigAutoField(primary_key=True)
     name = models.TextField(blank=True, null=True)
     category_cd = models.ForeignKey('common.Codet', null=False, db_column='category_cd', on_delete=models.DO_NOTHING)
-    address_cd = models.ForeignKey('common.Codet', null=False, db_column='address_cd', on_delete=models.CASCADE)
+    address_cd = models.ForeignKey('common.Codet', null=False, db_column='address_cd', on_delete=models.DO_NOTHING)
     address_detail = models.TextField(null=False)
     latitude = models.FloatField(null=False)
     longitude = models.FloatField(null=False)

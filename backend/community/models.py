@@ -17,8 +17,8 @@ class Posts(models.Model):
     status_cd = models.ForeignKey('common.Codet', db_column='status_cd',null=False, on_delete=models.DO_NOTHING)
     post_cd = models.ForeignKey('common.Codet', db_column='post_cd', null=False, on_delete=models.DO_NOTHING)
     user_id = models.ForeignKey('users.Users', db_column='user_id', on_delete=models.DO_NOTHING)
-    map = models.ForeignKey('places.Maps', db_column='map_id', blank=True, null=True, on_delete=models.DO_NOTHING)
-    shop = models.ForeignKey('places.Shop', db_column='shop_id', blank=True, null=True, on_delete=models.DO_NOTHING)
+    map = models.ForeignKey('places.Maps', db_column='map_id', blank=True, null=True, on_delete=models.SET_NULL)
+    shop = models.ForeignKey('places.Shop', db_column='shop_id', blank=True, null=True, on_delete=models.SET_NULL)
     crawling = models.ForeignKey('crawling.Crawling', db_column='crawling_id', blank=True, null=True, on_delete=models.CASCADE)
 
     class Meta:
