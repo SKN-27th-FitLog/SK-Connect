@@ -82,7 +82,6 @@ CREATE TABLE "images"(
     table_name VARCHAR(20) NOT NULL, --테이블 이름--
     table_id BIGINT NOT NULL --테이블 고유 번호--
 );
-CREATE INDEX idx_image_polymorphic ON images (table_name, table_id);
 
 CREATE TABLE "likes"(
     like_id BIGSERIAL PRIMARY KEY, --좋아요 고유 번호--
