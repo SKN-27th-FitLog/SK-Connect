@@ -3,10 +3,10 @@ services:
     image: postgres:16
     container_name: sk_connect_db
 
-    environment:
-      POSTGRES_DB: service
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password123
+  environment:
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     ports:
       - "5432:5432"
