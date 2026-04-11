@@ -9,29 +9,6 @@
 
 ```
 <레포 루트>/
-<<<<<<< HEAD
-├── backend/                    # Django 백엔드
-│   ├── .venv/                  # Python 가상환경(로컬)
-│   ├── manage.py               # Django 실행 진입점
-│   ├── requirements.txt
-│   ├── .env                    # 로컬 환경변수(개인)
-│   ├── config/                 # 프로젝트 설정
-│   │   ├── __init__.py
-│   │   ├── settings.py         # DB, 앱, 환경설정
-│   │   ├── urls.py             # API 라우팅
-│   │   ├── wsgi.py
-│   │   └── asgi.py
-│   ├── common/                 # 공통 모델/유틸
-│   ├── users/                  # 사용자
-│   ├── places/                 # 지도/가게/메뉴
-│   ├── crawling/               # 크롤링
-│   └── community/              # 게시글/댓글/좋아요
-├── database/                   # PostgreSQL (Docker)
-│   ├── docker-compose.yml      # DB 컨테이너 실행은 여기서
-│   ├── init.sql                # 테이블 생성/초기 데이터 로드
-│   └── data/                   # init.sql에서 참조하는 CSV 등
-└── doc/                        # ERD/문서
-=======
 ├── Dockerfile
 ├── backend/
 │   ├── manage.py
@@ -50,7 +27,7 @@
     ├── .env
     ├── init.sql            # DB 초기 스키마/데이터
     └── data/               # 초기 적재용 데이터 파일(선택)
->>>>>>> origin/dev
+
 ```
 
 ---

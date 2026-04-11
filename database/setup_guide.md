@@ -1,42 +1,7 @@
 
 
-<<<<<<< HEAD
-## ✅ 3. 가상환경 활성화
-
-### Windows (PowerShell)
-
-```bash
-.\.venv\Scripts\activate
-```
-
-### Mac / Linux
-
-```bash
-source .venv/bin/activate
-```
-
-정상 활성화 시:
-
-```
-(.venv)
-```
-
-표시가 앞에 나타납니다.
-
----
-
-## ✅ 4. Python 패키지 설치
-
-```bash
-uv pip install -r requirements.txt
-```
-
----
-
-## ✅ 5. `.env` 파일 생성 (database폴더)
-=======
 ## ✅ 5. `.env` 파일 생성
->>>>>>> origin/dev
+
 
 ### Windows
 ```bash
@@ -48,29 +13,19 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-<<<<<<< HEAD
----
-
-=======
-
----
->>>>>>> origin/dev
+===================================
 
 ## ✅ 7. Database 환경 변수 설정
 
 `.env` 값은 반드시 `docker-compose.yml`과 동일해야 합니다.
 
-```
-
-<<<<<<< HEAD
-=======
 ### ⚠️ 주의사항
 
 - 실제 키는 `.env`에만 작성  
 - DB 정보 불일치 시 접속 실패  
 
 ---
->>>>>>> origin/dev
+
 
 ## ✅ 8. Docker 실행
 
