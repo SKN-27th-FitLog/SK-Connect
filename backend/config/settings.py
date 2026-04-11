@@ -166,4 +166,4 @@ SPECTACULAR_SETTINGS = {
 }     
 
 
-    
+GOOGLE_CLIENT_ID = "195186039018-jbjtafhgdfi7usi12qs9sppc5no4kfqs.apps.googleusercontent.com"

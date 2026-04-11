@@ -20,8 +20,10 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # 유저 관련 API
+    path("api/users/", include("users.urls")),
 
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     # Swagger UI 페이지 연결
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-]
+]   
