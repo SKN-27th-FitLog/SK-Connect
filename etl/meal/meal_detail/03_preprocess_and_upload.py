@@ -37,19 +37,22 @@ def load_and_transform(raw_csv: str, code_csv: str, default_category_cd: str, de
             return default_category_cd
         return category_map.get(str(c).strip(), default_category_cd)
 
-    def get_addr_info(a) -> pd.Series:
+    def get_addr_info(a) -> Tuple[str, str]:
         a_str = str(a).strip()
         for key in sorted(address_map.keys(), key=len, reverse=True):
             if a_str.startswith(key):
-                return pd.Series([address_map[key], a_str[len(key):].strip()])
-        return pd.Series([default_address_cd, a_str])
+                return address_map[key], a_str[len(key):].strip()
+        return default_address_cd, a_str
 
     # maps category_cd is fixed to 'CA01' (맛집) per init.sql map constraint
     # shop category_cd is the detailed food category (e.g. FC01)
     df["shop_category_cd"] = df["source_category"].apply(get_cat_cd) if "source_category" in df.columns else default_category_cd
     df["category_cd"] = "CA01"
         
-    df[["address_cd", "store_address"]] = df["store_address"].apply(get_addr_info)
+    if df.empty:
+        df["address_cd"] = pd.Series(dtype=str)
+    else:
+        df["address_cd"], df["store_address"] = zip(*df["store_address"].apply(get_addr_info))
 
     maps_df = (
         df[["store_name", "category_cd", "address_cd", "store_address", "latitude", "longitude"]]
@@ -219,7 +222,6 @@ def main() -> None:
         # Upload successful, cleanup CSVs
         out_dir = Path(args.output_dir)
         cleanup_files([
-            args.input,
             str(out_dir / "maps.csv"),
             str(out_dir / "shop.csv"),
             str(out_dir / "menu.csv"),

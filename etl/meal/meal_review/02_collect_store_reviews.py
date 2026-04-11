@@ -418,6 +418,10 @@ def main() -> None:
         )
         page = context.new_page()
 
+        # 구글 광고(Vignette 등)로 인한 스크롤/클릭 방해 차단
+        page.route("**/*", lambda route: route.abort() if any(domain in route.request.url for domain in ["googleads", "googlesyndication", "doubleclick"]) else route.continue_())
+
+
         total = len(df)
         for idx, row in df.iterrows():
             store_url = str(row["store_url"]).strip()

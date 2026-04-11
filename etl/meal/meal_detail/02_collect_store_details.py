@@ -258,15 +258,24 @@ def main() -> None:
         context = browser.new_context(locale="ko-KR", viewport={"width": 1440, "height": 2200})
         page = context.new_page()
 
+        # 구글 광고(Vignette 등)로 인한 스크롤/클릭 방해 차단
+        page.route("**/*", lambda route: route.abort() if any(domain in route.request.url for domain in ["googleads", "googlesyndication", "doubleclick"]) else route.continue_())
+
+        total = len(df)
+        count = 0
         for _, candidate in df.iterrows():
+            count += 1
             store_url = str(candidate.get("store_url", "")).strip()
             if pd.isna(candidate.get("store_url")) or not store_url or store_url.lower() == "nan" or store_url in processed:
                 continue
                 
+            store_name = candidate.get("store_name", "")
+            print(f"[{count}/{total}] 맛집 상세 수집 중: {store_name} ...")
             safe_candidate = {k: ("" if pd.isna(v) else str(v)) for k, v in candidate.to_dict().items()}
             row = crawl_one(page, safe_candidate)
             append_row(row, args.output)
             processed.add(store_url)
+            print(f"  -> 결과: {row['status']}")
             pause(1.0, 1.8)
 
         browser.close()

@@ -132,12 +132,14 @@ def collect_store_links(page, region: str, category: str, max_pages: int) -> Lis
         if page_no > 1:
             listing_url = f"{listing_url}&page={page_no}"
 
+        print(f"  -> {page_no}페이지 탐색 중...")
         try:
             page.goto(listing_url, wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(1800)
             scroll_listing_page(page, rounds=4)
             cards = collect_cards_on_page(page)
             if not cards:
+                print(f"     (결과 없음)")
                 rows.append(
                     {
                         "source_region": region,
@@ -230,12 +232,19 @@ def main() -> None:
         browser = p.chromium.launch(headless=not args.headful, slow_mo=300)
         context = browser.new_context(locale="ko-KR", viewport={"width": 1440, "height": 2200})
         page = context.new_page()
+        
+        # 구글 광고(Vignette 등)로 인한 스크롤/클릭 방해 차단
+        page.route("**/*", lambda route: route.abort() if any(domain in route.request.url for domain in ["googleads", "googlesyndication", "doubleclick"]) else route.continue_())
+
 
         for target in targets:
             region = target["region"]
             category = target["category"]
+            print(f"[{region} {category}] 맛집 목록 타겟 수집 시작... (최대 {args.max_pages} 페이지)")
             rows = collect_store_links(page, region, category, args.max_pages)
             deduped: List[Dict] = []
+            valid_rows = [r for r in rows if r["status"] == "ok"]
+            print(f"  -> 수집 완료: 총 {len(valid_rows)}개 매장 확인완료. 중복제거 처리 중...")
             for row in rows:
                 url = row.get("store_url", "")
                 if url and url in seen_urls:

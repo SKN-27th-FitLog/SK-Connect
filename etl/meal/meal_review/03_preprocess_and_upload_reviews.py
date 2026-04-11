@@ -61,13 +61,15 @@ def save_intermediate(df: pd.DataFrame, out_dir: str) -> None:
     if not df.empty:
         df.to_csv(path / "review.csv", index=False, encoding="utf-8-sig")
 
-def cleanup_files(json_dir: str, intermediate_csv: str) -> None:
+def cleanup_files(json_dir: str, intermediate_csv: str, raw_csv: str) -> None:
     try:
         json_paths = glob.glob(os.path.join(json_dir, "*.json"))
         for path in json_paths:
             os.remove(path)
         if os.path.exists(intermediate_csv):
             os.remove(intermediate_csv)
+        if os.path.exists(raw_csv):
+            os.remove(raw_csv)
         print("✅ 성공적으로 임시 파일들(JSON, CSV)이 삭제되었습니다.")
     except Exception as e:
         print(f"❌ 임시 파일 삭제 실패: {e}")
@@ -218,7 +220,7 @@ def main() -> None:
     try:
         upload_reviews(df, conn_args, args.truncate_first)
         print("✅ 리뷰 DB 처리 완료.")
-        cleanup_files(args.json_dir, str(Path(args.output_dir) / "review.csv"))
+        cleanup_files(args.json_dir, str(Path(args.output_dir) / "review.csv"), args.raw_csv)
     except Exception as e:
         print(f"❌ 리뷰 DB 업로드 실패: {e}")
         raise

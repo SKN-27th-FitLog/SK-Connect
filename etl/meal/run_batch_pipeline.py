@@ -81,6 +81,8 @@ def main():
     # but passed if requested.
     if args.truncate_first:
         cmd_03_review.append("--truncate-first")
+    if args.headful:
+        cmd_03_review.append("--headful")
 
     # 실행 절차
     print("====================================")
