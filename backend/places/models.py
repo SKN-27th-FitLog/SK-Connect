@@ -7,11 +7,12 @@
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
 
+
 class Maps(models.Model):
     map_id = models.BigAutoField(primary_key=True)
     name = models.TextField(blank=True, null=True)
-    category_cd = models.ForeignKey('common.Codet', null=False, db_column='category_cd', on_delete=models.DO_NOTHING)
-    address_cd = models.ForeignKey('common.Codet', null=False, db_column='address_cd', on_delete=models.DO_NOTHING)
+    category_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='category_cd')
+    address_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='address_cd', related_name='maps_address_cd_set')
     address_detail = models.TextField(null=False)
     latitude = models.FloatField(null=False)
     longitude = models.FloatField(null=False)
@@ -20,22 +21,24 @@ class Maps(models.Model):
         managed = False
         db_table = 'maps'
 
+
+class Shop(models.Model):
+    shop_id = models.BigAutoField(primary_key=True)
+    map = models.ForeignKey('places.Maps', null=False, on_delete=models.CASCADE, db_column='map_id')
+    category_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='category_cd')
+    rating = models.FloatField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'shop'
+
+
 class Menu(models.Model):
     menu_id = models.BigAutoField(primary_key=True)
-    shop = models.ForeignKey('places.Shop', db_column='shop_id', on_delete=models.CASCADE, null=False)
+    shop = models.ForeignKey('places.Shop', null=False, on_delete=models.DO_NOTHING, db_column='shop_id')
     name = models.CharField(max_length=100, null=False)
     price = models.IntegerField(blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'menu'
-
-class Shop(models.Model):
-    shop_id = models.BigAutoField(primary_key=True)
-    map = models.ForeignKey('places.Maps', null=False, db_column='map_id', on_delete=models.CASCADE)
-    category_cd = models.ForeignKey('common.Codet', null=False, db_column='category_cd', on_delete=models.DO_NOTHING)
-    rating = models.FloatField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'shop'
