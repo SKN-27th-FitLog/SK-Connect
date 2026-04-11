@@ -1,5 +1,6 @@
 
 
+<<<<<<< HEAD
 ## ✅ 3. 가상환경 활성화
 
 ### Windows (PowerShell)
@@ -33,6 +34,9 @@ uv pip install -r requirements.txt
 ---
 
 ## ✅ 5. `.env` 파일 생성 (database폴더)
+=======
+## ✅ 5. `.env` 파일 생성
+>>>>>>> origin/dev
 
 ### Windows
 ```bash
@@ -44,8 +48,13 @@ copy .env.example .env
 cp .env.example .env
 ```
 
+<<<<<<< HEAD
 ---
 
+=======
+
+---
+>>>>>>> origin/dev
 
 ## ✅ 7. Database 환경 변수 설정
 
@@ -53,6 +62,15 @@ cp .env.example .env
 
 ```
 
+<<<<<<< HEAD
+=======
+### ⚠️ 주의사항
+
+- 실제 키는 `.env`에만 작성  
+- DB 정보 불일치 시 접속 실패  
+
+---
+>>>>>>> origin/dev
 
 ## ✅ 8. Docker 실행
 

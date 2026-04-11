@@ -9,6 +9,7 @@
 
 ```
 <레포 루트>/
+<<<<<<< HEAD
 ├── backend/                    # Django 백엔드
 │   ├── .venv/                  # Python 가상환경(로컬)
 │   ├── manage.py               # Django 실행 진입점
@@ -30,6 +31,26 @@
 │   ├── init.sql                # 테이블 생성/초기 데이터 로드
 │   └── data/                   # init.sql에서 참조하는 CSV 등
 └── doc/                        # ERD/문서
+=======
+├── Dockerfile
+├── backend/
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── .env
+│   ├── config/             # Django 프로젝트 설정 (settings, urls, wsgi, asgi)
+│   ├── common/             # 공통 모델/유틸
+│   ├── users/              # 사용자 도메인
+│   ├── places/             # 장소 도메인
+│   ├── community/          # 커뮤니티 도메인
+│   └── crawling/           # 크롤링 도메인
+└── database/
+    ├── docker-compose.yml  # PostgreSQL 컨테이너 실행
+    ├── .env.example
+    ├── .env
+    ├── init.sql            # DB 초기 스키마/데이터
+    └── data/               # 초기 적재용 데이터 파일(선택)
+>>>>>>> origin/dev
 ```
 
 ---
