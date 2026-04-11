@@ -1,4 +1,4 @@
-# 🚀 Backend 프로젝트 환경 설정 가이드
+# Backend 프로젝트 환경 설정 가이드
 
 이 문서는 **Python 3.12 + Django + Docker + PostgreSQL** 기반  
 백엔드 개발 환경을 팀원 모두가 동일하게 구축하기 위한 표준 가이드입니다.
@@ -27,6 +27,7 @@
     ├── .env
     ├── init.sql            # DB 초기 스키마/데이터
     └── data/               # 초기 적재용 데이터 파일(선택)
+
 ```
 
 ---
@@ -121,35 +122,20 @@ SECRET_KEY=생성된값
 
 - `.env.example` 에 SECRET_KEY 작성 ❌  
 - 실제 키는 `.env`에만 작성  
-- DB 정보 불일치 시 접속 실패  
+
 
 ---
 
-## ✅ 8. Docker 실행
-
-**database폴더**(`docker-compose.yml`이 있는 디렉터리)에서 실행합니다.
-
-```bash
-cd ..   # 이미 backend 안에 있다면 루트로
-docker compose up -d
-```
-
-실행 확인:
-
-```bash
-docker ps
 ```
 
 
-# 🚀 최초 실행 Quick Start (요약)
+#  최초 실행 Quick Start (요약)
 
 처음 세팅 시 아래 순서만 실행하면 됩니다.
 
 ```bash
 git clone <repository-url>
-cd <레포-폴더명>
 
-cd backend
 uv venv .venv --python 3.12
 .\.venv\Scripts\activate
 
@@ -157,11 +143,7 @@ uv pip install -r requirements.txt
 
 copy .env.example .env
 
-cd ..
-docker compose up -d --build
 
-cd backend
-python manage.py migrate
 
 ```
 
