@@ -35,7 +35,7 @@ class Shop(models.Model):
 
 class Menu(models.Model):
     menu_id = models.BigAutoField(primary_key=True)
-    shop = models.ForeignKey('places.Shop', null=False, on_delete=models.DO_NOTHING, db_column='shop_id')
+    shop = models.ForeignKey('places.Shop', null=False, on_delete=models.CASCADE, db_column='shop_id')
     name = models.CharField(max_length=100, null=False)
     price = models.IntegerField(blank=True, null=True)
 

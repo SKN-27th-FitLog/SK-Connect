@@ -16,10 +16,10 @@ class Posts(models.Model):
     modify_at = models.DateTimeField(null=False)
     status_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='status_cd')
     post_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='post_cd', related_name='posts_post_cd_set')
-    user = models.ForeignKey('users.Users', models.DO_NOTHING)
-    map = models.ForeignKey('places.Maps', models.SET_NULL, blank=True, null=True)
-    shop = models.ForeignKey('places.Shop', models.SET_NULL, blank=True, null=True)
-    crawling = models.ForeignKey('crawling.Crawling', models.DO_NOTHING, blank=True, null=True)
+    user = models.ForeignKey('users.Users', models.DO_NOTHING, blank=True, null=True, db_column='user_id')
+    map = models.ForeignKey('places.Maps', models.SET_NULL, blank=True, null=True, db_column='map_id')
+    shop = models.ForeignKey('places.Shop', models.SET_NULL, blank=True, null=True, db_column='shop_id')
+    crawling = models.ForeignKey('crawling.Crawling', models.DO_NOTHING, blank=True, null=True, db_column='crawling_id')
 
     class Meta:
         managed = False
@@ -29,7 +29,7 @@ class Posts(models.Model):
 class Comments(models.Model):
     comment_id = models.BigAutoField(primary_key=True)
     post = models.ForeignKey('community.Posts', null=False, on_delete=models.CASCADE, db_column='post_id')
-    user = models.ForeignKey('usersUsers', null=False, on_delete=models.DO_NOTHING, db_column='user_id')
+    user = models.ForeignKey('users.Users', null=False, on_delete=models.DO_NOTHING, db_column='user_id')
     content = models.TextField(null=False)
     created_at = models.DateTimeField(null=False)
     modify_at = models.DateTimeField(null=False)
