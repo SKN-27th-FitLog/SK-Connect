@@ -30,10 +30,6 @@ DEBUG = os.getenv('DEBUG') == 'True'
 
 ALLOWED_HOSTS = ["*"]
 
-SILENCED_SYSTEM_CHECKS = [
-    'fields.E304',
-]
-
 
 # Application definition
 
