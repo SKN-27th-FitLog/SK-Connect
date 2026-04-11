@@ -171,8 +171,9 @@ def parse_keywords(raw_text: str) -> List[str]:
             keywords.append(kw)
     return keywords
 
-def download_review_images(img_srcs: List[str], store_name: str, review_identifier: str, img_dir: str) -> List[str]:
+def download_review_images(img_srcs: List[str], store_name: str, review_identifier: str, img_dir: str) -> Tuple[List[str], List[str]]:
     local_paths = []
+    source_urls = []
     safe_store_name = slugify_filename(store_name)
     save_folder = Path(img_dir) / safe_store_name
     save_folder.mkdir(parents=True, exist_ok=True)
@@ -185,11 +186,14 @@ def download_review_images(img_srcs: List[str], store_name: str, review_identifi
     for idx, src in enumerate(img_srcs):
         try:
             # Construct absolute URL
+            original_src = src
             if src.startswith("//"):
                 src = "https:" + src
             elif src.startswith("/"):
                 src = "https://www.diningcode.com" + src
                 
+            source_urls.append(src)
+            
             ext = src.split(".")[-1][:4] if "." in src[-6:] else "jpg"
             img_name = f"{review_identifier}_{idx}.{ext}" if review_identifier else f"review_img_{int(time.time())}_{idx}.{ext}"
             
@@ -207,7 +211,7 @@ def download_review_images(img_srcs: List[str], store_name: str, review_identifi
             # 썸네일이나 비공개 이미지 다운로드 실패 표기 무시
             pass
             
-    return local_paths
+    return local_paths, source_urls
 
 def collect_reviews_structured(page, store_name: str, img_dir: str, max_items: int = 500) -> List[Dict[str, Any]]:
     reviews: List[Dict[str, Any]] = []
@@ -274,9 +278,10 @@ def collect_reviews_structured(page, store_name: str, img_dir: str, max_items: i
                 pass
                 
             local_image_paths = []
+            source_urls = []
             if img_srcs:
                 safe_rv_id = review_id if review_id else f"rv_{i}"
-                local_image_paths = download_review_images(img_srcs, store_name, safe_rv_id, img_dir)
+                local_image_paths, source_urls = download_review_images(img_srcs, store_name, safe_rv_id, img_dir)
 
             key = (content[:250], date, rating)
             if key in seen:
@@ -290,6 +295,7 @@ def collect_reviews_structured(page, store_name: str, img_dir: str, max_items: i
                     "content": content,
                     "keywords": keywords,
                     "image_paths": local_image_paths,
+                    "image_urls": source_urls,
                 }
             )
             seen.add(key)
