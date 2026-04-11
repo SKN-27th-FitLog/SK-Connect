@@ -1,4 +1,15 @@
 ﻿cd,name,cd_info,cd_upper
+TC00,테이블,테이블명,
+TC01,codeT,코드테이블,TC00
+TC02,users,유저테이블,TC00
+TC03,maps,지도테이블,TC00
+TC04,posts,"게시글, 커뮤니티, 리뷰 테이블",TC00
+TC05,images,이미지테이블,TC00
+TC06,comments,댓글테이블,TC00
+TC07,likes,좋아요테이블,TC00
+TC08,shop,"가게테이블",TC00
+TC09,menu,메뉴테이블,TC00
+TC10,crawling,크롤링테이블,TC00
 ST00,게시글 상태,게시글 상태 코드,
 ST01,ACTIVE,활성 게시글,ST00
 ST02,INACTIVE,비활성 게시글,ST00

@@ -9,20 +9,24 @@
 
 ```
 <레포 루트>/
-├── docker-compose.yml  # Docker (DB + web) — 루트에서 실행
-├── Dockerfile          # web 이미지 빌드 (context = 레포 루트)
-├── postgres-init/      # PostgreSQL 초기화 스크립트 (선택)
-└── backend/
-    ├── .venv/          # Python 가상환경
-    ├── manage.py       # Django 실행 진입점 (서버, DB 관리)
-    ├── config/         # 프로젝트 설정
-    │   ├── __init__.py
-    │   ├── settings.py # DB, 앱, 환경설정
-    │   ├── urls.py     # API 라우팅
-    │   ├── wsgi.py
-    │   └── asgi.py
-    ├── requirements.txt
-    └── .env
+├── Dockerfile
+├── backend/
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── .env
+│   ├── config/             # Django 프로젝트 설정 (settings, urls, wsgi, asgi)
+│   ├── common/             # 공통 모델/유틸
+│   ├── users/              # 사용자 도메인
+│   ├── places/             # 장소 도메인
+│   ├── community/          # 커뮤니티 도메인
+│   └── crawling/           # 크롤링 도메인
+└── database/
+    ├── docker-compose.yml  # PostgreSQL 컨테이너 실행
+    ├── .env.example
+    ├── .env
+    ├── init.sql            # DB 초기 스키마/데이터
+    └── data/               # 초기 적재용 데이터 파일(선택)
 ```
 
 ---
