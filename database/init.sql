@@ -14,7 +14,7 @@ CREATE TABLE "users"(
     nickname VARCHAR(100),
     profile_image VARCHAR(255),
     google_id VARCHAR(255) NOT NULL UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
     status_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd)
 );
 
@@ -32,7 +32,7 @@ CREATE TABLE "maps"(
 --가게(맛집,...) 테이블
 CREATE TABLE "shop"(
     shop_id BIGSERIAL PRIMARY KEY, --가게 고유 번호--
-    map_id BIGINT NOT NULL REFERENCES maps(map_id), --지도 고유 번호--
+    map_id BIGINT NOT NULL REFERENCES maps(map_id) ON DELETE CASCADE, --지도 고유 번호--
     category_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd), --한식/중식/양식/일식/카페/기타--
     rating FLOAT --평점--
 );
@@ -46,10 +46,10 @@ CREATE TABLE "posts"(
     modify_at TIMESTAMP NOT NULL, --게시글 수정일--
     status_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd), --게시글 상태(정상/삭제)--
     post_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd), --post_cd를 통해 게시글과 커뮤니티, 댓글을 구분한다)--
-    user_id BIGINT NOT NULL REFERENCES users(user_id),
-    map_id BIGINT REFERENCES maps(map_id), --만약 커뮤니티나 맛집에 대한 내용이라면 map_id 작성--
-    shop_id BIGINT REFERENCES shop(shop_id), --만약 맛집에 대한 내용이라면 shop_id 작성--
-    crawling_id BIGINT NULL --크롤링 고유 번호-- (FK는 아래에서 추가)
+    user_id BIGINT REFERENCES users(user_id),
+    map_id BIGINT REFERENCES maps(map_id) ON DELETE SET NULL, --만약 커뮤니티나 맛집에 대한 내용이라면 map_id 작성--
+    shop_id BIGINT REFERENCES shop(shop_id) ON DELETE SET NULL, --만약 맛집에 대한 내용이라면 shop_id 작성--
+    crawling_id BIGINT --크롤링 고유 번호-- (FK는 아래에서 추가)
 );
 
 CREATE TABLE "crawling"(
@@ -63,16 +63,16 @@ CREATE TABLE "crawling"(
     comment_count INT, --댓글수--
     point FLOAT, --평점--
     author VARCHAR(100), --작성자--
-    map_id BIGINT REFERENCES maps(map_id), --지도 고유 번호--
+    map_id BIGINT REFERENCES maps(map_id) ON DELETE SET NULL, --지도 고유 번호--
     category_cd VARCHAR(6) REFERENCES "codeT"(cd), --it/정보--
-    comment_id BIGINT NULL --댓글 고유 번호-- (FK는 아래에서 추가)
+    comment_id BIGINT --댓글 고유 번호-- (FK는 아래에서 추가)
 );
 
 
 CREATE TABLE "menu"(
     menu_id BIGSERIAL PRIMARY KEY, --메뉴 고유 번호--
-    shop_id BIGINT REFERENCES shop(shop_id), --가게 고유 번호--
-    name VARCHAR(100), --메뉴 이름--
+    shop_id BIGINT NOT NULL REFERENCES shop(shop_id) ON DELETE CASCADE, --가게 고유 번호--
+    name VARCHAR(100) NOT NULL, --메뉴 이름--
     price INT --메뉴 가격--
 );
 
@@ -82,17 +82,16 @@ CREATE TABLE "images"(
     table_name VARCHAR(20) NOT NULL, --테이블 이름--
     table_id BIGINT NOT NULL --테이블 고유 번호--
 );
-CREATE INDEX idx_image_polymorphic ON images (table_name, table_id);
 
 CREATE TABLE "likes"(
     like_id BIGSERIAL PRIMARY KEY, --좋아요 고유 번호--
-    post_id BIGINT NOT NULL REFERENCES posts(post_id), --게시글 고유 번호--
-    user_id BIGINT NOT NULL REFERENCES users(user_id)
+    post_id BIGINT NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE, --게시글 고유 번호--
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE "comments"(
     comment_id BIGSERIAL PRIMARY KEY, --댓글 고유 번호--
-    post_id BIGINT NOT NULL REFERENCES posts(post_id), --게시글 고유 번호--
+    post_id BIGINT NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE, --게시글 고유 번호--
     user_id BIGINT NOT NULL REFERENCES users(user_id),
     content TEXT NOT NULL, --댓글 내용--    
     created_at TIMESTAMP NOT NULL, --생성일--
@@ -106,6 +105,6 @@ ALTER TABLE "posts"
 
 ALTER TABLE "crawling"
     ADD CONSTRAINT fk_crawling_comment
-    FOREIGN KEY (comment_id) REFERENCES "comments"(comment_id);
+    FOREIGN KEY (comment_id) REFERENCES "comments"(comment_id) ON DELETE SET NULL;
 
 COPY "codeT" (cd, name, cd_info, cd_upper) FROM '/docker-entrypoint-initdb.d/data/codeT.csv' DELIMITER ',' CSV HEADER;
