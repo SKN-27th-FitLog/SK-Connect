@@ -14,7 +14,7 @@ class Users(models.Model):
     nickname = models.CharField(max_length=100, blank=True, null=True)
     profile_image = models.CharField(max_length=255, blank=True, null=True)
     google_id = models.CharField(unique=True, null=False, max_length=255)
-    created_at = models.DateTimeField(null=False)
+    created_at = models.DateTimeField(auto_now_add=True)
     status_cd = models.ForeignKey('common.Codet', on_delete=models.DO_NOTHING, null=False, db_column='status_cd')
 
     class Meta:
