@@ -7,7 +7,6 @@
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
 
-
 class Codet(models.Model):
     cd = models.CharField(primary_key=True, max_length=6)
     name = models.CharField(max_length=30, null=False)
@@ -18,11 +17,10 @@ class Codet(models.Model):
         managed = False
         db_table = 'codeT'
 
-
 class Images(models.Model):
     image_id = models.BigAutoField(primary_key=True)
     image_url = models.CharField(max_length=500, null=False)
-    table_name = models.CharField(max_length=20, null=False)
+    table_name =models.CharField(max_length=20, null=False)
     table_id = models.BigIntegerField(null=False)
 
     class Meta:

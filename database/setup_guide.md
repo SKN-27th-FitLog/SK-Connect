@@ -2,6 +2,7 @@
 
 ## ✅ 5. `.env` 파일 생성
 
+
 ### Windows
 ```bash
 copy .env.example .env
@@ -12,14 +13,11 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-
----
+===================================
 
 ## ✅ 7. Database 환경 변수 설정
 
 `.env` 값은 반드시 `docker-compose.yml`과 동일해야 합니다.
-
-```
 
 ### ⚠️ 주의사항
 
@@ -27,6 +25,7 @@ cp .env.example .env
 - DB 정보 불일치 시 접속 실패  
 
 ---
+
 
 ## ✅ 8. Docker 실행
 
