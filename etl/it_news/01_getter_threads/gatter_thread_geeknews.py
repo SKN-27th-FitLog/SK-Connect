@@ -3,14 +3,13 @@ GeekNews 메인 페이지(https://news.hada.io/) HTML에서 토픽 행을 파싱
 `--limit`이 한 페이지(약 20건)를 넘으면 `?page=2`, `?page=3` … 순으로 이어서 요청한다.
 MCP(list_network_requests)로 확인 시 목록용 XHR/JSON은 없고 문서 HTML에 topic_row가 SSR 됨.
 
-DOM 대응 선택자(참고):
-    - 행: div.topic_row
+DOM 대응 선택자(참고, 변경 시 _parse_topic_row_block 주석과 함께 점검):
+    - 행: div.topic_row (data-topic-state-id 등 속성이 뒤에 붙을 수 있음 → 한 줄 정규식 매칭 대신 블록 분리)
     - 순위: div.votenum
-    - 긱뉴스 토픽 ID: span[id^=vote] → vote28246
-    - 제목 링크: div.topictitle > a (외부 URL 또는 topic?id=)
-    - 도메인 표시: span.topicurl
-    - 요약 링크: div.topicdesc > a[href^=topic?id=]
-    - 메타: div.topicinfo (points, user, 상대시간, 댓글 링크)
+    - 긱뉴스 토픽 ID: span[id^=vote] → vote28430
+    - 제목: div.topictitle 안에 dead* span 뒤에 오는 첫 a + h1/h2, span.topicurl(도메인)
+    - 요약: div.topicdesc > a (href는 topic?id=, /topic?id=, 절대 URL 등 변형 가능)
+    - 메타: div.topicinfo — points, /user/{id} 형식 사용자 링크, 상대시각, 댓글 링크
 
 CSV 열: time_text(원문), posted_at(상대시각 역산 ISO8601 KST; 미매칭 시 collected_at과 동일), collected_at(수집 시작 시각).
 
@@ -86,17 +85,87 @@ def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None
 LIST_URL = "https://news.hada.io/"
 GEEKNEWS_ORIGIN = "https://news.hada.io"
 
-# SSR HTML 한 블록(topic_row)을 통째로 매칭. 사이트 마크업이 바뀌면 패턴만 고치면 됨.
-# 캡처 그룹 순서: votenum, voteId, titleHref, title, domainLabel, descText, points,
-# userId, userName, timeText, commentsHref, commentCell
-_ROW_RE = re.compile(
-    r"<div class='topic_row'><div class=votenum>(\d+)</div>"
-    r".*?id='vote(\d+)'"
-    r".*?<div class=topictitle><a href='([^']*)'[^>]*><h1>([^<]+)</h1></a> <span class=topicurl>\(([^)]*)\)</span>"
-    r".*?<div class='topicdesc'><a href='topic\?id=\2'[^>]*>(.*?)</a></div>"
-    r"<div class='topicinfo'><span id='tp\d+'>(\d+)</span> points? by <a href='/user\?id=([^']+)'>([^<]+)</a>\s*([^<]*?)<span id='unvote\d+'></span>\s*\|\s*<a href='([^']*)'[^>]*>([^<]+)</a>",
+# 목록 한 페이지에서 topic_row 블록만 순서대로 잘라 낸다.
+# 과거 한 덩어리 정규식(_ROW_RE)은 (1) topic_row 직후 data-topic-state-id 등이 붙은 마크업,
+# (2) topictitle 안 dead* span 삽입, (3) 사용자 링크가 /user?id= 가 아니라 /user/{name} 형태로 바뀐
+# 경우 한꺼번에 매칭이 실패했다. 블록 분리 후 필드별로 나누면 같은 사이트만 대상으로 완화·수정이 쉽다.
+_TOPIC_ROW_BLOCK_RE = re.compile(
+    r"<div\s+class\s*=\s*['\"]topic_row['\"][^>]*>.*?(?=<div\s+class\s*=\s*['\"]topic_row['\"][^>]*>|$)",
     re.DOTALL,
 )
+# topictitle: 제목 앞에 <span id=dead…> 등이 끼일 수 있으므로 non-greedy .*? 후 첫 <a … href>…<h1|h2>.
+# href는 작은/큰따옴표 모두 허용. 제목은 h1·h2 모두 허용.
+_TITLE_IN_ROW_RE = re.compile(
+    r"<div\s+class\s*=\s*topictitle\s*>"
+    r".*?<a\s+[^>]*href\s*=\s*(['\"])([^'\"]*)\1[^>]*>\s*<h[12]>([^<]+)</h[12]>\s*</a>\s*"
+    r"<span[^>]*class\s*=\s*topicurl[^>]*>\(([^)]*)\)</span>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _parse_topic_row_block(block: str, *, collected_at: datetime) -> dict | None:
+    """topic_row 한 블록에서 필드를 뽑는다. 마크업이 바뀌면 이 함수와 _TOPIC_ROW_BLOCK_RE / _TITLE_IN_ROW_RE만 조정하면 된다.
+
+    topicdesc는 topic_id로 href를 동적 매칭한다(상대·절대·쿼리스트링 변형). topicinfo는
+    points by … /user/{id} … 상대시각 … 댓글 링크 순을 가정한다.
+    """
+    m_rank = re.search(r"<div\s+class\s*=\s*votenum\s*>(\d+)</div>", block)
+    m_vote = re.search(r"id\s*=\s*['\"]vote(\d+)['\"]", block)
+    if not m_rank or not m_vote:
+        return None
+    rank, topic_id = m_rank.group(1), m_vote.group(1)
+
+    m_title = _TITLE_IN_ROW_RE.search(block)
+    if not m_title:
+        return None
+    title_href, title, domain_label = m_title.group(2), m_title.group(3), m_title.group(4)
+
+    desc_re = re.compile(
+        r"<div\s+class\s*=\s*['\"]topicdesc['\"]\s*>"
+        r"<a[^>]*href\s*=\s*['\"](?:https?://news\.hada\.io)?/?topic\?id="
+        + re.escape(topic_id)
+        + r"(?:[^'\"]*)?['\"][^>]*>(.*?)</a>\s*</div>",
+        re.DOTALL | re.IGNORECASE,
+    )
+    m_desc = desc_re.search(block)
+    desc_text = re.sub(r"\s+", " ", m_desc.group(1)).strip() if m_desc else ""
+
+    m_info = re.search(
+        r"<div\s+class\s*=\s*['\"]topicinfo['\"]\s*>"
+        r"<span\s+id\s*=\s*['\"]tp\d+['\"]>(\d+)</span>\s+points\s+by\s+"
+        r"<a\s+href\s*=\s*['\"]/user/([^'\"]+)['\"]>([^<]+)</a>\s*"
+        r"([^<]*?)<span\s+id\s*=\s*['\"]unvote\d+['\"]>\s*</span>\s*\|\s*"
+        r"<a\s+[^>]*href\s*=\s*(['\"])([^'\"]*)\5[^>]*>([^<]+)</a>",
+        block,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not m_info:
+        return None
+    points, user_id, user_name, time_text, _q, _comments_href, comment_cell = m_info.groups()
+    time_text = time_text.strip()
+
+    collected_iso = collected_at.isoformat()
+    article_url = geeknews_topic_url(topic_id)
+    ext = title_href.strip()
+    if ext.startswith("topic?") or ext.startswith("/topic?"):
+        ext = ""
+
+    return {
+        "rank": rank,
+        "topic_id": topic_id,
+        "title": re.sub(r"\s+", " ", title).strip(),
+        "article_url": article_url,
+        "external_url": ext,
+        "source_domain_label": domain_label.strip(),
+        "excerpt": desc_text[:500] if desc_text else "",
+        "points": points,
+        "author_user_id": user_id,
+        "author_display_name": user_name.strip(),
+        "time_text": time_text,
+        "posted_at": geeknews_relative_to_posted_at(time_text, collected_at),
+        "collected_at": collected_iso,
+        "comment_count": parse_comment_count(comment_cell),
+    }
 
 
 def parse_comment_count(comment_cell: str) -> str:
@@ -127,50 +196,11 @@ def list_url_for_page(base_url: str, page: int) -> str:
 
 def parse_page_rows(html: str, *, collected_at: datetime) -> list[dict]:
     """한 페이지 HTML에서 topic_row를 모두 순서대로 파싱. collected_at은 상대시각 역산·미매칭 시 posted_at 기준."""
-    collected_iso = collected_at.isoformat()
     rows: list[dict] = []
-    for m in _ROW_RE.finditer(html):
-        (
-            rank,
-            topic_id,
-            title_href,
-            title,
-            domain_label,
-            desc_text,
-            points,
-            user_id,
-            user_name,
-            time_text,
-            _comments_href,
-            comment_cell,
-        ) = m.groups()
-
-        title = re.sub(r"\s+", " ", title).strip()
-        desc_text = re.sub(r"\s+", " ", desc_text).strip()
-        time_text = time_text.strip()
-        article_url = geeknews_topic_url(topic_id)
-        ext = title_href.strip()
-        if ext.startswith("topic?"):
-            ext = ""
-
-        rows.append(
-            {
-                "rank": rank,
-                "topic_id": topic_id,
-                "title": title,
-                "article_url": article_url,
-                "external_url": ext,
-                "source_domain_label": domain_label.strip(),
-                "excerpt": desc_text[:500] if desc_text else "",
-                "points": points,
-                "author_user_id": user_id,
-                "author_display_name": user_name.strip(),
-                "time_text": time_text,
-                "posted_at": geeknews_relative_to_posted_at(time_text, collected_at),
-                "collected_at": collected_iso,
-                "comment_count": parse_comment_count(comment_cell),
-            }
-        )
+    for m in _TOPIC_ROW_BLOCK_RE.finditer(html):
+        row = _parse_topic_row_block(m.group(0), collected_at=collected_at)
+        if row:
+            rows.append(row)
     return rows
 
 

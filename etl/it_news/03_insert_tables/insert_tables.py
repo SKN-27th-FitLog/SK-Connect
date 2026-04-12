@@ -1,6 +1,10 @@
 """
 정제 CSV를 PostgreSQL \"crawling\" 테이블에 증분 삽입한다.
-연결 확인 → MAX(created_at) → CSV 중 그보다 이후 행만 INSERT (crawling_id는 DB 시퀀스).
+연결 확인 → MAX(created_at) → CSV(단일 또는 여러 gatter_tables_*.csv 합본) 중
+그 시각보다 이후 행만 INSERT (crawling_id는 DB 시퀀스).
+
+여러 파일을 쓸 때도 비교 기준은 DB 전체의 MAX(created_at) 하나이며,
+합친 뒤 동일한 created_at > max_at 조건으로 필터한다(파일이 나뉘어 있어도 증분 의미는 동일).
 """
 from __future__ import annotations
 
@@ -48,7 +52,7 @@ def get_connection_params() -> dict[str, Any]:
         "port": int(_env("PGPORT", "5432")),
         "dbname": _env("PGDATABASE", "service"),
         "user": _env("PGUSER", "user"),
-        "password": _env("PGPASSWORD", "password123"),
+        "password": _env("PGPASSWORD", "password"),
     }
 
 
@@ -141,9 +145,8 @@ def _row_tuple(row: pd.Series) -> tuple[Any, ...]:
     )
 
 
-def load_and_filter_csv(csv_path: Path, max_created_at: Optional[datetime]) -> pd.DataFrame:
-    '''CSV를 읽고 created_at 파싱 실패 행을 제외한 뒤, max_created_at보다 이후 행만 남긴다(증분 삽입).'''
-    df = pd.read_csv(csv_path)
+def filter_incremental_by_created_at(df: pd.DataFrame, max_created_at: Optional[datetime]) -> pd.DataFrame:
+    '''created_at 파싱·정리 후 max_created_at보다 이후 행만 남긴다(증분 삽입 핵심).'''
     if "created_at" not in df.columns:
         raise ValueError("CSV에 created_at 컬럼이 없습니다.")
 
@@ -171,6 +174,38 @@ def load_and_filter_csv(csv_path: Path, max_created_at: Optional[datetime]) -> p
     return df.loc[mask].copy()
 
 
+def load_and_filter_csv(csv_path: Path, max_created_at: Optional[datetime]) -> pd.DataFrame:
+    '''단일 CSV를 읽고 증분 필터를 적용한다.'''
+    df = pd.read_csv(csv_path)
+    return filter_incremental_by_created_at(df, max_created_at)
+
+
+def load_and_filter_csv_paths(csv_paths: list[Path], max_created_at: Optional[datetime]) -> pd.DataFrame:
+    '''여러 CSV를 순서대로 읽어 합친 뒤, 동일한 증분 기준으로 필터한다.
+
+    여러 날짜 파일에 같은 article_url이 있으면 나중 경로(정렬상 뒤) 행을 남긴다.
+    '''
+    if not csv_paths:
+        return pd.DataFrame()
+    frames: list[pd.DataFrame] = []
+    for p in csv_paths:
+        frames.append(pd.read_csv(p))
+    df = pd.concat(frames, ignore_index=True)
+    if "article_url" in df.columns:
+        before = len(df)
+        df = df.drop_duplicates(subset=["article_url"], keep="last").reset_index(drop=True)
+        dup = before - len(df)
+        if dup:
+            print(f"참고: 여러 CSV 간 article_url 중복 {dup}건 제거(마지막 출처 유지)", file=sys.stderr)
+    return filter_incremental_by_created_at(df, max_created_at)
+
+
+def default_gatter_csv_paths() -> list[Path]:
+    '''02_cleaning_tables/gatter_tables_*.csv 경로를 이름순으로 반환한다.'''
+    base = Path(__file__).resolve().parent.parent / "02_cleaning_tables"
+    return sorted(base.glob("gatter_tables_*.csv"))
+
+
 def insert_rows(conn: psycopg.Connection, df: pd.DataFrame) -> int:
     '''데이터프레임 각 행을 INSERT_SQL로 executemany 삽입하고 건수를 반환한다. 빈 프레임이면 0.'''
     if df.empty:
@@ -188,17 +223,17 @@ def insert_rows(conn: psycopg.Connection, df: pd.DataFrame) -> int:
 
 def parse_args() -> argparse.Namespace:
     '''삽입할 CSV 경로(--csv) 등 CLI 인자를 파싱한다.'''
-    default_csv = (
-        Path(__file__).resolve().parent.parent
-        / "02_cleaning_tables"
-        / "gatter_tables_260409.csv"
-    )
     p = argparse.ArgumentParser(description="CSV를 crawling 테이블에 증분 삽입합니다.")
     p.add_argument(
         "--csv",
+        nargs="*",
         type=Path,
-        default=default_csv,
-        help=f"삽입할 CSV 경로 (기본: {default_csv})",
+        metavar="PATH",
+        default=[],
+        help=(
+            "삽입할 CSV 경로(여러 개 가능). "
+            "지정하지 않으면 02_cleaning_tables/gatter_tables_*.csv 전부(이름순)"
+        ),
     )
     return p.parse_args()
 
@@ -206,10 +241,18 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     '''연결·MAX(created_at)·CSV 필터·INSERT·커밋까지 수행하고 종료 코드를 반환한다.'''
     args = parse_args()
-    csv_path: Path = args.csv
-    if not csv_path.is_file():
-        print(f"CSV 파일이 없습니다: {csv_path}", file=sys.stderr)
+    csv_paths: list[Path] = list(args.csv) if args.csv else default_gatter_csv_paths()
+    if not csv_paths:
+        print(
+            "삽입할 CSV가 없습니다. --csv로 경로를 지정하거나 "
+            "02_cleaning_tables/gatter_tables_*.csv 파일을 두세요.",
+            file=sys.stderr,
+        )
         return 1
+    for p in csv_paths:
+        if not p.is_file():
+            print(f"CSV 파일이 없습니다: {p}", file=sys.stderr)
+            return 1
 
     try:
         conn = check_connection()
@@ -220,8 +263,9 @@ def main() -> int:
         max_at = get_max_created_at(conn)
         print(f"DB MAX(created_at) = {max_at!r}")
 
-        df = load_and_filter_csv(csv_path, max_at)
-        print(f"필터 후 삽입 대상 행 수: {len(df)} (원본 CSV 로드 후 증분 조건 적용)")
+        print(f"CSV 파일 {len(csv_paths)}개: {', '.join(str(p) for p in csv_paths)}")
+        df = load_and_filter_csv_paths(csv_paths, max_at)
+        print(f"필터 후 삽입 대상 행 수: {len(df)} (합본 후 created_at > MAX(created_at) 적용)")
 
         n = insert_rows(conn, df)
         conn.commit()

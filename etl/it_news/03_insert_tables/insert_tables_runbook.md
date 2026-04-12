@@ -2,7 +2,7 @@
 
 ## 목적
 
-정제된 IT 뉴스 CSV를 PostgreSQL **`"crawling"`** 테이블에 **증분**으로 넣습니다. DB에 이미 적재된 `created_at` 최댓값보다 **이후**인 행만 삽입하고, `crawling_id`는 DB 시퀀스(`BIGSERIAL`)가 자동 부여합니다.
+정제된 IT 뉴스 CSV를 PostgreSQL **`"crawling"`** 테이블에 **증분**으로 넣습니다. DB에 이미 적재된 `created_at` 최댓값(`MAX(created_at)`)보다 **이후**인 행만 삽입하고, `crawling_id`는 DB 시퀀스(`BIGSERIAL`)가 자동 부여합니다. 입력은 **단일 CSV**이거나 **`gatter_tables_*.csv` 여러 개를 합친 것**과 동일하게 처리됩니다(비교 기준은 DB 한 번의 `MAX(created_at)`).
 
 ## 선행 조건
 
@@ -24,18 +24,25 @@ pip install -r requirements.txt
 
 ```powershell
 cd C:\dev\project\SK-Connect\etl\it_news\03_insert_tables
-python insert_tables.py --csv "..\02_cleaning_tables\gatter_tables_260408.csv"
+# 특정 파일만
+python insert_tables.py --csv "..\02_cleaning_tables\gatter_tables_260412.csv"
+# 여러 파일 명시
+python insert_tables.py --csv "..\02_cleaning_tables\gatter_tables_260408.csv" "..\02_cleaning_tables\gatter_tables_260412.csv"
+# 생략 시 02_cleaning_tables/gatter_tables_*.csv 전부(파일명 순)
+python insert_tables.py
 ```
 
-- `--csv` 를 생략하면 기본값으로 `..\02_cleaning_tables\gatter_tables_260408.csv` 를 사용합니다. 날짜별로 바뀌는 파일은 **항상 `--csv`로 경로를 지정**하면 됩니다.
+- `--csv` 를 **생략**하면 `..\02_cleaning_tables\gatter_tables_*.csv` 에 맞는 파일을 **모두** 읽어 합친 뒤 증분 필터를 적용합니다.
+- `--csv` 로 **하나 이상** 경로를 주면 그 파일들만 합칩니다.
+- 여러 CSV에 동일 `article_url`이 있으면 **마지막 파일(인자 순서·기본 glob 이름순에서 뒤)** 행을 남깁니다.
 - 연결은 `PG*` 환경 변수로 덮어쓸 수 있습니다.
 
 ## 처리 파이프라인 (실행 순서)
 
 1. **연결 1회 검증**: `psycopg.connect` 후 `SELECT 1` 로 성공 여부 확인. 실패 시 메시지 출력 후 종료 코드 `1`.
 2. **`MAX(created_at)` 조회**: 아래 SQL로 `crawling` 테이블의 마지막 수집 시각 기준을 가져옵니다. 테이블이 비어 있으면 `NULL`.
-3. **CSV 로드**: `pandas.read_csv` 로 읽고, `created_at` 을 UTC 기준으로 파싱합니다. 파싱 불가 행은 제외하고 건수를 stderr에 경고할 수 있습니다.
-4. **증분 필터**: `MAX(created_at)` 이 `NULL`이 아니면, 파싱된 `created_at`(UTC)이 DB에서 읽은 최댓값(UTC로 정규화)보다 **큰** 행만 남깁니다 (`>`). 동일 시각 재삽입을 줄이기 위함입니다.
+3. **CSV 로드**: 파일이 여러 개면 `pandas.concat` 으로 합칩니다. `created_at` 을 UTC 기준으로 파싱합니다. 파싱 불가 행은 제외하고 건수를 stderr에 경고할 수 있습니다.
+4. **증분 필터**: `MAX(created_at)` 이 `NULL`이 아니면, 파싱된 `created_at`(UTC)이 DB에서 읽은 최댓값(UTC로 정규화)보다 **큰** 행만 남깁니다 (`>`). 파일이 여러 개여도 **같은 기준**으로 한 번만 비교합니다. 동일 시각 재삽입을 줄이기 위함입니다.
 5. **INSERT**: `crawling_id` 컬럼 없이 아래 컬럼만 삽입합니다. `cursor.executemany` 로 일괄 실행 후 `commit`.
 
 ### 사용 SQL (요약)

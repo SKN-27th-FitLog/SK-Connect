@@ -37,11 +37,9 @@ python etl/it_news/update_db_it_news.py
 | 위 6개 `.py` 경로 존재 여부 사전 검사 | 패키지·인터프리터 버전 검사 |
 | 고정 순서로 `subprocess` 실행, 실패 시 즉시 중단 | 크롤 실패·CSV 누락·DB 오류의 세부 복구 (각 스크립트·런북) |
 
-## `insert_tables` 기본 CSV 경로 주의
+## `insert_tables` CSV 지정
 
-`cleaning_tables.py`는 실행일 기준으로 `gatter_tables_YYMMDD.csv` 같은 이름으로 파일을 만든다. 반면 `insert_tables.py`의 기본 `--csv`는 코드에 고정된 예시 경로를 가리킬 수 있다.
-
-두 파일명이 다르면 6단계에서 **원하는 CSV를 읽지 못한다.** 필요 시 `insert_tables.py`에 `--csv`로 클린징 결과 파일을 넘기도록 오케스트레이터나 실행 방식을 확장하거나, 수동으로 인자를 지정한다.
+`cleaning_tables.py`는 실행일 기준으로 `gatter_tables_YYMMDD.csv` 이름으로 저장한다. `insert_tables.py`는 **`--csv`를 생략하면** `02_cleaning_tables/gatter_tables_*.csv` 에 해당하는 파일을 **전부**(이름순) 읽어 합친 뒤, DB의 `MAX(created_at)` 보다 이후 행만 삽입한다. 특정 파일만 넣으려면 `--csv` 로 경로를 하나 이상 지정하면 된다.
 
 ## 소스(사이트) 추가 시
 
