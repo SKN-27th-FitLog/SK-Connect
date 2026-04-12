@@ -23,7 +23,8 @@ try:
         normalize_string, 
         fetch_coordinates_kakao, 
         archive_files,
-        safe_re_sub_space
+        safe_re_sub_space,
+        cleanup_and_log_files
     )
     from members import Category, FoodCategory, Location
 except ImportError:
@@ -219,7 +220,7 @@ def main() -> None:
     
     # common_utils의 PARENT_DIR 활용 (이미 위에서 정의됨)
     BASE_DIR = CURRENT_DIR.parent
-    PROJECT_ROOT = PARENT_DIR.parent
+    PROJECT_ROOT = CURRENT_DIR.parent.parent.parent
     
     parser.add_argument("--input", default=str(BASE_DIR / "data" / "raw_store_data.csv"))
     parser.add_argument("--output-dir", default=str(BASE_DIR / "data"))
@@ -258,17 +259,17 @@ def main() -> None:
             truncate_first=args.truncate_first,
             kakao_api_key=args.kakao_api_key,
         )
-        print("✅ DB 업로드 완료. 파일 아카이빙을 시작합니다.")
+        print("✅ DB 업로드 완료. 불필요한 파일 정리를 시작합니다.")
         
-        # 업로드 성공 후 아카이빙 처리
+        # 업로드 성공 후 자동 삭제 및 로깅
         out_dir = Path(args.output_dir)
-        archive_files([
+        cleanup_and_log_files([
             str(out_dir / "maps.csv"),
             str(out_dir / "shop.csv"),
             str(out_dir / "menu.csv"),
             str(out_dir / "shop_candidates.csv"),
-            args.input # 원본 데이터도 아카이브 대상으로 포함
-        ], args.archive_dir)
+            # args.input # 원본 데이터는 보존 정책에 따라 유지
+        ])
         
     except Exception as e:
         print(f"❌ DB 작업 중 치명적 오류 발생 (롤백됨): {e}")

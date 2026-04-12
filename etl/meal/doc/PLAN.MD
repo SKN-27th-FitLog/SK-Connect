@@ -63,8 +63,24 @@
 
 ## 6. 실행 및 환경 가이드
 
-- **전체 배치 실행**: `python run_batch_pipeline.py --targets targets_example.csv`
+- **전체 배치 실행**: `python run_batch_pipeline.py --targets targets_example.csv --headful`
 - **유지보수**: `data/archives/` 및 `review_data/archives/` 폴더를 주기적으로 관리하십시오.
 
 ---
-**보고서 종료**: 본 계획서의 모든 단계(리팩토링 및 상수 Enum화 포함)가 구현 완료되었습니다. 
+
+## 7. [긴급] 리뷰 데이터 매핑 정합성 해결 (Fix: Review Address Mapping)
+- **현상**: 수집된 509건 중 3건만 업로드됨 (주소 불일치로 인한 매핑 실패).
+- **원인**: CSV의 전체 주소(Full Address)와 DB의 상세 주소(Detail Address)를 직접 비교하여 매핑이 누락됨.
+- **해결 방안**: 
+    - [ ] **Address Detail Suffix Match**: DB의 상세 주소가 CSV의 전체 주소 끝부분에 포함되어 있는지 확인하는 유연한 매핑 로직 도입.
+    - [ ] **Store Name Normalization**: 가게 이름에서 특수문자 및 공백을 제거하여 정합성 강화.
+
+---
+
+## 8. [향후] 데이터 보관 및 보안 정책 (Data Retention & Security)
+- [ ] **Git 추적 제외**: `data/`, `review_data/` 등 수집 데이터 및 개인정보가 포함된 파일이 Git 저장소에 올라가지 않도록 `.gitignore` 설정 강화.
+- [ ] **자동 삭제(Auto-Cleanup)**: DB 업로드 성공 시 로컬 JSON 및 임시 CSV 파일을 삭제하여 보안성 및 저장 공간 효율성 증대.
+- [ ] **삭제 이력 요약(Cleanup Summary)**: 삭제된 데이터의 파일명, 처리 시각, 처리 건수를 기록한 별도의 리포트 파일을 생성하여 추후 정합성 검증 및 이력 관리 용도로 활용.
+
+---
+**보고서 종료**: 리팩토링 및 상수 Enum화가 완료되었으며, 현재 리뷰 데이터 매핑 정합성 해결 작업을 진행 중입니다. 향후 보안 및 데이터 정리 정책을 추가로 반영할 예정입니다.

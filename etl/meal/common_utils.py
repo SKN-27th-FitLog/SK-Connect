@@ -89,6 +89,37 @@ def archive_files(files: List[str], archive_dir: str) -> None:
             except Exception as e:
                 print(f"⚠️ 아카이빙 실패 {f.name}: {e}")
 
+def cleanup_and_log_files(files: List[str], log_filename: str = "cleanup_summary.csv") -> None:
+    """파일을 삭제하고 삭제 이력을 로그 파일에 기록합니다."""
+    project_root = get_project_root()
+    log_path = project_root / log_filename
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    records = []
+    
+    for f_str in files:
+        f = Path(f_str)
+        if f.exists():
+            try:
+                size = f.stat().st_size
+                f.unlink() # 파일 삭제
+                records.append({
+                    "timestamp": timestamp,
+                    "filename": f.name,
+                    "size_bytes": size,
+                    "status": "DELETED"
+                })
+                print(f"🗑️ 자동 삭제 완료: {f.name}")
+            except Exception as e:
+                print(f"⚠️ 삭제 실패 {f.name}: {e}")
+    
+    if records:
+        df = pd.DataFrame(records)
+        # 로그 파일이 없으면 헤더 포함 저장, 있으면 추가
+        header = not log_path.exists()
+        df.to_csv(log_path, mode='a', index=False, header=header, encoding='utf-8-sig')
+        print(f"📝 삭제 이력 기록됨: {log_path.name}")
+
 def get_project_root() -> Path:
     """프로젝트 루트 경로를 반환합니다."""
     return Path(__file__).resolve().parent

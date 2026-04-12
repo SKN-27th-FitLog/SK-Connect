@@ -27,7 +27,8 @@ try:
         archive_files,
         safe_re_sub_space,
         generate_content_hash,
-        get_or_create_crawler_user
+        get_or_create_crawler_user,
+        cleanup_and_log_files
     )
     from members import Status, PostType, TablePrefix
 except ImportError:
@@ -127,24 +128,23 @@ def upload_reviews(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: 
                 user_id = get_or_create_crawler_user(cur)
 
                 # 2. 허용된 테이블 목록 (codeT 기반) 확보
-                cur.execute("SELECT name FROM \"codeT\" WHERE cd_upper = %s OR cd LIKE 'TC%'", (TablePrefix.TABLE.value,))
+                cur.execute("SELECT name FROM \"codeT\" WHERE cd_upper = %s OR cd LIKE 'TC%%'", (TablePrefix.TABLE.value,))
                 allowed_tables: Set[str] = {str(r[0]).strip().lower() for r in cur.fetchall()}
                 if not allowed_tables: # 기본값 설정
                     allowed_tables = {"posts", "shop", "maps", "crawling"}
 
-                # 3. shop_id, map_id 맵핑 조회 최적화
+                # 3. shop_id, map_id 맵핑 조회 최적화 (유연한 비교를 위해 리스트로 보관)
                 cur.execute("""
                     SELECT m.name, m.address_detail, s.shop_id, s.map_id 
                     FROM shop s 
                     JOIN maps m ON s.map_id = m.map_id
                 """)
-                shop_id_lookup: Dict[Tuple[str, str], Tuple[int, int]] = {}
+                shop_mappings: List[Tuple[str, str, int, int]] = []
                 for name_db, addr_db, sid, mid in cur.fetchall():
                     if name_db and addr_db:
-                        # 정규화된 키로 맵핑
-                        k1 = re.sub(r'\s+', '', str(name_db))
-                        k2 = re.sub(r'\s+', '', str(addr_db))
-                        shop_id_lookup[(k1, k2)] = (sid, mid)
+                        k1 = safe_re_sub_space(name_db).lower()
+                        k2 = safe_re_sub_space(addr_db).lower()
+                        shop_mappings.append((k1, k2, sid, mid))
 
                 # 4. 리뷰 및 이미지 삽입
                 inserted_posts = 0
@@ -164,10 +164,16 @@ def upload_reviews(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: 
                         skipped_duplicates += 1
                         continue
 
-                    n = re.sub(r'\s+', '', str(row.get("store_name", "")))
-                    a = re.sub(r'\s+', '', str(row.get("store_address", "")))
+                    n = safe_re_sub_space(row.get("store_name", "")).lower()
+                    a = safe_re_sub_space(row.get("store_address", "")).lower()
                     
-                    mapping = shop_id_lookup.get((n, a))
+                    mapping = None
+                    for k1, k2, sid, mid in shop_mappings:
+                        # 유연한 비교: 이름이 포함 관계에 있고, DB 상세 주소가 CSV 전체 주소 내에 있는지 확인
+                        if (k1 in n or n in k1) and (k2 in a):
+                            mapping = (sid, mid)
+                            break
+
                     if mapping is None:
                         continue
                     
@@ -225,6 +231,7 @@ def main() -> None:
     parser.add_argument("--dbname", required=True)
     parser.add_argument("--user", required=True)
     parser.add_argument("--password", required=True)
+    parser.add_argument("--headful", action="store_true", help="브라우저 창을 보이게 실행")
     parser.add_argument("--truncate-first", action="store_true")
     
     args = parser.parse_args()
@@ -246,10 +253,9 @@ def main() -> None:
     print("DB 업로드 시작 (트랜잭션 강화 모드)...")
     try:
         upload_reviews(df, conn_args, args.truncate_first)
-        print("✅ 리뷰 및 이미지 통합 처리 완료.")
-        # 성공 시 아카이빙
+        print("✅ 리뷰 업로드 성공. 수집된 JSON 파일 정리를 시작합니다.")
         json_files = glob.glob(os.path.join(args.json_dir, "*.json"))
-        archive_files(json_files + [str(Path(args.output_dir) / "review.csv")], args.archive_dir)
+        cleanup_and_log_files(json_files + [str(Path(args.output_dir) / "review.csv")])
     except Exception as e:
         print(f"❌ 리뷰 DB 업로드 실패 (롤백됨): {e}")
         raise

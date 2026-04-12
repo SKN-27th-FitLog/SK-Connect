@@ -5,7 +5,7 @@ import re
 import time
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import HTTPError
 
 import pandas as pd
