@@ -174,7 +174,7 @@ def main() -> int:
     p = argparse.ArgumentParser(
         description="GeekNews CSV: article_url에서 본문 수집 → state(ok/fail), content 채움",
     )
-    default_dir = Path(__file__).resolve().parent
+    default_dir = Path(__file__).resolve().parent # 저장파일 위치 경로 
     p.add_argument(
         "-i",
         "--input",
