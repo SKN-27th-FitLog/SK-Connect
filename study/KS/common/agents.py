@@ -2,10 +2,11 @@
 # 필요한 라이브러리 호출
 ################################################################################
 # 패키지
-from dotenv import load_dotenv
 import time
 
 # 모듈
+from common.constants import LLM_NM, PROMPT_NM
+from common.chains import get_llm
 
 # LLM 관련 라이브러리 
 from langchain.tools import tool
@@ -13,69 +14,6 @@ from langchain.agents import create_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.runnables import RunnablePassthrough, RunnableBranch
-
-from langchain_tavily import TavilySearch
-from langchain_openai import ChatOpenAI
-
-
-################################################################################
-# 관련 변수 선언, 데이터 로드
-################################################################################
-
-# 환경변수 로드
-load_dotenv()
-
-# 사용할 LLM 모델 선언
-llm = ChatOpenAI(
-    model="gpt-5-nano",
-    reasoning_effort="high",        # 논리성 강화
-)
-
-# 날씨 정보 검색용 탬플릿 
-search_weather = TavilySearch(
-    max_results=3,
-    topic="general",               # 또는 "news", "finance" 등
-    include_answer=True,           # 답변 포함 여부
-    include_raw_content=False,     # 원본 내용 포함 여부
-    include_images=False,          # 이미지 포함 여부
-    search_depth="advanced",          # "basic" 또는 "advanced"
-    include_domains=[
-        "https://weather.daum.net/",
-        "https://www.weatheri.co.kr/" 
-    ],
-    exclude_domains=None            # 필요하면 제외 도메인 지정 가능
-)
-
-# 뉴스 검색 요약 탬플릿 
-search_new = TavilySearch(
-    max_results=3,
-    topic="news",               # 또는 "news", "finance" 등
-    include_answer=True,           # 답변 포함 여부
-    include_raw_content=False,     # 원본 내용 포함 여부
-    include_images=False,          # 이미지 포함 여부
-    search_depth="advanced",          # "basic" 또는 "advanced"
-    include_domains=[
-        "https://news.naver.com/",
-        "https://news.daum.net/"
-    ],
-    exclude_domains=None            # 필요하면 제외 도메인 지정 가능
-)
-
-# 주식 정보 탬플릿 
-search_finance = TavilySearch(
-    max_results=3,
-    topic="finance",               # 또는 "news", "finance" 등
-    include_answer=True,           # 답변 포함 여부
-    include_raw_content=False,     # 원본 내용 포함 여부
-    include_images=False,          # 이미지 포함 여부
-    search_depth="advanced",          # "basic" 또는 "advanced"
-    include_domains=[
-        "https://kr.investing.com/equities/south-korea",
-        "https://finance.naver.com/"
-    ],
-    exclude_domains=None            # 필요하면 제외 도메인 지정 가능
-)
-
 
 ################################################################################
 # tools 
@@ -87,7 +25,7 @@ def search_weather_info(city: str) -> str:
     """특정 도시의 현재 날씨 정보를 검색합니다."""
     try:
         search_query = f"{city} 현재 날씨 기온"
-        result_weather = search_weather.invoke(search_query)
+        result_weather = PROMPT_NM.search_weather.value[1].invoke(search_query)
         
         if not result_weather['answer'] or len(result_weather['results']) < 1:
             return f"'{city}'의 날씨 정보를 찾을 수 없습니다."
@@ -114,7 +52,7 @@ def summarize_news(topic: str) -> str:
         search_query = f"{topic} 최신 뉴스 한국"
         
         # 검색 실행
-        result_new = search_new.invoke(search_query)
+        result_new = PROMPT_NM.search_new.value[1].invoke(search_query)
         
         if not result_new['results']:
             return f"'{topic}'에 대한 뉴스를 찾을 수 없습니다."
@@ -141,7 +79,7 @@ def search_stock_info(stock_name: str) -> str:
     """특정 주식의 현재 가격과 정보를 검색합니다."""
     try:
         search_query = f"{stock_name} 주식 현재가 주가"
-        result_finance = search_finance.invoke(search_query)
+        result_finance = PROMPT_NM.search_finance.value[1].invoke(search_query)
 
         if not result_finance['answer'] or len(result_finance['results']) < 1:
             return f"'{stock_name}' 주식 정보를 찾을 수 없습니다."
@@ -169,7 +107,7 @@ def get_msg_from_agent(user_input:str=''):
 
     # 에이전트 생성 
     agent = create_agent(
-        model=llm,
+        model=get_llm(LLM_NM.gpt5.name),
         tools=[search_weather_info, summarize_news, search_stock_info],
         system_prompt="""
         당신은 주어진 도구를 반드시 사용해서만 답변해야 하는 AI 어시스턴트입니다.
@@ -179,7 +117,7 @@ def get_msg_from_agent(user_input:str=''):
     )
     # 연습용으로 여러 에이전트 생성 
     news_agent = create_agent(
-        model=llm,
+        model=get_llm(LLM_NM.gpt5.name),
         tools=[summarize_news],
         system_prompt="""
         당신은 주어진 도구를 반드시 사용해서만 답변해야 하는 AI 어시스턴트입니다.
@@ -188,7 +126,7 @@ def get_msg_from_agent(user_input:str=''):
         """
     )
     weather_agent = create_agent(
-        model=llm,
+        model=get_llm(LLM_NM.gpt5.name),
         tools=[search_weather_info],
         system_prompt="""
         당신은 주어진 도구를 반드시 사용해서만 답변해야 하는 AI 어시스턴트입니다.
@@ -197,7 +135,7 @@ def get_msg_from_agent(user_input:str=''):
         """
     )
     stock_agent = create_agent(
-        model=llm,
+        model=LLM_NM.gpt5.name,
         tools=[search_stock_info],
         system_prompt="""
         당신은 주어진 도구를 반드시 사용해서만 답변해야 하는 AI 어시스턴트입니다.
@@ -213,7 +151,7 @@ def get_msg_from_agent(user_input:str=''):
     keyword_prompt = ChatPromptTemplate.from_messages([
         SystemMessage(content="질문의 내용을 파악하여 어떤 주제에 대한 내용인지 키워드를 생성해 주세요")
     ])
-    keyword_chain = RunnablePassthrough.assign(keyword=(keyword_prompt | llm))
+    keyword_chain = RunnablePassthrough.assign(keyword=(keyword_prompt | get_llm(LLM_NM.gpt5.name)))
 
     # 그 다음 키워드를 가지고 어떤 에이전트를 실행할 지 찾는 프롬프트 / 체인을 구성한다. 
     agent_prompt = ChatPromptTemplate.from_messages([
@@ -227,7 +165,7 @@ def get_msg_from_agent(user_input:str=''):
         '''),
         ('user', 'keyword : {keyword}'),
     ])
-    agent_chain = RunnablePassthrough.assign(agent=(agent_prompt | llm))
+    agent_chain = RunnablePassthrough.assign(agent=(agent_prompt | get_llm(LLM_NM.gpt5.name)))
 
     # RunnableBranch로 x['agent'] 값에 따라 분기하도록 체인 처리 
     branch_chain = RunnableBranch(

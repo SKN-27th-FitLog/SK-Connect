@@ -1,7 +1,13 @@
+# 모듈 
 from .constants import LLM_NM, PARSER_NM, PROMPT_NM
 
+
+############################################################
+# constant에서 상수값 가져오기 
+############################################################
+
 # llm class 로드 
-def get_llm(model_nm:str='ollama'):
+def get_llm(model_nm:str=LLM_NM.ollama.name):
 
     # check validation
     if model_nm not in LLM_NM.__members__:
@@ -11,7 +17,7 @@ def get_llm(model_nm:str='ollama'):
 
 
 # prompt template 로드 
-def get_prompt(prompt_template_nm:str=''):
+def get_prompt(prompt_template_nm:str=PROMPT_NM.general.name):
 
     # check validation
     if prompt_template_nm not in PROMPT_NM.__members__:
@@ -21,7 +27,7 @@ def get_prompt(prompt_template_nm:str=''):
 
 
 # parser type 로드 
-def get_parser(parser_type_nm:str='output_str'):
+def get_parser(parser_type_nm:str=PARSER_NM.output_str.name):
 
     # check validation
     if parser_type_nm not in PARSER_NM.__members__:

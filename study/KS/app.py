@@ -1,27 +1,33 @@
+# 패키지 
 import streamlit as st
+
+# LLM 관련 라이브러리 
 from langchain_core.messages import HumanMessage, AIMessage
 from common.chatbot import get_msg_from_llm
-from common.constants import LLM_NM
+from components.sidebar import chatbot_sidebar
+from common.utils import render_chat_history, check_chat_history
 
+############################################################
+# streamlit 화면 구성
 ############################################################
 
 # 타이틀
 st.title('chatbot')
 
 # 사이드 바
-with st.sidebar:
-    st.title('Setup')
-    llm_nm = st.selectbox('Model', list(LLM_NM.__members__.keys()))
-    chat_type = st.selectbox('chatType', ['일반', '기본', 'fewshot'] )
+llm_nm = chatbot_sidebar()
+
+# 대화기록 세션 체크 
+check_chat_history()
+
+# 과거 대화내용 화면에 순차적으로 표시
+render_chat_history()
 
 
-# 대화기록 세션에 저장 (세션에 없으면 빈 리스트로 추가함 )
-if 'messages' not in st.session_state:
-    st.session_state.messages = [] 
 
-# 과거 대화내용 화면에 순차적으로 표시 (이전 대화상황 랜더랑 )
-for msg in st.session_state.messages:
-    st.chat_message(msg.type).write(msg.content)
+############################################################
+# 화면 동작 
+############################################################
 
 # 사용자 입력 
 if user_input := st.chat_input('질문을 입력하세요'):
@@ -34,7 +40,7 @@ if user_input := st.chat_input('질문을 입력하세요'):
     with st.chat_message("assistant"):
         placeholder = st.empty()
         response = ''
-        for token in get_msg_from_llm(llm_nm, chat_type, user_input):
+        for token in get_msg_from_llm(llm_nm, user_input):
             response += token
             placeholder.markdown(response)
 
