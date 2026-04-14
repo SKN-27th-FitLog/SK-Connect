@@ -7,9 +7,14 @@ TC04,posts,"게시글, 커뮤니티, 리뷰 테이블",TC00
 TC05,images,이미지테이블,TC00
 TC06,comments,댓글테이블,TC00
 TC07,likes,좋아요테이블,TC00
-TC08,shop,"가게테이블",TC00
+TC08,shop,가게테이블,TC00
 TC09,menu,메뉴테이블,TC00
 TC10,crawling,크롤링테이블,TC00
+US00,사용자 상태,사용자 상태 코드,
+US01,ACTIVE,활성 사용자,US00
+US02,INACTIVE,비활성 사용자,US00
+US03,BLOCKED,차단 사용자,US00
+US04,DELETED,탈퇴/삭제 사용자,US00
 ST00,게시글 상태,게시글 상태 코드,
 ST01,ACTIVE,활성 게시글,ST00
 ST02,INACTIVE,비활성 게시글,ST00
