@@ -26,7 +26,7 @@ class Posts(models.Model):
 
 class Comments(models.Model):
     comment_id = models.BigAutoField(primary_key=True)
-    post = models.ForeignKey(Posts, on_delete=models.CASCADE, blank=True, null=True)
+    post_id = models.ForeignKey('community.Posts', db_column ='post_id', on_delete=models.CASCADE, blank=True, null=True)
     crawling = models.ForeignKey('crawling.Crawling', db_column='crawling_id', on_delete=models.CASCADE, blank=True, null=True)
     user = models.ForeignKey('users.Users', db_column='user_id',null=False, on_delete=models.DO_NOTHING)
     content = models.TextField(null=False)
