@@ -19,7 +19,7 @@ class Posts(models.Model):
     user_id = models.ForeignKey('users.Users',  on_delete=models.DO_NOTHING)
     map_id = models.ForeignKey('places.Maps', blank=True, null=True, on_delete=models.DO_NOTHING)
     shop_id = models.ForeignKey('places.Shop', blank=True, null=True, on_delete=models.DO_NOTHING)
-    crawling_id = models.ForeignKey('crawling.Crawling', blank=True, null=True, on_delete=models.CASCADE)
+    crawling_id = models.ForeignKey('crawling.Crawling', blank=True, null=True, on_delete=models.SET_NULL)
     class Meta:
         managed = False
         db_table = 'posts'
