@@ -8,7 +8,6 @@
 from django.db import models
 
 
-
 class Crawling(models.Model):
     crawling_id = models.BigAutoField(primary_key=True)
     title = models.CharField(max_length=200, blank=True, null=True)
@@ -22,7 +21,6 @@ class Crawling(models.Model):
     author = models.CharField(max_length=100, blank=True, null=True)
     map = models.ForeignKey('places.Maps', blank=True, null=True, on_delete=models.DO_NOTHING)
     category_cd = models.ForeignKey('common.Codet', db_column='category_cd', blank=True, null=True, on_delete=models.SET_NULL)
-    comment_id = models.ForeignKey('community.Comments', blank=True, null=True, on_delete=models.SET_NULL)
 
     class Meta:
         managed = False
