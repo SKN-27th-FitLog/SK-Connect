@@ -72,6 +72,13 @@ def main() -> None:
     parser.add_argument("--password", default=os.environ.get("DB_PASSWORD", "password123"))
     parser.add_argument("--truncate-first", action="store_true")
     parser.add_argument("--headful", action="store_true")
+    # [신규] Kakao REST API 키: upload_shop_to_db.py 에서 주소 → 위경도 변환에 사용.
+    # .env 의 KAKAO_API_KEY 를 우선 적용하고, 없으면 빈 문자열(위경도 0.0 저장).
+    parser.add_argument(
+        "--kakao-api-key",
+        default=os.environ.get("KAKAO_API_KEY", ""),
+        help="카카오 REST API 키 (위경도 조회용)",
+    )
     
     args = parser.parse_args()
 
@@ -107,17 +114,37 @@ def main() -> None:
         *(["--headful"] if args.headful else [])
     ], "Detail-Raw-Details")
 
-    # 1-3. Clean: Preprocessing (Latest raw detail file 필요)
+    # [수정] 아래 단계들에서 공통으로 사용할 최신 상세 raw 파일 경로를 먼저 확보합니다.
+    # 기존에는 뒤에서 선언되어 NameError 가 발생했습니다.
     latest_details: Optional[str] = find_latest_hive_file("process=raw", "service=shop")
-    code_table: str = str(base_dir.parent.parent / "database" / "data" / "codeT.csv") # 호출자가 맞춰야 함
-    
+    if not latest_details:
+        logger.error("수집된 상세 정보 파일이 없습니다.")
+        sys.exit(1)
+
+    # 1-3. [신규] Save: maps / shop / menu 테이블 적재
+    # collect_details 의 raw 파일에는 메뉴/주소/평점이 포함되어 있어
+    # crawling 테이블(리뷰/게시글용)과 별도로 maps/shop/menu 테이블에도
+    # 적재해야 한다. 이 단계를 기존 파이프라인에 추가하여 누락을 해소.
+    code_table: str = str(base_dir.parent.parent / "database" / "data" / "codeT.csv")
+    run_step([
+        sys.executable, str(base_dir / "meal_detail" / "save" / "upload_shop_to_db.py"),
+        "--input", latest_details,
+        "--code-table", code_table,
+        "--kakao-api-key", args.kakao_api_key,
+        *db_args,
+    ], "Detail-Save-Shop")
+
+    # 1-4. Clean: Preprocessing (Latest raw detail file 필요)
+    # [수정] 위에서 정의한 latest_details 를 그대로 사용합니다.
+    code_table_clean: str = str(base_dir.parent.parent / "database" / "data" / "codeT.csv")
+
     run_step([
         sys.executable, str(base_dir / "meal_detail" / "clean" / "preprocess.py"),
         "--input", latest_details,
-        "--code-table", code_table
+        "--code-table", code_table_clean
     ], "Detail-Clean-Preprocess")
 
-    # 1-4. Save: Database Ingestion (Latest cleansing file 필요)
+    # 1-5. Save: crawling 테이블 DB 적재 (Latest cleansing file 필요)
     latest_cleansed: Optional[str] = find_latest_hive_file("process=cleansing", "service=shop")
     run_step([
         sys.executable, str(base_dir / "meal_detail" / "save" / "upload_to_db.py"),
@@ -128,7 +155,9 @@ def main() -> None:
 
     # --- [Stage 2] 리뷰 데이터 수집 (Review Data) ---
 
-    # 2-1. Raw: Review Collection (Latest detailing raw file로부터 식당 목록 활용)
+    # 2-1. Raw: Review Collection
+    # [수정] 상단에서 정의한 latest_details (최신 상세 raw 파일)를 사용하여
+    # 해당 식당들의 리뷰를 수집합니다.
     run_step([
         sys.executable, str(base_dir / "meal_review" / "raw" / "collect_reviews.py"),
         "--input", latest_details,

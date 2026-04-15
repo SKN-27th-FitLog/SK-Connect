@@ -17,6 +17,12 @@ from common_utils import (
     get_hive_path,
     get_project_root
 )
+from members import Category
+
+# crawling 테이블의 category_cd: 리뷰는 맛집(음식) 카테고리(CA01)로 고정.
+# None 또는 빈 문자열로 저장하면 upload_reviews_to_db.py 에서
+# str(None)='None' 으로 변환되어 codeT FK 오류가 발생할 수 있다.
+DEFAULT_REVIEW_CATEGORY: str = Category.RESTAURANT.value  # "CA01"
 
 def preprocess_reviews(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -45,7 +51,10 @@ def preprocess_reviews(df: pd.DataFrame) -> pd.DataFrame:
             "point": rating_val,
             "author": "crawler_bot",
             "map_id": None,
-            "category_cd": None # 리뷰는 기본적으로 매핑 전에는 카테고리 알 수 없음
+            # [수정] None 으로 두면 upload_reviews_to_db.py 에서 str(None)='None'
+            # 으로 변환되어 codeT FK 오류가 발생한다.
+            # 맛집 추천 서비스 특성상 CA01(맛집)을 기본 카테고리로 사용.
+            "category_cd": DEFAULT_REVIEW_CATEGORY
         }
         processed_records.append(record)
         

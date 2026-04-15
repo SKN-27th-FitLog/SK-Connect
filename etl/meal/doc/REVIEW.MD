@@ -92,3 +92,83 @@ python run_batch_pipeline.py --targets targets_example.csv --headful
 
 ---
 **REVIEW 종료**: 차세대 ETL 파이프라인 세팅이 완료되었습니다. 이제 데이터 적재 후 검증 파이프라인을 통해 서비스 데이터로 전환하는 후속 작업을 진행할 수 있습니다.
+
+---
+
+## 6. [변경 이력] 2026-04-15 환경 설정 및 실행 변경 사항
+
+### 6-1. 환경 변수 변경 사항
+
+`.env` 의 `KAKAO_API_KEY` 가 기존에는 선언만 되어있고 실제 파이프라인에서 사용되지 않았습니다.
+이번 업데이트로 `upload_shop_to_db.py` 에서 실제 Kakao API 를 호출하므로 **반드시 유효한 키를 설정해야 합니다.**
+
+```env
+# etl/meal/.env 에 추가 / 확인 필요
+KAKAO_API_KEY=your_kakao_rest_api_key   # ← 필수 (미설정 시 위경도 0.0으로 저장됨)
+```
+
+> Kakao REST API 키는 [Kakao Developers](https://developers.kakao.com) 에서 발급받을 수 있습니다.
+> 앱 생성 후 **REST API 키** 를 복사하여 `.env` 에 붙여넣으세요.
+
+### 6-2. DB 컨테이너 실행 방법
+
+PostgreSQL 은 Docker Compose 로 관리됩니다. 파이프라인 실행 전 반드시 기동 상태를 확인하세요.
+
+```powershell
+# 1. 컨테이너 시작 (최초 또는 재시작)
+cd C:\dev\Project\SK-Connect\database
+docker compose up -d
+
+# 2. 기동 확인
+docker ps | findstr sk_connect_db
+# → "Up" 상태가 표시되어야 정상
+
+# 3. 포트 확인 (선택)
+netstat -ano | findstr :5432
+```
+
+> **주의**: `docker compose up -d` 를 처음 실행하면 `init.sql` 과 `data/codeT.csv` 를 자동으로 초기화합니다.
+> 기존 볼륨(`postgres_data`)이 있으면 초기화가 실행되지 않습니다.
+> 볼륨이 처음 생성된 경우 `.env` 의 `DB_PASSWORD` 값이 실제 DB 비밀번호가 됩니다.
+
+### 6-3. 전체 파이프라인 실행 명령어 (변경 후)
+
+```powershell
+cd C:\dev\Project\SK-Connect\etl\meal
+
+# 기본 실행 (.env 의 KAKAO_API_KEY 자동 로드)
+.\.venv\Scripts\python.exe run_batch_pipeline.py --targets targets_test.csv --headful
+
+# kakao-api-key 를 직접 인자로 전달하는 경우
+.\.venv\Scripts\python.exe run_batch_pipeline.py `
+  --targets targets_test.csv `
+  --headful `
+  --kakao-api-key "your_kakao_key"
+```
+
+### 6-4. 단계별 개별 실행 명령어
+
+파이프라인 전체가 아닌 특정 단계만 재실행할 때 사용합니다.
+
+```powershell
+# [1-3] maps/shop/menu 적재만 개별 실행 (신규 추가된 단계)
+.\.venv\Scripts\python.exe meal_detail\save\upload_shop_to_db.py `
+  --input "process=raw\service=shop\year=YYYY\month=MM\day=DD\status=success\HHMMSS.csv" `
+  --code-table "..\..\database\data\codeT.csv" `
+  --kakao-api-key "your_kakao_key" `
+  --host localhost --port 5432 --dbname service --user user --password password123
+
+# [1-5] crawling 테이블 적재만 개별 실행
+.\.venv\Scripts\python.exe meal_detail\save\upload_to_db.py `
+  --input "process=cleansing\service=shop\year=YYYY\month=MM\day=DD\status=success\HHMMSS.csv" `
+  --host localhost --port 5432 --dbname service --user user --password password123
+```
+
+### 6-5. 이번 변경으로 적재되는 테이블 정리
+
+| 단계 | 스크립트 | 적재 테이블 | 비고 |
+| :--- | :--- | :--- | :--- |
+| Detail-Save-Shop (신규) | `upload_shop_to_db.py` | `maps`, `shop`, `menu` | Kakao API 위경도 포함 |
+| Detail-Save-DB | `upload_to_db.py` | `crawling` | thread=`shop` |
+| Review-Save-DB | `upload_reviews_to_db.py` | `crawling` | thread=`review` |
+

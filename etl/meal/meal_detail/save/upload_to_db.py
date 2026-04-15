@@ -1,5 +1,6 @@
 import sys
 import argparse
+import math
 from pathlib import Path
 from typing import Dict, List, Final, Optional
 
@@ -7,6 +8,41 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 from psycopg2.extensions import connection, cursor
+
+# PostgreSQL INT 범위 (view_count, comment_count)
+_INT_MAX: Final[int] = 2_147_483_647
+_INT_MIN: Final[int] = -2_147_483_648
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    """NaN / None / 범위 초과값을 안전하게 INT로 변환합니다."""
+    try:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return default
+        converted = int(float(str(value)))
+        return max(_INT_MIN, min(_INT_MAX, converted))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(value: object, default: float = 0.0) -> float:
+    """NaN / None 값을 안전하게 float로 변환합니다."""
+    try:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return default
+        return float(str(value))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_bigint(value: object) -> Optional[int]:
+    """map_id 등 BIGINT FK 컬럼 — NaN이면 None(NULL) 반환합니다."""
+    try:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return None
+        return int(float(str(value)))
+    except (ValueError, TypeError):
+        return None
 
 # 상위 디렉토리의 유틸리티 및 상수 임포트
 CURRENT_DIR: Final[Path] = Path(__file__).resolve().parent
@@ -45,11 +81,20 @@ def upload_to_crawling(df: pd.DataFrame, conn_args: Dict[str, str], truncate_fir
                 ]
                 query: str = f"INSERT INTO crawling ({', '.join(columns)}) VALUES %s"
                 
-                # DataFrame 데이터를 튜플 리스트로 변환
+                # DataFrame 데이터를 튜플 리스트로 변환 (NaN / 범위 초과값 안전 처리)
                 values: List[tuple] = [
                     (
-                        str(r["title"]), str(r["content"]), str(r["thread"]), str(r["article_url"]), r["created_at"],
-                        int(r["view_count"]), int(r["comment_count"]), float(r["point"]), str(r["author"]), r["map_id"], str(r["category_cd"])
+                        str(r["title"]),
+                        str(r["content"]),
+                        str(r["thread"]),
+                        str(r["article_url"]),
+                        r["created_at"],
+                        _safe_int(r["view_count"]),
+                        _safe_int(r["comment_count"]),
+                        _safe_float(r["point"]),
+                        str(r["author"]),
+                        _safe_bigint(r["map_id"]),
+                        str(r["category_cd"])
                     )
                     for r in df.to_dict("records")
                 ]

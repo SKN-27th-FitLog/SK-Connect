@@ -640,8 +640,7 @@ postgres_data/
 
 # VS Code settings
 # 3. ETL Data (개인정보 및 수집 데이터 보호)
-etl/meal/data/
-etl/meal/review_data/
-etl/meal/detail_data/
-etl/meal/review_crawl_summary.csv
-etl/meal/cleanup_summary.csv
+etl/meal/process=cleansing
+etl/meal/process=raw
+etl/meal/process=save
+etl/meal/doc/*.md

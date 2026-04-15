@@ -53,7 +53,6 @@
 ## 6. 실행 및 환경 가이드
 
 - **전체 배치 실행**: `python run_batch_pipeline.py --targets targets_example.csv --headful`
-- **유지보수**: `data/archives/` 및 `review_data/archives/` 폴더를 주기적으로 관리하십시오.
 
 ---
 
@@ -92,55 +91,163 @@
 - [ ] **검증 파이프라인 도입**: `crawling` 테이블에 저장된 데이터를 기반으로 자동 생성 파이프라인(Validation Pipeline)을 실행하여 정합성이 검증된 데이터만 최종 서비스 테이블로 이동시킵니다.
 
 ### 9-2. 하이브 스타일 데이터 레이크 구조 (Hive-style Partitioning)
-- [x] **계층 구조 도입**: 데이터의 생명주기를 명확히 관리하고 쿼리 효율성을 높이기 위해 `item=value` 형식의 계층적 디렉토리 구조를 도입합니다.
-- **기본 경로 구조**: `{process}/{service}/year={YYYY}/month={MM}/day={DD}/status={success|fail}/{HHMMSS}.csv`
-- **프로세스 정의 (`process`)**:
-    - `process=raw`: 수집 직후의 원본 데이터
-    - `process=cleansing`: 정제 및 전처리가 완료된 데이터
-    - `process=save`: DB 적재 준비가 완료된 최종 데이터
-
-### 9-3. 위경도(Geospatial) 데이터 강화
-- [ ] **정밀 좌표 수집**: 상세 페이지 내 지도 API 연동 또는 Naver/Kakao Maps 크롤링을 통해 누락 없는 위도/경도 데이터를 확보합니다.
-- [ ] **위치 기반 서비스 최적화**: 주소 기반 역지오코딩의 한계를 보완하여 정밀한 위치 기반 추천 및 검색 기능을 지원합니다.
-
-### 9-4. 설계 원칙 및 복구 전략 (Resilience & Clean Code)
-- [x] **자율 복구(Self-Healing)**: 특정 날짜의 `status=success` 데이터가 존재하지 않을 경우, 해당 시점을 자동으로 탐지하여 재수집을 트리거하는 스케줄러 로직을 구현합니다.
-- [x] **Lambda-Native 설계 (단계별 환경 격리)**: 
-    - **디렉토리 계층화 완료**: `meal_detail/`, `meal_review/` 산하에 `raw/`, `clean/`, `save/` 폴더를 구축하여 데이터 흐름에 따른 물리적 격리를 완료했습니다.
-    - **의존성 개별 관리 완료**: 각 폴더의 `requirements.txt`를 통해 람다 배포 및 독립 실행 환경을 최적화했습니다.
-- **코드 품질 표준 (Professional Standards)**:
-    - [x] **Strict Typing**: `Any` 또는 `UNKNOWN` 타입을 배제하고 명확한 Type Hinting을 적용하여 코드의 안정성을 확보했습니다.
-    - [x] **Logging Standard**: `print()`를 전면 제거하고 표준 `logging` 모듈을 도입하여 로그 수준별 관리를 수행합니다.
-    - [x] **SDK-Style Utils**: `common_utils.py`를 호출자(Script)가 아닌 규격(SDK) 중심으로 재설계하여 인터페이스 일관성을 확보했습니다.
+- [x] **계층 구조 도입**: 데이터의 생명주기를 명확히 관리하고 쿼리 효율성을 높이기 위해 `item=value` 형식의 계층적 디렉� - 최종 저장한 데이터들은 계층화가 아예 안됨
+ - 리뷰 크롤링 자체는 진행이 안됨
+ - 리뷰 데이터를 수집해서 그 데이터가 크롤링 테이블에 들어가고 맛집 디테일 데이터(메뉴, 가격등)가 maps, shop, menu, image 테이블로 안들어감
+ - kakao api를 이용한 위경도를 가져오는 프로그램도 구현이 안됨
 
 ---
 
-## 10. [추가] 위경도 정밀 크롤링 시스템 (`meal_geospatial/`)
+## 14. [검토 및 차기 수정 계획] 2026-04-15 (Revision & Action Plan)
 
-데이터의 정합성을 높이기 위해 주소 기반 좌표의 한계를 넘는 정밀 크롤링 모듈을 추가할 예정입니다.
+사용자의 지적 사항과 현재 코드베이스를 전수 대조한 결과, **표면적인 구조는 잡혀 있으나 실질적인 데이터 흐름에서 누락된 핵심 기능**들이 확인되었습니다. 이를 해결하기 위한 구체적인 수정 계획입니다.
 
-- **표준 구조 준수**: `meal_detail/` 등과 동일하게 `raw/`, `clean/`, `save/` 구조 및 `requirements.txt` 격리를 적용합니다.
-- **기능**: 지도 서비스(Naver/Kakao)의 상세 페이지를 직접 탐색하여 정확한 위경도 좌표를 추출합니다.
+### 14-1. 미비점 상세 분석 결과
+
+1.  **이미지 데이터 방치 (`images` 테이블 누락)**
+    - 현상: `meal_detail/save/upload_shop_to_db.py`에 이미지 적재 로직이 없음.
+    - 원인: 상세 수집(`collect_details.py`) 단계에서 이미지 URL을 충분히 수집하지 않거나, 적재기에서 이를 무시함.
+2.  **리뷰 파이프라인 작동 불능**
+    - 현상: 리뷰 수집 스크립트가 존재하나 실제 데이터가 `crawling` 테이블에 유의미하게 쌓이지 않음.
+    - 원인: 다이닝코드의 동적 로딩(무한 스크롤)과 리뷰 탭 클릭 이벤트 처리가 미흡하여 빈 CSV만 생성됨.
+3.  **데이터 계층화 관리 부족**
+    - 현상: 데이터 레이크(Hive) 경로는 생성되지만, DB 테이블상에서 특정 수집 회차(Batch)를 구분할 수 있는 식별자가 없음.
+    - 원인: `maps`, `shop` 테이블 설계 시 수집 시점이나 소스 버전을 기록하는 컬럼이 활발히 활용되지 않음.
+4.  **카카오 API 연동 실효성**
+    - 현상: 위경도 값이 `0.0`으로 들어가는 경우가 많음.
+    - 원인: API 키 전달 방식은 구현되었으나, 주소 정규화(Normalization) 부족으로 카카오 맵 검색 실패율이 높음.
+
+### 14-2. 향후 수정 계획 (Action Items)
+
+| 순번 | 작업 항목 | 목표 및 기대 효과 | 대상 파일 |
+| :---: | :--- | :--- | :--- |
+| **1** | **이미지 적재 로직 추가** | 상세 수집 시 이미지 URL 포함 및 `images` 테이블 insert (FK 연결) | `collect_details.py`, `upload_shop_to_db.py` |
+| **2** | **리뷰 수집 로직 보정** | 무한 스크롤 및 '리뷰 더보기' 클릭 강화로 실제 리뷰 텍스트 수집 보장 | `collect_reviews.py` |
+| **3** | **배치 관리 컬럼 강화** | `crawling` 테이블뿐만 아니라 `shop` 등에도 `batch_id`(수집일시)를 기록하여 계층 관리 | `members.py`, 각 적재 스크립트 |
+| **4** | **주소 정규화 고도화** | 주소에서 불필요한 수식어 제거 후 Kakao API 호출하여 위경도 적중률 향상 | `common_utils.py`, `upload_shop_to_db.py` |
+| **5** | **통합 테스트 실행** | `run_batch_pipeline.py`를 `targets_test.csv`로 돌려 `images`까지 들어가는지 최종 검증 | `run_batch_pipeline.py` |
+
+### 14-3. 진행 방식 (Workflow)
+1. **[Step 1]** `common_utils.py`에 주소 정규화 및 이미지 처리 헬퍼 함수 보강.
+2. **[Step 2]** `meal_detail/raw/collect_details.py`에서 식당 대표/메뉴 이미지 URL 수집 로직 추가.
+3. **[Step 3]** `meal_detail/save/upload_shop_to_db.py`에서 `images` 테이블 연동 코드 삽입.
+4. **[Step 4]** 리뷰 수집기의 Selector를 최신 다이닝코드 구조에 맞춰 전면 수정.
+5. **[Step 5]** 전체 파이프라인 재실행 및 DB 정합성 최종 확인.
+
+---
+**업데이트 완료**: 2026-04-15. 프로젝트의 결함을 인정하고 이를 해결하기 위한 기술적 로드맵을 수립하였습니다. 곧바로 [Step 1]부터 수정을 진행할 수 있는 상태입니다. 
+awling/maps/shop/menu/images 정의 |
+| .gitignore | `.gitignore` | Hive 경로 패턴으로 업데이트 완료 |
 
 ---
 
-## 11. 차세대 아키텍처 파일 구조 (Project Structure)
+### 미구현 / 문제 항목
 
-```text
-etl/meal/
-├── common_utils.py       # SDK형 공통 유틸리티 (Strict Typing)
-├── members.py            # 시스템 공통 상수/Enum (Strict Typing)
-├── run_batch_pipeline.py # 통합 배치 오케스트레이터
-├── targets_example.csv   # 수집 대상 목록 샘플
-├── meal_detail/          # [맛집 상세 모듈]
-│   ├── raw/              # 데이터 수집 (playwright)
-│   ├── clean/            # 데이터 전처리 (pandas)
-│   └── save/             # DB 적재 (psycopg2)
-└── meal_review/          # [맛집 리뷰 모듈]
-    ├── raw/              # 데이터 수집 (playwright)
-    ├── clean/            # 데이터 전처리 (pandas)
-    └── save/             # DB 적재 (psycopg2)
+#### [문제 1] upload_reviews_to_db.py — bigint 버그 동일 존재
+- `upload_to_db.py`에서 발생한 `bigint out of range` 버그와 **동일한 `int(r["view_count"])` raw 변환 코드**가 존재
+- 리뷰 DB 적재 시 동일한 오류 발생 예정
+- **수정 필요**: `_safe_int()`, `_safe_float()`, `_safe_bigint()` 안전 변환 함수 적용
+
+#### [문제 2] maps / shop / menu / images 테이블 미적재
+- `meal_detail/raw/collect_details.py`가 메뉴, 주소, 평점 등을 수집하지만
+- `meal_detail/save/upload_to_db.py`는 **전부 crawling 테이블에만 적재**
+- `maps`, `shop`, `menu`, `images` 테이블로 분기하는 적재 로직이 **전혀 없음**
+- **신규 구현 필요**: 상세 데이터 → maps/shop/menu/images 적재 스크립트
+
+#### [문제 3] Kakao API 위경도 연동 미완성
+- `common_utils.py`에 `fetch_coordinates_kakao()` 함수가 정의되어 있으나
+- 어느 스크립트에서도 **실제로 호출되지 않음**
+- `maps` 테이블의 `latitude`, `longitude` 컬럼에 값을 채우는 경로가 없음
+- **신규 구현 필요**: 주소 → Kakao API → (latitude, longitude) 연동
+
+#### [문제 4] 리뷰 파이프라인 실제 미검증
+- `collect_reviews.py`, `preprocess_reviews.py`, `upload_reviews_to_db.py` 코드는 존재하나
+- 실제로 끝까지 성공한 이력 없음 (DB 연결 오류로 중단)
+- preprocess_reviews.py 출력 컬럼과 upload_reviews_to_db.py 입력 컬럼 정합성 검증 필요
+
+---
+
+### 향후 작업 우선순위
+
+| 순위 | 작업 | 대상 파일 |
+| :---: | :--- | :--- |
+| 1 | upload_reviews_to_db.py bigint 버그 수정 | `meal_review/save/upload_reviews_to_db.py` |
+| 2 | maps / shop / menu / images 테이블 적재 스크립트 신규 구현 | `meal_detail/save/` 하위 신규 파일 |
+| 3 | Kakao API 위경도 연동 — fetch_coordinates_kakao 실제 호출 연결 | `meal_detail/save/` 내 maps 적재 로직 |
+| 4 | 리뷰 파이프라인 전체 실행 검증 | `meal_review/` 전 단계 |
+
+---
+
+## 13. [구현 완료] 2026-04-15 코드 구현 결과
+
+### 변경/신규 파일 목록
+
+| 구분 | 파일 | 변경 내용 |
+| :---: | :--- | :--- |
+| 수정 | `meal_review/save/upload_reviews_to_db.py` | bigint 버그 수정, 안전 변환 함수 적용 |
+| **신규** | `meal_detail/save/upload_shop_to_db.py` | maps / shop / menu 테이블 적재 스크립트 |
+| 수정 | `run_batch_pipeline.py` | Detail-Save-Shop 단계 추가, kakao-api-key 인자 추가 |
+| 수정 | `meal_review/clean/preprocess_reviews.py` | category_cd None → CA01 기본값 수정 |
+
+---
+
+### 최종 파이프라인 실행 흐름
+
+```
+[Stage 1] 맛집 상세 정보
+──────────────────────────────────────────────────────────────────
+ 1-1. Detail-Raw-Links
+      collect_links.py
+      → process=raw/service=shop/.csv (URL 목록)
+
+ 1-2. Detail-Raw-Details
+      collect_details.py --input <raw/shop CSV>
+      → process=raw/service=shop/.csv (메뉴·주소·평점 포함)
+
+ 1-3. Detail-Save-Shop  ← [신규 추가]
+      upload_shop_to_db.py --input <raw/shop CSV>
+      → maps 테이블  (store_name, Kakao API 위경도, address_cd)
+      → shop  테이블 (map_id FK, food_category_cd, rating)
+      → menu  테이블 (shop_id FK, menu_name, price)
+
+ 1-4. Detail-Clean-Preprocess
+      preprocess.py --input <raw/shop CSV>
+      → process=cleansing/service=shop/.csv (crawling 포맷)
+
+ 1-5. Detail-Save-DB
+      upload_to_db.py --input <cleansing/shop CSV>
+      → crawling 테이블 (thread='shop', 게시글 형태로 보존)
+
+[Stage 2] 리뷰 데이터
+──────────────────────────────────────────────────────────────────
+ 2-1. Review-Raw-Collection
+      collect_reviews.py --input <raw/shop CSV>
+      → process=raw/service=review/.csv (리뷰 원본)
+
+ 2-2. Review-Clean-Preprocess
+      preprocess_reviews.py --input <raw/review CSV>
+      → process=cleansing/service=review/.csv (crawling 포맷)
+
+ 2-3. Review-Save-DB
+      upload_reviews_to_db.py --input <cleansing/review CSV>
+      → crawling 테이블 (thread='review', 리뷰 원문 보존)
 ```
 
----
-**보고서 종료**: 차세대 아키텍처 마이그레이션이 성공적으로 완료되었습니다. 모든 모듈에 대해 엄격한 타입 가이드라인과 단계별 격리 구조가 적용되었으며, 향후 검증 파이프라인 및 정밀 위경도 크롤링 모듈 확장이 용이한 상태입니다.
+### 데이터 흐름 요약
+
+```
+수집(Playwright) → Hive CSV 저장 → DB 적재
+                                     ├─ maps  / shop / menu  (구조화된 맛집 정보)
+                                     └─ crawling              (원본 보존 스테이징)
+```
+
+### 주요 설계 결정 사항
+
+- **Kakao API 위경도**: `common_utils.fetch_coordinates_kakao()` 가 정의만 되어있고 호출되지 않았던 문제를 `upload_shop_to_db.py` 에서 실제 호출하여 해결. API 키 미설정 시 `0.0` 으로 fallback 처리하여 파이프라인이 중단되지 않도록 설계.
+- **중복 방지**: maps `(name + address_detail)`, shop `(map_id)`, menu `(shop_id + name)` 세 단계 모두 `SELECT → 존재 시 스킵` 패턴으로 멱등성 확보.
+- **bigint 버그**: psycopg2 가 Python `int` 를 PostgreSQL `bigint` 로 전송할 때 DB 컬럼 타입이 `INT` 이면 범위 초과 오류가 발생. `_safe_int()` / `_safe_float()` / `_safe_bigint()` 헬퍼로 해결.
+- **category_cd None 문제**: `preprocess_reviews.py` 에서 `None` 을 저장하면 CSV 로드 후 문자열 `"None"` 으로 읽혀 codeT FK 위반이 발생. `CA01` 기본값으로 수정.
+
+### 중요 참고 사항
+- 일단은 crawling 테이블은 meal_review 폴더에서 수집한 부분만 적재할거야
+- 나머지 meal menu, images, shop, maps 테이블에다가 meal_detail 폴더에서 수집한 부분만 적재할거야
