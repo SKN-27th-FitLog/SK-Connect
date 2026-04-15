@@ -7,6 +7,10 @@
 # 패키지 
 import enum
 from dotenv import load_dotenv
+
+# 환경변수 로드 
+load_dotenv()
+
 # 모듈
 
 # LLM 관련 라이브러리 
@@ -23,8 +27,7 @@ from langchain_tavily import TavilySearch
 # 상수 class 선언, 데이터 로드
 ################################################################################
 
-# 환경변수 로드 
-load_dotenv()
+
 
 # # 탬플릿 내용 정의 (전역 변수로 재정의함 )
 # EXAMPLES=[

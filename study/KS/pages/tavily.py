@@ -24,10 +24,12 @@ st.title('Tavily Search Agent')
 llm_nm = chatbot_sidebar()
 
 # 대화기록 세션에 저장 (세션에 없으면 빈 리스트로 추가함 )
-check_tavily_history()
+if 'tavily_messages' not in st.session_state:
+    st.session_state.tavily_messages = []
 
 # 과거 대화내용 화면에 순차적으로 표시 (이전 대화상황 랜더랑 )
-render_tavily_history()
+for msg in st.session_state.tavily_messages:
+    st.chat_message(msg.type).write(msg.content)
 
 
 

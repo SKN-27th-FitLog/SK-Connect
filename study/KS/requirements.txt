@@ -21,3 +21,15 @@ matplotlib==3.10.8
 koreanize-matplotlib==0.1.1
 pandas==3.0.2
 mysql-connector-python==9.6.0
+
+
+# 암호화 패키지
+pycryptodome==3.23.0              # 암호화 라이브러리 - 데이터를 안전하게 암호화/복호화하는 도구 (AES 등)
+
+# SQLite 관련 패키지
+langgraph-checkpoint-sqlite==3.0.0  # LangGraph SQLite 체크포인터 - 대화 상태를 SQLite DB에 저장/복원
+aiosqlite==0.21.0                 # 비동기 SQLite 라이브러리 - SQLite를 비동기로 사용할 수 있게 해주는 도구
+
+# PostgreSQL 관련 패키지
+psycopg[binary]==3.2.3            # PostgreSQL 데이터베이스 연결 라이브러리 (psycopg 버전 3 - langgraph용)
+langgraph-checkpoint-postgres==3.0.0  # LangGraph PostgreSQL 체크포인터 - 대화 상태를 PostgreSQL DB에 저장/복원

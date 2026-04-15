@@ -19,6 +19,8 @@ import streamlit as st
 from .state import ChatbotState
 from .node import create_keyword_node, create_coding_node, create_cooking_node, create_general_node
 from .agents import create_keyword_for_agent, create_agent_by_weather, create_agent_by_news, create_agent_by_stock
+from .secure import get_postgres_checkpointer
+
 from langgraph.graph import StateGraph, END, START
 
 
@@ -91,7 +93,7 @@ def create_chatbot_graph():
     ##################################################
     # 컴파일 -> 그래프 생성  
     ################################################## 
-    return workflow.compile(checkpointer=st.session_state.memory)
+    return workflow.compile(checkpointer=get_postgres_checkpointer())
 
 
 
