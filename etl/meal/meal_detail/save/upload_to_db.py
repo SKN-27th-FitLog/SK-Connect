@@ -59,7 +59,7 @@ from common_utils import (
 def upload_to_crawling(df: pd.DataFrame, conn_args: Dict[str, str], truncate_first: bool) -> None:
     """
     변환된 데이터를 데이터베이스의 crawling 테이블에 업로드합니다.
-    (Any 사용 금지 원칙 준수를 위해 명시적 타입 지정)
+    [수정] maps 테이블과의 연결을 위해 map_id를 조회하여 적재합니다.
     """
     if df.empty:
         logger.warning("💡 업로드할 데이터가 없습니다.")
@@ -69,38 +69,53 @@ def upload_to_crawling(df: pd.DataFrame, conn_args: Dict[str, str], truncate_fir
     try:
         with conn:
             with conn.cursor() as cur:
-                cur: cursor = cur # 타입 힌트 보정
+                cur: cursor = cur
                 if truncate_first:
-                    logger.info("🧹 crawling 테이블 초기화 중...")
-                    cur.execute("TRUNCATE TABLE crawling RESTART IDENTITY")
+                    logger.info("🧹 crawling 테이블 내 가게 상세 데이터 초기화 중...")
+                    cur.execute("DELETE FROM crawling WHERE thread = 'shop'")
                 
-                # 데이터 삽입 (psycopg2 execute_values 사용)
-                columns: List[str] = [
-                    "title", "content", "thread", "article_url", "created_at",
-                    "view_count", "comment_count", "point", "author", "map_id", "category_cd"
-                ]
-                query: str = f"INSERT INTO crawling ({', '.join(columns)}) VALUES %s"
-                
-                # DataFrame 데이터를 튜플 리스트로 변환 (NaN / 범위 초과값 안전 처리)
-                values: List[tuple] = [
-                    (
-                        str(r["title"]),
-                        str(r["content"]),
-                        str(r["thread"]),
-                        str(r["article_url"]),
-                        r["created_at"],
-                        _safe_int(r["view_count"]),
-                        _safe_int(r["comment_count"]),
-                        _safe_float(r["point"]),
-                        str(r["author"]),
-                        _safe_bigint(r["map_id"]),
-                        str(r["category_cd"])
+                success_count = 0
+                for _, r in df.iterrows():
+                    # [추가] 정합성을 위한 map_id 조회 로직
+                    # content 필드에 저장된 "주소: " 뒷부분을 추출하여 maps 테이블에서 검색합니다.
+                    store_name = str(r["title"])
+                    content_str = str(r["content"])
+                    store_address = ""
+                    if "주소: " in content_str:
+                        store_address = content_str.split("\n")[0].replace("주소: ", "").strip()
+
+                    # maps 테이블에서 map_id 조회 (이름과 상세주소 기준)
+                    cur.execute(
+                        "SELECT map_id FROM maps WHERE name = %s AND address_detail = %s",
+                        (store_name, store_address)
                     )
-                    for r in df.to_dict("records")
-                ]
+                    row = cur.fetchone()
+                    map_id = row[0] if row else _safe_bigint(r.get("map_id"))
+
+                    # 데이터 삽입
+                    columns = [
+                        "title", "content", "thread", "article_url", "created_at",
+                        "view_count", "comment_count", "point", "author", "map_id", "category_cd"
+                    ]
+                    query = f"INSERT INTO crawling ({', '.join(columns)}) VALUES %s"
+                    
+                    val = (
+                        store_name, content_str, "shop", str(r["article_url"]),
+                        r["created_at"], _safe_int(r["view_count"]), _safe_int(r["comment_count"]),
+                        _safe_float(r["point"]), str(r["author"]), map_id, str(r["category_cd"])
+                    )
+                    
+                    execute_values(cur, query, [val])
+                    success_count += 1
+
+                logger.info(f"✅ {success_count}건의 데이터가 crawling 테이블(thread='shop')에 적재되었습니다.")
                 
-                execute_values(cur, query, values)
-                logger.info(f"✅ {len(df)}건의 데이터가 crawling 테이블에 최종 적재되었습니다.")
+                # [추가] DB 적재 성공 내역을 Hive 스타일 데이터 레이크(save/shop)에 저장합니다.
+                # AWS S3 데이터 레이크 규약을 준수하여 year/month/day 구조를 유지합니다.
+                if success_count > 0:
+                    save_path: Path = get_hive_path("process=save", "service=shop", "success")
+                    df.to_csv(save_path, index=False, encoding="utf-8-sig")
+                    logger.info(f"📂 적재 내역 저장 완료(save/shop): {save_path.name}")
     except Exception as e:
         logger.error(f"❌ DB 적재 중 치명적 오류 발생: {str(e)}")
         raise

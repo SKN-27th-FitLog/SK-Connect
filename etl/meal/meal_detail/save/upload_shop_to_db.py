@@ -16,7 +16,12 @@ PROJECT_ROOT: Final[Path] = CURRENT_DIR.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from common_utils import logger, fetch_coordinates_kakao, get_project_root
+from common_utils import (
+    logger, 
+    fetch_coordinates_kakao, 
+    get_project_root,
+    get_hive_path  # 추가
+)
 from members import Category, FoodCategory, Location
 
 # maps 테이블의 category_cd: 맛집 전체는 CA01(RESTAURANT) 고정
@@ -135,124 +140,97 @@ def insert_maps_shop_menu(
                 skip_count: int = 0
 
                 for _, row in df.iterrows():
-                    store_name: str = str(row.get("store_name", "")).strip()
-                    if not store_name:
-                        # store_name 이 없으면 maps/shop 에 INSERT 할 수 없으므로 스킵
+                    try:
+                        store_name: str = str(row.get("store_name", "")).strip()
+                        if not store_name:
+                            skip_count += 1
+                            continue
+
+                        store_address: str = str(row.get("store_address", ""))
+                        store_rating: float = _safe_float(row.get("store_rating"))
+                        source_category: str = str(row.get("source_category", ""))
+                        menus_json_str: str = str(row.get("menus_json", "[]"))
+
+                        # Kakao API 위경도 조회
+                        latitude: float
+                        longitude: float
+                        if kakao_api_key:
+                            latitude, longitude = fetch_coordinates_kakao(store_address, kakao_api_key)
+                            if latitude == 0.0 and longitude == 0.0:
+                                logger.warning(f"⚠️ 위경도 조회 실패 (기본값 0.0 사용): {store_name}")
+                        else:
+                            latitude, longitude = 0.0, 0.0
+                            logger.warning(f"⚠️ KAKAO_API_KEY 미설정 — 위경도 0.0 으로 저장: {store_name}")
+
+                        address_cd: str = resolve_address_cd(store_address, address_map)
+                        food_cat_cd: str = resolve_food_category(source_category, category_map)
+
+                        # maps 테이블 INSERT
+                        cur.execute(
+                            "SELECT map_id FROM maps WHERE name = %s AND address_detail = %s",
+                            (store_name, store_address),
+                        )
+                        existing_map = cur.fetchone()
+                        if existing_map:
+                            map_id: int = existing_map[0]
+                        else:
+                            cur.execute(
+                                """
+                                INSERT INTO maps (name, category_cd, address_cd, address_detail, latitude, longitude)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                                RETURNING map_id
+                                """,
+                                (store_name, DEFAULT_MAP_CATEGORY, address_cd, store_address, latitude, longitude),
+                            )
+                            map_id = cur.fetchone()[0]
+
+                        # shop 테이블 INSERT
+                        cur.execute("SELECT shop_id FROM shop WHERE map_id = %s", (map_id,))
+                        existing_shop = cur.fetchone()
+                        if existing_shop:
+                            shop_id: int = existing_shop[0]
+                        else:
+                            cur.execute(
+                                """
+                                INSERT INTO shop (map_id, category_cd, rating)
+                                VALUES (%s, %s, %s)
+                                RETURNING shop_id
+                                """,
+                                (map_id, food_cat_cd, store_rating),
+                            )
+                            shop_id = cur.fetchone()[0]
+
+                        # menu 테이블 INSERT
+                        try:
+                            menus: List[Dict[str, str]] = json.loads(menus_json_str)
+                        except:
+                            menus = []
+                        for menu_item in menus:
+                            m_name: str = str(menu_item.get("menu_name", "")).strip()[:100]
+                            m_price: int = _safe_int(menu_item.get("menu_price"))
+                            if m_name:
+                                cur.execute(
+                                    "SELECT 1 FROM menu WHERE shop_id = %s AND name = %s",
+                                    (shop_id, m_name),
+                                )
+                                if not cur.fetchone():
+                                    cur.execute(
+                                        "INSERT INTO menu (shop_id, name, price) VALUES (%s, %s, %s)",
+                                        (shop_id, m_name, m_price),
+                                    )
+                        success_count += 1
+                    except Exception as row_e:
+                        logger.error(f"❌ 개별 가게 적재 오류 (스킵됨: {row.get('store_name')}): {row_e}")
                         skip_count += 1
                         continue
 
-                    store_address: str = str(row.get("store_address", ""))
-                    store_rating: float = _safe_float(row.get("store_rating"))
-                    source_category: str = str(row.get("source_category", ""))
-                    menus_json_str: str = str(row.get("menus_json", "[]"))
+                # [추가] DB 적재 성공 내역을 Hive 스타일 데이터 레이크(save/shop)에 저장
+                if success_count > 0:
+                    save_path: Path = get_hive_path("process=save", "service=shop", "success")
+                    df.to_csv(save_path, index=False, encoding="utf-8-sig")
+                    logger.info(f"📂 적재 성공 내역 저장 완료(save/shop): {save_path.name}")
 
-                    # ----------------------------------------------------------
-                    # [신규] Kakao API 위경도 조회
-                    # common_utils.fetch_coordinates_kakao 는 정의되어 있었으나
-                    # 어떤 스크립트에서도 실제로 호출하지 않아 위경도가 전부 0.0
-                    # 이었음. 이 스크립트에서 최초로 실제 호출하여 maps 테이블의
-                    # latitude/longitude 컬럼에 정확한 값을 채운다.
-                    # ----------------------------------------------------------
-                    latitude: float
-                    longitude: float
-                    if kakao_api_key:
-                        latitude, longitude = fetch_coordinates_kakao(store_address, kakao_api_key)
-                        if latitude == 0.0 and longitude == 0.0:
-                            logger.warning(f"⚠️ 위경도 조회 실패 (기본값 0.0 사용): {store_name}")
-                    else:
-                        # API 키 미설정 시 0.0 fallback (개발/테스트 환경 대비)
-                        latitude, longitude = 0.0, 0.0
-                        logger.warning(f"⚠️ KAKAO_API_KEY 미설정 — 위경도 0.0 으로 저장: {store_name}")
-
-                    # 지역 코드 & 음식 카테고리 코드 결정
-                    address_cd: str = resolve_address_cd(store_address, address_map)
-                    food_cat_cd: str = resolve_food_category(source_category, category_map)
-
-                    # ----------------------------------------------------------
-                    # maps 테이블 INSERT
-                    # 동일한 (name, address_detail) 조합이 이미 있으면 INSERT 생략.
-                    # 중복 적재를 막아 maps.map_id 가 여러 개 생기는 것을 방지.
-                    # ----------------------------------------------------------
-                    cur.execute(
-                        "SELECT map_id FROM maps WHERE name = %s AND address_detail = %s",
-                        (store_name, store_address),
-                    )
-                    existing_map = cur.fetchone()
-                    if existing_map:
-                        map_id: int = existing_map[0]
-                        logger.debug(f"⏭️ maps 중복 스킵 (map_id={map_id}): {store_name}")
-                    else:
-                        cur.execute(
-                            """
-                            INSERT INTO maps (name, category_cd, address_cd, address_detail, latitude, longitude)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                            RETURNING map_id
-                            """,
-                            (store_name, DEFAULT_MAP_CATEGORY, address_cd, store_address, latitude, longitude),
-                        )
-                        map_res = cur.fetchone()
-                        if not map_res:
-                            logger.error(f"❌ maps INSERT 실패: {store_name}")
-                            continue
-                        map_id = map_res[0]
-
-                    # ----------------------------------------------------------
-                    # shop 테이블 INSERT
-                    # 같은 map_id 에 대한 shop 이 이미 있으면 INSERT 생략.
-                    # map_id 는 1:1 관계이므로 map_id 로만 중복 체크.
-                    # ----------------------------------------------------------
-                    cur.execute("SELECT shop_id FROM shop WHERE map_id = %s", (map_id,))
-                    existing_shop = cur.fetchone()
-                    if existing_shop:
-                        shop_id: int = existing_shop[0]
-                        logger.debug(f"⏭️ shop 중복 스킵 (shop_id={shop_id}): {store_name}")
-                    else:
-                        cur.execute(
-                            """
-                            INSERT INTO shop (map_id, category_cd, rating)
-                            VALUES (%s, %s, %s)
-                            RETURNING shop_id
-                            """,
-                            (map_id, food_cat_cd, store_rating),
-                        )
-                        shop_res = cur.fetchone()
-                        if not shop_res:
-                            logger.error(f"❌ shop INSERT 실패: {store_name}")
-                            continue
-                        shop_id = shop_res[0]
-
-                    # ----------------------------------------------------------
-                    # menu 테이블 INSERT
-                    # collect_details 가 menus_json 컬럼에 JSON 배열로 저장.
-                    # 파싱 실패(빈 배열 포함)해도 maps/shop 은 이미 적재 완료이므로
-                    # 예외를 무시하고 계속 진행.
-                    # ----------------------------------------------------------
-                    try:
-                        menus: List[Dict[str, str]] = json.loads(menus_json_str)
-                    except (json.JSONDecodeError, TypeError):
-                        menus = []
-
-                    for menu_item in menus:
-                        menu_name: str = str(menu_item.get("menu_name", "")).strip()[:100]
-                        menu_price: int = _safe_int(menu_item.get("menu_price"))
-                        if not menu_name:
-                            continue
-                        # 같은 가게의 동일 메뉴명 중복 방지
-                        cur.execute(
-                            "SELECT menu_id FROM menu WHERE shop_id = %s AND name = %s",
-                            (shop_id, menu_name),
-                        )
-                        if not cur.fetchone():
-                            cur.execute(
-                                "INSERT INTO menu (shop_id, name, price) VALUES (%s, %s, %s)",
-                                (shop_id, menu_name, menu_price),
-                            )
-
-                    success_count += 1
-
-                logger.info(
-                    f"✅ maps/shop/menu 적재 완료 — 성공: {success_count}건, 스킵: {skip_count}건"
-                )
+                logger.info(f"✅ maps/shop/menu 적재 종료 — 성공: {success_count}건, 스킵/실패: {skip_count}건")
     except Exception as e:
         logger.error(f"❌ maps/shop/menu 적재 중 치명적 오류 발생: {str(e)}")
         raise

@@ -161,7 +161,7 @@ def cleanup_and_log_files(files: List[str], log_filename: str = "cleanup_summary
 
 def get_project_root() -> Path:
     """
-    프로젝트의 루트 경로를 반환합니다.
+    프로젝트의 루트 경로를 반환합니다. (etl/meal 폴더 기준)
     """
     return Path(__file__).resolve().parent
 
@@ -170,3 +170,24 @@ def ensure_dir(path: Path) -> None:
     지정된 경로의 부모 디렉토리가 존재하지 않으면 생성합니다.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
+
+def get_latest_hive_file(process: str, service: str, status: str = "success") -> Optional[str]:
+    """
+    [추가] 하이브 구조(year/month/day) 내에서 가장 최신 상태의 CSV 파일을 찾아 반환합니다.
+    AWS S3 등 데이터 레이크 구조와의 호환성을 유지하기 위해 계층적으로 탐색합니다.
+    """
+    root: Path = get_project_root() / process / service
+    if not root.exists():
+        logger.warning(f"⚠️ 경로를 찾을 수 없습니다: {root}")
+        return None
+    
+    # glob을 사용하여 하위 status 폴더 내의 모든 csv 파일을 찾은 후 정렬 (최신순)
+    files: List[Path] = sorted(root.glob(f"**/*status={status}/*.csv"), reverse=True)
+    
+    if not files:
+        logger.warning(f"⚠️ {process}/{service} 경로 내에 '{status}' 상태의 파일이 없습니다.")
+        return None
+        
+    latest_file = str(files[0])
+    logger.info(f"🔍 최신 파일 발견: {Path(latest_file).name}")
+    return latest_file

@@ -62,20 +62,24 @@ def safe_attr(locator: Locator, name: str, default: str = "") -> str:
         return default
 
 def save_to_hive(rows: List[Dict[str, str]], region: str, category: str) -> None:
-    """수집된 데이터를 Hive 스타일 데이터 레이크(process=raw)에 저장합니다."""
-    if not rows:
-        return
-        
+    """
+    수집된 맛집 링크 데이터 후보들을 Hive 스타일 데이터 레이크(process=raw, service=shop)에 저장합니다.
+    AWS S3 호환을 위해 계층적 폴더 구조(year/month/day/status)를 강제로 유지합니다.
+    """
+    # [수정] 결과가 없더라도 헤더를 포함한 파일을 생성하여 다음 단계의 '파일 없음' 오류를 방지합니다.
     df: pd.DataFrame = pd.DataFrame(rows)
     for col in OUTPUT_COLUMNS:
         if col not in df.columns:
             df[col] = ""
     df = df[OUTPUT_COLUMNS]
     
-    # Hive 경로 생성 (process=raw / service=shop)
     save_path: Path = get_hive_path("process=raw", "service=shop", "success")
     df.to_csv(save_path, index=False, encoding="utf-8-sig")
-    logger.info(f"📂 데이터 레이크(raw) 저장 완료: {save_path.name}")
+    
+    if rows:
+        logger.info(f"📂 데이터 레이크(raw/shop) 저장 완료: {save_path.name}")
+    else:
+        logger.warning(f"💡 수집된 결과가 없지만 빈 파일을 생성했습니다: {save_path.name}")
 
 def load_seen_urls(input_csv: Optional[str]) -> Set[str]:
     """이전 수집 결과에서 URL 목록을 로드하여 중복 수집을 방지합니다."""
@@ -156,19 +160,6 @@ def collect_store_links(page: Page, region: str, category: str, max_pages: int) 
             cards: List[Dict[str, str]] = collect_cards_on_page(page)
             if not cards:
                 logger.warning(f"     (결과 없음: {region} {category})")
-                rows.append(
-                    {
-                        "source_region": region,
-                        "source_category": category,
-                        "page_no": str(page_no),
-                        "store_name": "",
-                        "store_url": "",
-                        "store_summary": "",
-                        "collected_at": pd.Timestamp.now().isoformat(),
-                        "status": "empty",
-                        "error_message": "no_cards_found",
-                    }
-                )
                 break
 
             for card in cards:
@@ -241,8 +232,16 @@ def main() -> None:
     targets: List[Dict[str, str]] = read_targets(args.targets)
     
     with sync_playwright() as p:
+        user_agent: str = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
         browser: Browser = p.chromium.launch(headless=not args.headful, slow_mo=300)
-        context: BrowserContext = browser.new_context(locale="ko-KR", viewport={"width": 1440, "height": 2200})
+        context: BrowserContext = browser.new_context(
+            user_agent=user_agent,
+            locale="ko-KR", 
+            viewport={"width": 1440, "height": 2200}
+        )
         page: Page = context.new_page()
         
         page.route("**/*", lambda route: route.abort() if any(domain in route.request.url for domain in ["googleads", "googlesyndication", "doubleclick"]) else route.continue_())

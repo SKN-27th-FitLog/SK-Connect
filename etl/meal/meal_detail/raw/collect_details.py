@@ -261,9 +261,11 @@ def main() -> None:
 
     if results:
         df: pd.DataFrame = pd.DataFrame(results)
+        # [수정] 가게 상세 정보 수집 결과를 Hive 스타일 데이터 레이크(raw/shop)에 저장합니다.
+        # AWS 환경과의 호환성을 위해 계층 구조를 그대로 사용합니다.
         save_path: Path = get_hive_path("process=raw", "service=shop", "success")
         df.to_csv(save_path, index=False, encoding="utf-8-sig")
-        logger.info(f"✅ 상세 수집 완료. Hive 저장: {save_path.name}")
+        logger.info(f"✅ 상세 수집 완료. Hive 저장(raw/shop): {save_path.name}")
 
 if __name__ == "__main__":
     main()

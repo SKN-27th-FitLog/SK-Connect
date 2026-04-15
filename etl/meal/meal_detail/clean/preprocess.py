@@ -102,11 +102,12 @@ def main() -> None:
         args.input, args.code_table, args.default_category_cd
     )
     
-    # 2. 데이터 레이크(process=cleansing) 저장
+    # 2. 데이터 레이크(process=cleansing/service=shop) 저장
+    # AWS S3 데이터 레이크와의 규약을 맞추기 위해 하이브 파티션 구조를 유지합니다.
     if not df_transformed.empty:
         save_path: Path = get_hive_path("process=cleansing", "service=shop", "success")
         df_transformed.to_csv(save_path, index=False, encoding="utf-8-sig")
-        logger.info(f"📂 클렌징 데이터 저장 완료: {save_path.name}")
+        logger.info(f"📂 클렌징 데이터 저장 완료(cleansing/shop): {save_path.name}")
     else:
         logger.warning("처리할 유효 데이터가 없습니다.")
 
