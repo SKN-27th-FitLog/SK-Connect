@@ -1,9 +1,10 @@
 # 패키지 
+import time
 import streamlit as st
 
 # LLM 관련 라이브러리 
 from langchain_core.messages import HumanMessage, AIMessage
-from common.chatbot import get_msg_from_llm
+from common.chatbot import get_msg_from_graph
 from components.sidebar import chatbot_sidebar
 from common.utils import render_chat_history, check_chat_history
 
@@ -40,7 +41,7 @@ if user_input := st.chat_input('질문을 입력하세요'):
     with st.chat_message("assistant"):
         placeholder = st.empty()
         response = ''
-        for token in get_msg_from_llm(llm_nm, user_input):
+        for token in get_msg_from_graph(llm_nm, user_input):
             response += token
             placeholder.markdown(response)
 
