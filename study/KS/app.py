@@ -1,12 +1,16 @@
 # 패키지 
 import time
 import streamlit as st
+import uuid
 
-# LLM 관련 라이브러리 
-from langchain_core.messages import HumanMessage, AIMessage
+# 모듈
 from common.chatbot import get_msg_from_graph
 from components.sidebar import chatbot_sidebar
 from common.utils import render_chat_history, check_chat_history
+
+# LLM 관련 라이브러리 
+from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.checkpoint.memory import MemorySaver
 
 ############################################################
 # streamlit 화면 구성
@@ -24,6 +28,12 @@ check_chat_history()
 # 과거 대화내용 화면에 순차적으로 표시
 render_chat_history()
 
+# 앱 실행 시 메모리 id 설정
+if 'memory_id' not in st.session_state:
+    st.session_state.memory_id = str(uuid.uuid4())
+
+if 'memory' not in st.session_state:
+    st.session_state.memory = MemorySaver()
 
 
 ############################################################

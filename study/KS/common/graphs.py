@@ -14,6 +14,7 @@
 
 3. 그렇게 나온 체인 결과를 사용자에게 전달. 
 '''
+import streamlit as st
 
 from .state import ChatbotState
 from .node import create_keyword_node, create_coding_node, create_cooking_node, create_general_node
@@ -51,6 +52,7 @@ def create_chatbot_graph():
     # 그래프를 생성할 객체 생성   
     ################################################## 
     workflow = StateGraph(ChatbotState)
+
     
     ##################################################
     # 모든 노드 추가
@@ -89,7 +91,7 @@ def create_chatbot_graph():
     ##################################################
     # 컴파일 -> 그래프 생성  
     ################################################## 
-    return workflow.compile()
+    return workflow.compile(checkpointer=st.session_state.memory)
 
 
 

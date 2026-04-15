@@ -1,5 +1,6 @@
 # 패키지
 import time 
+import streamlit as st
 
 # 모듈
 from .graphs import create_chatbot_graph
@@ -21,9 +22,13 @@ def get_msg_from_graph(llm:str=LLM_NM.ollama.name, user_msg:str=''):
     '''
 
     graph = create_chatbot_graph()
+    config = {"configurable": {"thread_id": st.session_state.memory_id}}
 
     # 답변 응답 
-    answer =  graph.invoke({'messages':[HumanMessage(content=user_msg)], 'llm':llm})
+    answer =  graph.invoke(
+        {'messages':[HumanMessage(content=user_msg)], 'llm':llm},
+        config=config
+    )
     return answer['messages'][-1].content
 
 
