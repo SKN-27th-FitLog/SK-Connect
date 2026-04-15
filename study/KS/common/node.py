@@ -1,9 +1,12 @@
+# 모듈
 from .state import ChatbotState
 from .constants import PROMPT_NM, LLM_NM, PARSER_NM
 from .chains import create_chain
 from .llm import get_llm, get_parser, get_prompt
 
-
+############################################################
+# 기본 쳇봇 용 노드 함수 
+############################################################
 def create_keyword_node(state: ChatbotState)-> ChatbotState:
     """사용자 질문을 바탕으로 키워드 체인 생성"""
     keyword_chain = (
@@ -35,3 +38,5 @@ def create_general_node(state: ChatbotState)-> ChatbotState:
     question = state['messages'][-1].content
     messages = [general_chain.invoke({'question': question})]
     return {**state, "messages": messages}
+
+

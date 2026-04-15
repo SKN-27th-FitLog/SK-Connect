@@ -79,6 +79,16 @@ class PROMPT_NM(enum.Enum):
     #     ("system","개수 지정하지 않으면 5개, 부가설명 없음, 이번 질문만 예시형식을 따를것" ),
     #     FewShotChatMessagePromptTemplate(examples=EXAMPLES,example_prompt=EXAMPLE_PROMPT)]))
 
+# Parser Type
+class PARSER_NM(enum.Enum):
+    output_str      = (enum.auto(), StrOutputParser())
+    # output_fewshot  = (enum.auto(), FewShotOutputParser())
+    # output_json     = (enum.auto(), JsonOutputParser())
+    # output_python   = (enum.auto(), PythonObjectOutputParser())
+
+
+    
+class TavilySearch_NM(enum.Enum):
     # 날씨 정보 검색용 탬플릿 
     search_weather = (enum.auto(), TavilySearch(
         max_results=3,
@@ -94,7 +104,6 @@ class PROMPT_NM(enum.Enum):
         exclude_domains=None            # 필요하면 제외 도메인 지정 가능
         )
     )
-
     # 뉴스 검색 요약 탬플릿 
     search_new = (enum.auto(), TavilySearch(
         max_results=3,
@@ -126,10 +135,3 @@ class PROMPT_NM(enum.Enum):
         exclude_domains=None            # 필요하면 제외 도메인 지정 가능
         )
     )
-
-# Parser Type
-class PARSER_NM(enum.Enum):
-    output_str      = (enum.auto(), StrOutputParser())
-    # output_fewshot  = (enum.auto(), FewShotOutputParser())
-    # output_json     = (enum.auto(), JsonOutputParser())
-    # output_python   = (enum.auto(), PythonObjectOutputParser())

@@ -6,8 +6,9 @@
 import streamlit as st
 
 # 모듈
-from common.agents import get_msg_from_agent
+from common.chatbot import get_msg_from_agent
 from common.utils import check_tavily_history, render_tavily_history
+from components.sidebar import chatbot_sidebar
 
 # LLM 관련 라이브러리
 from langchain_core.messages import HumanMessage, AIMessage
@@ -18,6 +19,9 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # 타이틀
 st.title('Tavily Search Agent')
+
+# 사이드 바
+llm_nm = chatbot_sidebar()
 
 # 대화기록 세션에 저장 (세션에 없으면 빈 리스트로 추가함 )
 check_tavily_history()
@@ -42,7 +46,7 @@ if user_input := st.chat_input('날씨가 궁금한 도시이름을 포함해서
     with st.chat_message("assistant"):
         placeholder = st.empty()
         response = ''
-        for token in get_msg_from_agent(user_input):
+        for token in get_msg_from_agent(llm_nm, user_input):
             response += token
             placeholder.markdown(response)
 

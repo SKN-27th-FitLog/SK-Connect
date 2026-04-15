@@ -3,6 +3,11 @@ from typing import Annotated
 from typing_extensions import TypedDict
 from .constants import LLM_NM
 
+
+############################################################
+# 쳇봇 용 상태 클래스 
+############################################################
+
 class ChatbotState(TypedDict):
     """
     답변 챗봇에서 사용할 상태
