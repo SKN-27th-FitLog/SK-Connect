@@ -1,3 +1,8 @@
+# 로그
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # 모듈
 from common.langgraph.state import ChatbotState
 from common.langgraph.tools import search_weather_info, summarize_news, search_stock_info
@@ -22,7 +27,9 @@ def create_agent_by_weather(state: ChatbotState)-> ChatbotState:
     question = state['messages'][-1].content
     response = agent.invoke({"messages": [HumanMessage(content=question)]})
 
-    return {**state, "messages": [response]}
+    logger.info(f"weather: {response}")
+
+    return {**state, "messages": response["messages"]}
 
 
 
@@ -36,7 +43,7 @@ def create_agent_by_news(state: ChatbotState)-> ChatbotState:
     question = state['messages'][-1].content
     response = agent.invoke({"messages": [HumanMessage(content=question)]})
 
-    return {**state, "messages": [response]}
+    return {**state, "messages": response["messages"]}
 
 
 
@@ -50,4 +57,4 @@ def create_agent_by_stock(state: ChatbotState)-> ChatbotState:
     question = state['messages'][-1].content
     response = agent.invoke({"messages": [HumanMessage(content=question)]})
 
-    return {**state, "messages": [response]}
+    return {**state, "messages": response["messages"]}

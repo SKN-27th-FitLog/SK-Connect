@@ -1,3 +1,8 @@
+# 로그
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # 모듈 
 from common.langgraph.state import ChatbotState
 from common.langgraph.nodes import chatbot_node, create_keyword_node, create_coding_node, create_cooking_node
@@ -16,8 +21,12 @@ def route_by_keyword(state: ChatbotState) -> str:
     질문 유형에 따라 어떤 노드로 갈지 결정하는 함수
     """
 
-    keyword = state.get("keyword", "general") # 키워드 값이 있으면 키워드를 사용 / 아니면 일반 
+    keyword = state["keyword"]
     
+    # 키워드 로그 
+    logger.info(f"keyword: {keyword}")
+
+    # 노드 기본값 
     node_name = 'chatbot_node'
 
     if keyword == "coding":

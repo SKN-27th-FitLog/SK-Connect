@@ -7,6 +7,27 @@ logger = logging.getLogger(__name__)
 from common.langgraph.state import ChatbotState
 from common.utils.constants import PROMPT_NM, LLM_NM
 
+# LangChain 라이브러리
+from langchain_core.output_parsers import StrOutputParser
+
+###################################################
+# 사용자 질문을 가지고 키워드를 생성하는 노드 
+###################################################
+def create_keyword_node(state: ChatbotState)-> ChatbotState:
+    """
+    사용자 질문을 바탕으로 키워드 체인 생성
+    질문을 가지고 LLM 이 분석해서 적합한 키워드 하나를 지정하게 됨 
+    키워드는 마지막에 입력한 질문을 가지고 분석하며 어떤 키워드로도 정할 수 없을 경우 일반적인 채팅으로 처리됨 
+    """
+    # 체인 생성 후 실행 
+    keyword_chain = (PROMPT_NM.keyword.value[1] | LLM_NM[state['model']].value[1] ) | StrOutputParser()
+    question = state['messages'][-1].content
+    keyword = keyword_chain.invoke({'question': question})
+    
+    logger.info(f"keyword: {keyword}")
+
+    return {**state, "keyword": keyword, } 
+
 
 #########################################
 # 입력된 내용을 가지고 답변하는 기본 노드 
@@ -26,24 +47,6 @@ def chatbot_node(state:ChatbotState) -> ChatbotState:
     response = model.invoke(state['messages'])
 
     return {**state, "messages": [response]}
-
-###################################################
-# 사용자 질문을 가지고 키워드를 생성하는 노드 
-###################################################
-def create_keyword_node(state: ChatbotState)-> ChatbotState:
-    """
-    사용자 질문을 바탕으로 키워드 체인 생성
-    질문을 가지고 LLM 이 분석해서 적합한 키워드 하나를 지정하게 됨 
-    키워드는 마지막에 입력한 질문을 가지고 분석하며 어떤 키워드로도 정할 수 없을 경우 일반적인 채팅으로 처리됨 
-    """
-    # 체인 생성 후 실행 
-    keyword_chain = (PROMPT_NM.keyword.value[1] | LLM_NM[state['model']].value[1] )
-    question = state['messages'][-1].content
-    keyword = keyword_chain.invoke({'question': question})
-    
-    logger.info(f"keyword: {keyword}")
-
-    return {**state, "keyword": keyword, } 
 
 
 ###################################################
