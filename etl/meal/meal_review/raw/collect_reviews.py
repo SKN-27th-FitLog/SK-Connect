@@ -27,7 +27,11 @@ from common_utils import (
 
 # 패턴 및 상수 정의
 RATING_PATTERN: Final[re.Pattern] = re.compile(r"[0-5](?:\.\d)?")
-DATE_PATTERN: Final[re.Pattern] = re.compile(r"\d{4}[.-]\d{1,2}[.-]\d{1,2}")
+DATE_PATTERN: Final[re.Pattern] = re.compile(
+    r"(\d{4}[.-]\d{1,2}[.-]\d{1,2})|"  # 2024.01.01 or 2024-01-01
+    r"(\d{4}년\s*\d{1,2}월\s*\d{1,2}일)|" # 2024년 1월 1일
+    r"(\d{1,2}월\s*\d{1,2}일)"          # 1월 1일 (올해)
+)
 SAFE_FILENAME_PATTERN: Final[re.Pattern] = re.compile(r"[^0-9a-zA-Z가-힣._-]+")
 
 def pause(a: float = 0.8, b: float = 1.4) -> None:
@@ -49,16 +53,39 @@ def slugify_filename(text: str, max_len: int = 80) -> str:
     return text[:max_len] if text else "unknown"
 
 def scroll_reviews(page: Page, rounds: int = 5) -> None:
+    # [추가] '평가 더보기' 버튼이 있으면 클릭 (최소 1회)
+    try:
+        more_btn = page.locator("a:has-text('평가 더보기')")
+        if more_btn.count() > 0:
+            more_btn.first.click(timeout=3000)
+            pause(1.0, 1.5)
+    except Exception:
+        pass
+
     for i in range(rounds):
         try:
-            page.mouse.wheel(0, 3000)
-            pause(0.6, 1.0)
+            page.mouse.wheel(0, 4000)
+            pause(0.8, 1.2)
         except Exception:
             break
 
 def collect_reviews_structured(page: Page, store_name: str, max_items: int = 500) -> List[Dict[str, object]]:
     reviews: List[Dict[str, object]] = []
     seen: Set[tuple] = set()
+    
+    # [추가] 상세 내용 '...더보기' 모두 클릭하여 원본 텍스트 노출
+    try:
+        more_links = page.locator("a:has-text('...더보기')")
+        m_count = more_links.count()
+        for j in range(m_count):
+            try:
+                more_links.nth(j).click(timeout=1000)
+                pause(0.1, 0.3)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     blocks: Locator = page.locator("div[id^='div_review_']")
     count: int = min(blocks.count(), max_items)
 
@@ -67,21 +94,37 @@ def collect_reviews_structured(page: Page, store_name: str, max_items: int = 500
             block: Locator = blocks.nth(i)
             review_id: str = block.get_attribute("id") or ""
             
-            # [수정] 실제 데이터 추출 로직 추가
-            rating_text = safe_text(block.locator("span.point"))
+            # [수정] 평점 선택자 강화 (.star-point, span.point 모두 시도)
+            rating_text = ""
+            for selector in [".star-point", "span.point", "p.person-grade"]:
+                loc = block.locator(selector)
+                if loc.count() > 0:
+                    rating_text = safe_text(loc)
+                    if rating_text: break
+            
             rating = float(RATING_PATTERN.search(rating_text).group()) if RATING_PATTERN.search(rating_text) else 0.0
             
-            date_text = safe_text(block.locator("span.date"))
+            # [수정] 날짜 선택자 강화 (.date, .person-conf .date)
+            date_text = ""
+            for selector in [".date", "span.date", ".person-conf .date"]:
+                loc = block.locator(selector)
+                if loc.count() > 0:
+                    date_text = safe_text(loc)
+                    if date_text: break
+            
             date_match = DATE_PATTERN.search(date_text)
             date = date_match.group().replace(".", "-") if date_match else ""
             
-            content = safe_text(block.locator("p.review_contents"))
-            if not content: continue
+            # [수정] 본문 선택자 강화 (.review_contents)
+            content = safe_text(block.locator(".review_contents, p.review_contents"))
+            if not content:
+                logger.debug(f"Skipping empty review content: {review_id}")
+                continue
 
             # [추가] 리뷰 이미지 URL 추출 로직
             img_locators = block.locator("img.review_img, .img_box img")
             image_urls: List[str] = []
-            img_count = min(img_locators.count(), 5)
+            img_count = min(img_locators.count(), 10) # 최대 10장으로 상향
             for idx in range(img_count):
                 src = img_locators.nth(idx).get_attribute("src")
                 if src and src.startswith("http"):
@@ -137,6 +180,12 @@ def download_review_images(store_name: str, image_urls_json: str) -> List[str]:
             
     return local_paths
 
+# 수집 결과 데이터 컬럼 정의
+REVIEW_OUTPUT_COLUMNS: Final[List[str]] = [
+    "review_id", "rating", "date", "content", 
+    "image_urls", "store_name", "store_url", "local_image_paths"
+]
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="맛집 리뷰 데이터 수집 (Raw)")
     parser.add_argument("--input", required=True, help="기수집된 식당 정보 CSV")
@@ -172,7 +221,13 @@ def main() -> None:
             
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(2000)
+                # 리뷰 블록이 하나라도 나타날 때까지 대기
+                try:
+                    page.wait_for_selector("div[id^='div_review_'], a:has-text('평가 더보기')", timeout=5000)
+                except Exception:
+                    logger.debug(f"Review container not found for {name}, skipping expansion")
+                
+                page.wait_for_timeout(1000)
                 scroll_reviews(page)
                 
                 reviews: List[Dict[str, object]] = collect_reviews_structured(page, name)
@@ -189,8 +244,14 @@ def main() -> None:
 
         browser.close()
 
-    # [수정] 결과가 없더라도 항상 파일을 저장하여 파이프라인 중단 방지
+    # [수정] 결과가 없더라도 항상 컬럼 헤더가 포함된 파일을 저장하여 파이프라인 중단 방지
     df_rv: pd.DataFrame = pd.DataFrame(all_review_results)
+    for col in REVIEW_OUTPUT_COLUMNS:
+        if col not in df_rv.columns:
+            df_rv[col] = pd.Series(dtype=object)
+    
+    df_rv = df_rv[REVIEW_OUTPUT_COLUMNS]
+    
     save_path: Path = get_hive_path("process=raw", "service=review", "success")
     df_rv.to_csv(save_path, index=False, encoding="utf-8-sig")
     

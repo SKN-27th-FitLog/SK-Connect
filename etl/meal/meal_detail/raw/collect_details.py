@@ -245,8 +245,16 @@ def main() -> None:
     results: List[Dict[str, str]] = []
     
     with sync_playwright() as p:
+        user_agent: str = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
         browser: Browser = p.chromium.launch(headless=not args.headful, slow_mo=300)
-        context: BrowserContext = browser.new_context(locale="ko-KR", viewport={"width": 1440, "height": 2200})
+        context: BrowserContext = browser.new_context(
+            user_agent=user_agent,
+            locale="ko-KR", 
+            viewport={"width": 1440, "height": 2200}
+        )
         page: Page = context.new_page()
         page.route("**/*", lambda route: route.abort() if any(domain in route.request.url for domain in ["googleads", "googlesyndication", "doubleclick"]) else route.continue_())
 
