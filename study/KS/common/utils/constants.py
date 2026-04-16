@@ -6,10 +6,6 @@
 '''
 # 패키지 
 import enum
-from dotenv import load_dotenv
-
-# 환경변수 로드 
-load_dotenv()
 
 # 모듈
 
@@ -24,30 +20,8 @@ from langchain_tavily import TavilySearch
 
 
 ################################################################################
-# 상수 class 선언, 데이터 로드
+# 상수, class 선언
 ################################################################################
-
-
-
-# # 탬플릿 내용 정의 (전역 변수로 재정의함 )
-# EXAMPLES=[
-#     {
-#         "question": "LLM 모델과 관련된 단어를 5개 나열해주세요 ",
-#         "sentence": "Ollama, GPT, Groq, OpenAI, Langchain",
-#     },
-#     {
-#         "question": "채소에 관련된 단어를 5개 나열해주세요",
-#         "sentence": "양파, 토마토, 감자, 당근, 브로콜리",
-#     },
-# ]
-
-# EXAMPLE_PROMPT = ChatPromptTemplate.from_messages(
-#     [
-#         ("human", "질문: {question}"),
-#         ("ai", "관련단어: {sentence}"),
-#     ]
-# )
-
 
 # Model Class Enum
 class LLM_NM(enum.Enum):
@@ -61,36 +35,31 @@ class LLM_NM(enum.Enum):
     )
 
 
-
 # Prompt Template
 class PROMPT_NM(enum.Enum):
-    coding  = (enum.auto(), SystemMessage(content="IT 개발 전문가로서 다음 질문에 답변해주세요"))
-    cooking = (enum.auto(), SystemMessage(content="요리 전문가로서 다음 질문에 답변해주세요"))
-    general = (enum.auto(), SystemMessage(content="일반적인 질문에 답변해주세요"))
+    coding  = (enum.auto(), ChatPromptTemplate.from_template(template="IT 개발 전문가로서 다음 질문에 답변해주세요"))
+    cooking = (enum.auto(), ChatPromptTemplate.from_template(template="요리 전문가로서 다음 질문에 답변해주세요"))
+    general = (enum.auto(), ChatPromptTemplate.from_template(template="일반적인 질문에 답변해주세요"))
     keyword = (enum.auto(), ChatPromptTemplate.from_template(template=
         '''
         당신은 사용자의 질문을 분석하여 적절한 키워드를 생성하는 전문가 입니다. 
-        다음 키워드 중 하나를 선택하여 반환하세요:
-        - coding
-        - cooking
-        - general
+        다음 키워드 중 하나를 선택하여 반환하세요
+
+        - coding : 프로그래밍이나 코딩과 관련된 질문인 경우
+        - cooking : 요리에 대한 질문인 경우
+        - weather : 날씨에 대한 질문이면서 특정 지역 / 도시를 같이 지정해서 질문한 경우
+        - news : 뉴스기사에 대한 질문인 경우 
+        - stock : 주식과 관련된 질문인 경우
+        - general : 위 5개 주제 중 어디에도 속하지 않는 경우 (일반적인 질문)
 
         질문:{question}
         키워드:
         '''))
-    # fewshot = (enum.auto(), ChatPromptTemplate.from_messages([
-    #     ("system","개수 지정하지 않으면 5개, 부가설명 없음, 이번 질문만 예시형식을 따를것" ),
-    #     FewShotChatMessagePromptTemplate(examples=EXAMPLES,example_prompt=EXAMPLE_PROMPT)]))
 
 # Parser Type
 class PARSER_NM(enum.Enum):
     output_str      = (enum.auto(), StrOutputParser())
-    # output_fewshot  = (enum.auto(), FewShotOutputParser())
-    # output_json     = (enum.auto(), JsonOutputParser())
-    # output_python   = (enum.auto(), PythonObjectOutputParser())
 
-
-    
 class TavilySearch_NM(enum.Enum):
     # 날씨 정보 검색용 탬플릿 
     search_weather = (enum.auto(), TavilySearch(
@@ -110,7 +79,7 @@ class TavilySearch_NM(enum.Enum):
     # 뉴스 검색 요약 탬플릿 
     search_new = (enum.auto(), TavilySearch(
         max_results=3,
-        topic="news",               # 또는 "news", "finance" 등
+        topic="news",               # 또는 "news", 등
         include_answer=True,           # 답변 포함 여부
         include_raw_content=False,     # 원본 내용 포함 여부
         include_images=False,          # 이미지 포함 여부
@@ -126,7 +95,7 @@ class TavilySearch_NM(enum.Enum):
     # 주식 정보 탬플릿 
     search_finance = (enum.auto(), TavilySearch(
         max_results=3,
-        topic="finance",               # 또는 "news", "finance" 등
+        topic="finance",               # 또는 "finance" 등
         include_answer=True,           # 답변 포함 여부
         include_raw_content=False,     # 원본 내용 포함 여부
         include_images=False,          # 이미지 포함 여부
