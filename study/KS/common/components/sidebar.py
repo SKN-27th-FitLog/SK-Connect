@@ -17,9 +17,6 @@ def chatbot_sidebar():
     '''
     with st.sidebar:
         st.title('Setup')
-        llm = st.selectbox('Model', list(LLM_NM.__members__.keys()))
+        model = st.selectbox('Model', list(LLM_NM.__members__.keys()))
 
-        if os.getenv("SHOW_DB_DEBUG", "").lower() in ("1", "true", "yes"):
-            from common.db.secure import get_checkpoint_table_counts
-
-    return llm 
+    return model 

@@ -30,7 +30,7 @@ check_connection() # 시작시 해당 함수를 1번 호출해서 연결 테스�
 ##############################################################################################
 
 st.title('Chatbot')                 # 제목 
-models = chatbot_sidebar()          # 사이드 바
+model = chatbot_sidebar()          # 사이드 바
 init_history()                      # 히스토리
 
 
@@ -45,7 +45,7 @@ if question is not None:
     #########################################################
     # LLM 메시지 
     #########################################################
-    response = response_from_graph(user_msg=user_msg['content'])
+    response = response_from_graph(user_msg=user_msg['content'], model=model)
     ai_msg = {'role': 'assistant', 'content': response}                     # ai 답변 내용 (chain.invoke 결과 출력 )
     print_message(**ai_msg)
 
