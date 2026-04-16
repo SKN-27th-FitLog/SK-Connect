@@ -33,3 +33,10 @@ aiosqlite==0.21.0                 # 비동기 SQLite 라이브러리 - SQLite를
 # PostgreSQL 관련 패키지
 psycopg[binary]==3.2.3            # PostgreSQL 데이터베이스 연결 라이브러리 (psycopg 버전 3 - langgraph용)
 langgraph-checkpoint-postgres==3.0.0  # LangGraph PostgreSQL 체크포인터 - 대화 상태를 PostgreSQL DB에 저장/복원
+
+
+# Neo4j Python 드라이버
+neo4j==4.4.13
+# Graph Data Science (GDS) 라이브러리
+# Neo4j의 그래프 데이터 과학 알고리즘을 Python에서 사용할 수 있게 해주는 라이브러리
+graphdatascience==0.1.0
