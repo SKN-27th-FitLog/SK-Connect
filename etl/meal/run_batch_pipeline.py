@@ -87,17 +87,18 @@ def main() -> None:
 
     # --- [Stage 1] 맛집 상세 정보 트랙 (Restaurant Detail Track) ---
     
-    # 1-1. Raw (Link): 링크 수집
+    # 1-1. Raw (Link): 가게 목록 및 링크 수집
     run_step([
         sys.executable, str(base_dir / "meal_detail" / "raw" / "collect_links.py"),
         "--targets", args.targets,
         *(["--headful"] if args.headful else [])
     ], "Detail-Raw-Links")
 
-    # [수정] common_utils의 get_latest_hive_file을 사용하여 다음 단계 입력 발견
-    latest_links: Optional[str] = get_latest_hive_file("process=raw", "service=shop")
+    # [중요 변경] 입력 소스를 'service=shop'이 아닌 'service=shop_links'에서 찾습니다.
+    # 사유: 목록 데이터와 상세 데이터의 저장 경로가 겹치면 DB 적재 단계에서 잘못된 파일을 선택할 수 있기 때문입니다.
+    latest_links: Optional[str] = get_latest_hive_file("process=raw", "service=shop_links")
     if not latest_links:
-        logger.error("❌ 수집된 링크 정보가 없습니다.")
+        logger.error("❌ 수집된 링크 정보(shop_links)가 없습니다.")
         sys.exit(1)
         
     # 1-2. Raw (Detail): 상세 정보 수집

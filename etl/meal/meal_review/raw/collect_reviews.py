@@ -34,6 +34,27 @@ DATE_PATTERN: Final[re.Pattern] = re.compile(
 )
 SAFE_FILENAME_PATTERN: Final[re.Pattern] = re.compile(r"[^0-9a-zA-Z가-힣._-]+")
 
+def format_date_standard(date_text: str) -> str:
+    """다양한 날짜 형식을 YYYY-MM-DD로 정규화합니다."""
+    if not date_text: return ""
+    
+    # 1. YYYY.MM.DD 또는 YYYY-MM-DD
+    match = re.search(r"(\d{4})[.-](\d{1,2})[.-](\d{1,2})", date_text)
+    if match:
+        return f"{match.group(1)}-{match.group(2).zfill(2)}-{match.group(3).zfill(2)}"
+    
+    # 2. YYYY년 MM월 DD일
+    match = re.search(r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일", date_text)
+    if match:
+        return f"{match.group(1)}-{match.group(2).zfill(2)}-{match.group(3).zfill(2)}"
+        
+    # 3. MM월 DD일 (연도 미표기 시 현재 연도 기준 가공 - 2026년)
+    match = re.search(r"(\d{1,2})월\s*(\d{1,2})일", date_text)
+    if match:
+        return f"2026-{match.group(1).zfill(2)}-{match.group(2).zfill(2)}"
+        
+    return ""
+
 def pause(a: float = 0.8, b: float = 1.4) -> None:
     time.sleep(random.uniform(a, b))
 
@@ -104,7 +125,7 @@ def collect_reviews_structured(page: Page, store_name: str, max_items: int = 500
             
             rating = float(RATING_PATTERN.search(rating_text).group()) if RATING_PATTERN.search(rating_text) else 0.0
             
-            # [수정] 날짜 선택자 강화 (.date, .person-conf .date)
+            # [수정] 날짜 선택자 강화 및 표준화 (YYYY-MM-DD)
             date_text = ""
             for selector in [".date", "span.date", ".person-conf .date"]:
                 loc = block.locator(selector)
@@ -112,8 +133,7 @@ def collect_reviews_structured(page: Page, store_name: str, max_items: int = 500
                     date_text = safe_text(loc)
                     if date_text: break
             
-            date_match = DATE_PATTERN.search(date_text)
-            date = date_match.group().replace(".", "-") if date_match else ""
+            date = format_date_standard(date_text)
             
             # [수정] 본문 선택자 강화 (.review_contents)
             content = safe_text(block.locator(".review_contents, p.review_contents"))

@@ -66,19 +66,22 @@ def save_to_hive(rows: List[Dict[str, str]], region: str, category: str) -> None
     수집된 맛집 링크 데이터 후보들을 Hive 스타일 데이터 레이크(process=raw, service=shop)에 저장합니다.
     AWS S3 호환을 위해 계층적 폴더 구조(year/month/day/status)를 강제로 유지합니다.
     """
-    # [수정] 결과가 없더라도 헤더를 포함한 파일을 생성하여 다음 단계의 '파일 없음' 오류를 방지합니다.
     df: pd.DataFrame = pd.DataFrame(rows)
     for col in OUTPUT_COLUMNS:
         if col not in df.columns:
             df[col] = ""
     df = df[OUTPUT_COLUMNS]
     
-    save_path: Path = get_hive_path("process=raw", "service=shop", "success")
-    df.to_csv(save_path, index=False, encoding="utf-8-sig")
-    
     if rows:
-        logger.info(f"📂 데이터 레이크(raw/shop) 저장 완료: {save_path.name}")
+        # [변경 사항] service 명칭을 'shop'에서 'shop_links'로 분리
+        # 이유: 'shop' 경로를 상세 정보 수집 결과와 공유할 경우, DB 적재 시 어떤 파일이 상세 데이터인지 
+        # 구분하기 어려워지는(Race Condition) 문제를 해결하기 위함입니다.
+        save_path: Path = get_hive_path("process=raw", "service=shop_links", "success")
+        df.to_csv(save_path, index=False, encoding="utf-8-sig")
+        logger.info(f"✅ [{region}-{category}] 링크 수집 완료. Hive 저장(raw/shop_links): {save_path.name}")
     else:
+        save_path: Path = get_hive_path("process=raw", "service=shop_links", "success")
+        df.to_csv(save_path, index=False, encoding="utf-8-sig")
         logger.warning(f"💡 수집된 결과가 없지만 빈 파일을 생성했습니다: {save_path.name}")
 
 def load_seen_urls(input_csv: Optional[str]) -> Set[str]:
