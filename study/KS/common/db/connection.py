@@ -1,49 +1,33 @@
+# 로그 
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # 패키지
-import hashlib
-import base64
 import os
 import psycopg
 import streamlit as st
 
 
 #####################################################################################
-# 암호화 키 생성 
-#####################################################################################
 
-def create_langgraph_secure_key(seed: str):
-    '''
-    암호화 키 생성 함수 
-    
-    Args:
-        seed: 랜덤 시드값
-        
-    Returns:
-        final_key: 암호화 키
-    '''
-    # 솔트는 고정값이 아닌 앱별로 안전하게 생성/보관되어야 함.
-    salt_b64 = os.getenv("KDF_SALT_B64")
-    if salt_b64:
-        salt = base64.b64decode(salt_b64)
-    else:
-        salt = b"dev-salt-please-change"  # 개발용. 운영에서는 안전한 솔트 사용.
 
-    # 1) PBKDF2: 강력한 KDF
-    raw_key = hashlib.pbkdf2_hmac(
-        hash_name="sha256",
-        password=seed.encode(),
-        salt=salt,
-        iterations=100_000,
-        dklen=32  # 32 bytes → AES-256
-    )
+# import sqlite3
 
-    # 2) base64 URL-safe 문자열로 인코딩 (길이 약 44)
-    b64 = base64.urlsafe_b64encode(raw_key).decode()
+# __sqlite_connection = None
 
-    # 3) LangGraph가 요구하는 32 글자로 제한
-    final_key = b64[:32]
+# def get_connection() -> object:
+#     '''Database connection 생성 함수'''
+#     global __sqlite_connection
 
-    return final_key
+#     # 채팅 메모리 데이터베이스 연결 객체 생성 
+#     if __sqlite_connection is None:
+#         __sqlite_connection = sqlite3.connect(
+#             'chatbot_memory.db',
+#             check_same_thread=False
+#         )
 
+#     return __sqlite_connection
 
 
 
@@ -60,11 +44,9 @@ class Singleton(type):
 				.__call__(*args, **kwargs)
 		return cls._instances[cls]
 
-
 #####################################################################################
 # PostgreSQL 연결 싱글톤 패턴 
 #####################################################################################
-
 class PostgreDB(metaclass=Singleton):
     '''
     PostgreSQL 연결 싱글톤 패턴 클래스
@@ -96,7 +78,7 @@ def get_encrypted_serde():
     return EncryptedSerializer.from_pycryptodome_aes()
 
 
-def _db_config_from_env() -> dict:
+def get_db_config_from_env() -> dict:
     return {
         "host": os.getenv("DB_HOST"),
         "port": os.getenv("DB_PORT"),
@@ -105,17 +87,36 @@ def _db_config_from_env() -> dict:
         "password": os.getenv("DB_PASSWORD"),
     }
 
+
+
 @st.cache_resource
-def get_postgres_checkpointer():
-    """PostgresSaver 단일 인스턴스(테이블 setup 포함). 그래프 compile에 전달."""
-    from langgraph.checkpoint.postgres import PostgresSaver
-    serde = get_encrypted_serde()
-    saver = PostgresSaver(PostgreDB(_db_config_from_env()).get_conn(), serde=serde)
-    saver.setup()
-    return saver
+def check_connection():
+    # 데이터베이스 연결
+    db_config = {
+        "host": os.getenv("DB_HOST"),
+        "port": os.getenv("DB_PORT"),
+        "database": os.getenv("DB_NAME"),
+        "user": os.getenv("DB_USER"),
+        "password": os.getenv("DB_PASSWORD")
+    }
 
+    ############################################################
+    # PostgreSQL 연결확인 및 체크포인터 설정
+    ############################################################
 
+    # 싱글톤 패턴 동작 확인
+    logger.info("=== 싱글톤 패턴 동작 확인 ===")
+    conn1 = PostgreDB(db_config).get_conn()
+    conn2 = PostgreDB(db_config).get_conn()
 
+    logger.info("첫 번째 연결: %s", conn1)
+    logger.info("두 번째 연결: %s", conn2)
 
+    try: 
+        if conn1 is conn2:
+            logger.info("같은 연결인가? %s", conn1 is conn2)
+            logger.info("싱글톤 패턴 적용 완료: 동일한 연결을 재사용합니다.")
 
-
+    except Exception as e:
+        logger.error(f"PostgreSQL 연결 실패: {e}")
+        raise e
