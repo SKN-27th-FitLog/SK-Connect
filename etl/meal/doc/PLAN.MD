@@ -1,113 +1,50 @@
-# [PLAN] 프로젝트 모듈화 및 구조 고도화 제안
+# [SK-Connect] ETL 품질 고도화 실행 계획 (v3.6.1 - 완료)
 
-이 문서는 `project-understanding` 프레임워크를 기반으로 현재 프로젝트 구조를 분석하고, 유지보수성과 확장성을 높이기 위한 모듈화 계획을 제안합니다.
-
----
-
-## 1. 현황 분석 (Project Understanding)
-
-### 현재 상태 (Current State)
-*   **구조**: `meal_detail`, `meal_review` 하위에 `raw`, `clean`, `save`가 반복되는 수직적 구조.
-*   **코드 중복**: Playwright 설정, 헤더 관리, anti-bot 대응, 파일 저장 로직 등이 각 스크립트에 산재해 있음.
-*   **의존성**: 모든 파일 상단에 `sys.path.append`를 사용한 비표준적 임포트 방식 채택 중.
-*   **오케스트레이션**: `run_batch_pipeline.py`가 모든 단계를 하드코딩된 순서와 인자로 실행.
-
-### 운영 맥락 (Operating Context)
-*   **Tooling**: Python 3.12, Playwright, Pandas, Psycopg2.
-*   **Data Flow**: Crawler(Raw) -> CSV(Hive Style) -> Preprocess(Clean) -> DB(Save).
+## 1. 프로젝트 분석 및 현재 상태
+- **상태**: **완료 및 검증됨 (2026-04-17)**
+- **이슈**: 검증되지 않은 부실 데이터(좌표 0, 주소 공백 등) 및 메뉴 가격 수집 오류 해결.
+- **목표**: 100% 무결성 확보 및 대규모 데이터 재적재(Replay) 성공.
 
 ---
 
-## 2. 모듈화 제안 구조 (Proposed Architecture)
+## 2. 모듈별 최종 설계 (Design Summary)
 
-기능별로 계층을 분리하여 **"엔진(Core) - 추출(Extractor) - 변환(Transformer) - 적재(Loader)"** 구조로 개편합니다.
+### 가. 수집 (Extraction) - DiningCodeExtractor (Hybrid King v3.6)
+- **추가**: 상세 페이지 정적 HTML(Requests) + 동적 JSON-LD 파싱 연동.
+- **수정**: Bot 차단 우회를 위해 Playwright 의존도를 낮추고 데이터 신뢰성 확보.
 
-```mermaid
-graph TD
-    subgraph "Core Layer (공통 엔진)"
-        C1[Base Crawler] --- C2[DB Connectors]
-        C2 --- C3[Common Utils]
-    end
-    
-    subgraph "Module Layer (비즈니스 로직)"
-        M1[DiningCode Extractor] --> P1[Shop Transformer]
-        M1 --> P2[Review Transformer]
-        P1 --> L1[PostgreSQL Loader]
-        P2 --> L1
-    end
-    
-    subgraph "Entry Point"
-        E1[CLI / Orchestrator]
-    end
+### 나. 유효성 검증 (Validation) - ShopProcessor
+- **검증 게이트**: `validate_master_data()` 메서드 도입.
+- **필수 조건**: 주소, 위경도 유효성(!= 0.0), 메뉴 1건 이상 필수. (누락 시 격리)
+- **가격 정제**: `safe_int` 정규식 도입으로 '11,000원' 등 문자열 완벽 정수화 (v3.6.1).
 
-    E1 --> M1
-    E1 --> P1
-    E1 --> L1
-```
+### 다. 적재 및 저장 (Loading) - Shop/Review/Post Loader
+- **이원화 저장**: `status=success` (적재) / `status=fail` (격리) 분기 완벽 작동.
+- **좌표 Fallback**: Kakao API 실패 시 페이지 내부 hidden 필드(`hdn_lat/lng`) 추출 로직 적용.
 
 ---
 
-## 3. 새로운 폴더 구조 (Visual Directory Map)
+## 3. 세부 구현 태스크 (Tasks) - ALL COMPLETED
 
-제안하는 새로운 프로젝트 레이아웃입니다.
-
-```text
-SK-Connect/
-└── etl/
-    └── meal/
-        ├── run.py                 # (New) 통합 실행 엔트리포인트 (CLI)
-        ├── config/                # 설정 관리 (env, yaml)
-        ├── src/                   # 소스 코드 루트 (패키지화)
-        │   ├── __init__.py
-        │   ├── core/              # 공통 기반 클래스 및 유틸
-        │   │   ├── __init__.py
-        │   │   ├── base_crawler.py  # Playwright 브라우저 관리, Anti-bot
-        │   │   ├── db_client.py     # Postgres 커넥션 관리
-        │   │   └── file_manager.py  # Hive 경로 및 로그 관리 (기존 common_utils)
-        │   ├── extractors/        # 수집 로직 (Raw)
-        │   │   ├── __init__.py
-        │   │   ├── diningcode_links.py
-        │   │   └── diningcode_details.py
-        │   ├── transformers/      # 데이터 정제 및 변환 (Clean)
-        │   │   ├── __init__.py
-        │   │   ├── shop_processor.py
-        │   │   └── review_processor.py
-        │   └── loaders/           # 데이터 저장 로직 (Save)
-        │       ├── __init__.py
-        │       ├── shop_loader.py
-        │       └── review_loader.py
-        ├── doc/                   # 문서 (ERROR.MD, PLAN.MD)
-        ├── logs/                  # 실행 로그
-        └── tests/                 # 단위/통합 테스트
-```
+- [x] **[Step 1] Kakao API & Constants 보완**
+- [x] **[Step 2] 추출기(Extractor) 고도화 (JSON-LD 도입)**
+- [x] **[Step 3] 전처리기(Processor) 검증 로직 및 가격 정규식 구현**
+- [x] **[Step 4] 로더(Loader) 게이트키퍼 및 Fallback 좌표 구현**
+- [x] **[Step 5] 통합 검증 및 데이터 재적재(Replay) 수행**
 
 ---
 
-## 4. 모듈화 기대 효과 (Expected Benefits)
+## 4. 최종 수행 결과 (Final Resolution - v3.6.1)
 
-1.  **Anti-bot 대응의 일원화**: `base_crawler.py`만 수정해도 모든 수집기의 차단 회피 로직이 최신화됩니다.
-2.  **데이터 무결성 강화**: `transformers` 레이어에서 중앙 집중식 유효성 검사 루틴을 수행합니다.
-3.  **표준 패키지 구조**: `sys.path.append`가 제거되어 IDE 지원 및 라이브러리 활용이 용이해집니다.
-4.  **확장성**: 새로운 수집 대상(예: 네이버 지도) 추가 시 `extractors` 폴더에 새 모듈만 추가하면 됩니다.
-
----
-
-## 5. 실행 로드맵 (Roadmap)
-
-### 단계 1: Core 인프라 구축
-- `src/core` 하위에 브라우저 관리 및 DB 클라이언트 모듈화.
-- 기존 `common_utils.py`를 `core/file_manager.py` 등에 분산 배치.
-
-### 단계 2: 수집기(Extractor) 개편
-- `collect_links.py`, `collect_details.py`를 `src/extractors`로 이동 및 `BaseCrawler` 상속 구조로 리팩토링.
-
-### 단계 3: 변환 및 적재 로직 통합
-- 산재된 `preprocess.py`와 `upload_to_db.py` 로직을 `transformers`와 `loaders`로 정리.
-
-### 단계 4: 통합 오케스트레이터 구현
-- 인자값 기반으로 단계별 실행을 제어하는 `run.py` (또는 CLI) 개발.
+- **데이터 재적재 성공**: 사용자가 지정한 2026-04-17 Raw 파일을 기준으로 재적합 수행.
+    - **상점 (Shop)**: 104건 성공 (2건 무결성 부족으로 격리)
+    - **리뷰 (Review)**: 678건 성공
+    - **메뉴 (Menu)**: 5,366건 성공 (가격 데이터 정수 변환 확인)
+- **무결성 확인**: DB 내 `menu.price` 컬럼에 '11,000' 등의 정수값이 정상적으로 안착됨을 확인 (v3.6.1).
+- **챗봇 연동**: `crawling` 테이블 적재 완료로 챗봇 추천 무결성 확보.
 
 ---
-> [!IMPORTANT]
-> 이 구조로 변경하기 위해서는 기존 파일들을 대대적으로 이동하고 임포트 경로를 수정해야 합니다. 
-> 우선 **상세 정보 수집(Shop Detail)** 파트부터 시범적으로 모듈화를 진행해 볼까요?
+
+## 5. 운영 규칙 및 제약 사항
+- **Rule 5 준수**: 모든 CSV 파일 저장과 DB 적재는 Loader 모듈 내부에서 수행됨.
+- **하이브 파티션**: `status=fail` 폴더를 통해 데이터 유효성 위반 원인을 즉시 추적 가능.

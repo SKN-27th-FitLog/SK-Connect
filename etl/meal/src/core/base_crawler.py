@@ -16,9 +16,10 @@ class BaseCrawler:
         self._playwright = None
         self._browser = None
         self._context = None
+        # 최신 Chrome User-Agent로 업데이트 (봇 감지 완화)
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
         )
 
     def start(self):
@@ -26,12 +27,14 @@ class BaseCrawler:
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch(
             headless=self.headless, 
-            slow_mo=self.slow_mo
+            slow_mo=self.slow_mo,
+            args=["--disable-blink-features=AutomationControlled"] # 봇 감지 우회 추가
         )
         self._context = self._browser.new_context(
             user_agent=self.user_agent,
             locale="ko-KR",
-            viewport={"width": 1440, "height": 900}
+            viewport={"width": 1440, "height": 900},
+            extra_http_headers={"Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"}
         )
         logger.info(f"--- 브라우저 세션 시작 (Headless={self.headless})")
         return self._context.new_page()
@@ -51,14 +54,18 @@ class BaseCrawler:
     def safe_text(self, locator: Locator, default: str = "") -> str:
         """에러 없이 안전하게 텍스트를 추출합니다. (첫 번째 요소 기준)"""
         try:
-            return locator.first.inner_text().strip()
+            if locator.count() > 0:
+                return locator.first.inner_text().strip()
+            return default
         except Exception:
             return default
 
     def safe_attr(self, locator: Locator, attr: str, default: str = "") -> str:
         """에러 없이 안전하게 속성값을 추출합니다."""
         try:
-            return locator.get_attribute(attr) or default
+            if locator.count() > 0:
+                return locator.first.get_attribute(attr) or default
+            return default
         except Exception:
             return default
 
@@ -71,7 +78,6 @@ class BaseCrawler:
     def run(self, task_fn):
         """
         브라우저 시작, 작업 수행, 종료 과정을 한 번에 관리합니다.
-        task_fn: Page 객체를 인자로 받는 함수
         """
         page = self.start()
         try:

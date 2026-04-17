@@ -21,7 +21,7 @@ from .loaders.review_loader import ReviewLoader
 
 class ETLOrchestrator:
     """
-    단계별 적재 규약을 준수하며 전체 ETL을 조율합니다.
+    무결성 검증 레이어가 포함된 고도화된 ETL 파이프라인을 조율합니다.
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -43,7 +43,7 @@ class ETLOrchestrator:
 
     def run_full_pipeline(self, target_csv: str, limit: Optional[int] = None):
         logger.info("=" * 60)
-        logger.info("--- [Orchestrator] ETL 파이프라인 가동 시작")
+        logger.info("--- [Orchestrator] V3.0 고도화 파이프라인 가동")
         logger.info("=" * 60)
         
         try:
@@ -51,21 +51,24 @@ class ETLOrchestrator:
             df_links = self._step_extract_links(target_csv, limit)
             if df_links.empty: return
 
-            # [Step 2] 매장 상세 정보 (Shop Master & Post)
+            # [Step 2] 매장 상세 정보 수집 (이미지 포함)
             df_shops_raw = self._step_extract_shop_details(df_links)
             
-            # Shop Master 적재 (maps, shop, menu 등 내부 Hive 저장 포함)
-            self.shop_loader.load_all(df_shops_raw)
+            # [Step 3] Shop Loader 실행 (무결성 검증Gate + DB 적재 + 이미지 적재)
+            shop_stats = self.shop_loader.load_all(df_shops_raw)
+            logger.info(f"--- [Shop 적재 결과] 성공: {shop_stats['success']}건 | 실패(격리): {shop_stats['fail']}건")
             
-            # Shop Post 적재 (crawling thread='shop')
+            # [Step 4] Shop Post 적재 (crawling thread='shop')
+            # PostLoader 역시 내부 검증이 필요할 수 있으나 현재는 ShopLoader의 성공 건 위주로 흐름 제어 가능
+            # 여기서는 편의상 전체를 보내되 PostLoader 내부에서도 DB 유효성(map_id)으로 필터링함
             df_shops_cleansed_post = self.shop_processor.process_batch_crawling(df_shops_raw)
             self.post_loader.load_all(df_shops_raw, df_shops_cleansed_post)
 
-            # [Step 3] 리뷰 정보
+            # [Step 5] 리뷰 정보 수집 및 적재
             self._step_handle_reviews(df_links)
 
             logger.info("*" * 60)
-            logger.info(" [+] 모든 ETL 프로세스가 성공적으로 완료되었습니다.")
+            logger.info(" [+] 모든 ETL 프로세스 및 무결성 검증이 완료되었습니다.")
             logger.info("*" * 60)
 
         except Exception as e:
@@ -88,7 +91,8 @@ class ETLOrchestrator:
         results = []
         for _, row in df_links.iterrows():
             details = self.shop_extractor.extract_details(row["store_url"], row["store_name"])
-            details["source_category"] = row["source_category"]
+            # source_category 등 메타데이터 유지
+            details["source_category"] = row.get("source_category", "")
             results.append(details)
         return pd.DataFrame(results)
 

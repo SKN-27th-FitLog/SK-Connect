@@ -1,7 +1,6 @@
 import json
 import time
 import re
-import urllib.request
 from pathlib import Path
 from typing import List, Dict, Set, Final, Optional
 from playwright.sync_api import Page, Locator
@@ -15,16 +14,9 @@ class ReviewExtractor(BaseCrawler):
     """
     
     RATING_PATTERN: Final[re.Pattern] = re.compile(r"[0-5](?:\.\d)?")
-    SAFE_FILENAME_PATTERN: Final[re.Pattern] = re.compile(r"[^0-9a-zA-Z가-힣._-]+")
 
     def __init__(self, headless: bool = True):
         super().__init__(headless=headless)
-
-    def _slugify_filename(self, text: str, max_len: int = 80) -> str:
-        text = re.sub(r"\s+", " ", str(text)).strip()
-        text = self.SAFE_FILENAME_PATTERN.sub("_", text)
-        text = text.strip("._-")
-        return text[:max_len] if text else "unknown"
 
     def _scroll_reviews(self, page: Page, rounds: int = 5):
         """'평가 더보기' 버튼 클릭 및 스크롤로 리뷰를 로드합니다."""
@@ -47,7 +39,6 @@ class ReviewExtractor(BaseCrawler):
         """현재 페이지의 리뷰 블록에서 정형화된 데이터를 추출합니다."""
         reviews: List[Dict[str, object]] = []
         
-        # '...더보기' 링크 모두 클릭
         try:
             more_links = page.locator("a:has-text('...더보기')")
             for j in range(more_links.count()):
@@ -63,7 +54,6 @@ class ReviewExtractor(BaseCrawler):
                 block = blocks.nth(i)
                 review_id = block.get_attribute("id") or ""
                 
-                # 평점 추출
                 rating_text = ""
                 for selector in [".star-point", "span.point", "p.person-grade"]:
                     loc = block.locator(selector)
@@ -72,7 +62,6 @@ class ReviewExtractor(BaseCrawler):
                         if rating_text: break
                 rating = float(self.RATING_PATTERN.search(rating_text).group()) if self.RATING_PATTERN.search(rating_text) else 0.0
                 
-                # 날짜 추출
                 date_text = ""
                 for selector in [".date", "span.date", ".person-conf .date"]:
                     loc = block.locator(selector)
@@ -94,7 +83,7 @@ class ReviewExtractor(BaseCrawler):
                 reviews.append({
                     "review_id": review_id,
                     "rating": rating,
-                    "date_text": date_text, # Processor에서 정규화 예정
+                    "date_text": date_text,
                     "content": content,
                     "image_urls": json.dumps(image_urls, ensure_ascii=False)
                 })
@@ -102,26 +91,15 @@ class ReviewExtractor(BaseCrawler):
                 continue
         return reviews
 
-    def download_images(self, store_name: str, image_urls_json: str) -> List[str]:
-        """리뷰 이미지를 로컬에 다운로드합니다."""
+    def download_review_images(self, store_name: str, image_urls_json: str) -> List[str]:
+        """리뷰 이미지들을 다운로드합니다."""
         try: urls = json.loads(image_urls_json)
         except: return []
         
-        if not urls: return []
-        
-        target_dir = file_manager.root / "review_data" / "images" / self._slugify_filename(store_name)
-        target_dir.mkdir(parents=True, exist_ok=True)
-
         local_paths = []
-        for i, url in enumerate(urls):
-            try:
-                ext = Path(url.split("?")[0]).suffix or ".jpg"
-                save_path = target_dir / f"rev_{int(time.time())}_{i}{ext}"
-                urllib.request.urlretrieve(url, str(save_path))
-                local_paths.append(str(save_path))
-                time.sleep(0.3)
-            except:
-                continue
+        for url in urls:
+            path = file_manager.download_image(url, store_name, prefix="rev")
+            if path: local_paths.append(path)
         return local_paths
 
     def extract_reviews(self, store_url: str, store_name: str) -> List[Dict[str, object]]:
@@ -135,7 +113,7 @@ class ReviewExtractor(BaseCrawler):
                 
                 reviews = self._collect_structured_reviews(page)
                 for rv in reviews:
-                    local_imgs = self.download_images(store_name, rv["image_urls"])
+                    local_imgs = self.download_review_images(store_name, rv["image_urls"])
                     rv.update({
                         "store_name": store_name,
                         "store_url": store_url,

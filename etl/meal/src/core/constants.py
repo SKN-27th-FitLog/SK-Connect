@@ -24,3 +24,8 @@ class Status(Enum):
     """상태 코드"""
     ACTIVE: Final[str] = "ST01"
     INACTIVE: Final[str] = "ST02"
+
+class LoadStatus(Enum):
+    """적재 및 파일 저장 상태"""
+    SUCCESS: Final[str] = "success"
+    FAIL: Final[str] = "fail"
