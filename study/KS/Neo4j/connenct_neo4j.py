@@ -15,8 +15,7 @@ import ast
 # GraphDatabase: Neo4j 데이터베이스와 통신하기 위한 드라이버 클래스
 from neo4j import GraphDatabase
 from graphdatascience import GraphDataScience
-from Neo4j.qurry_neo4j import run_query
-
+from qurry_neo4j import run_query
 
 
 
@@ -37,7 +36,7 @@ def get_neo4j_config():
 # ============================================
 # 드라이버 객체 생성 
 # ============================================
-@st.cache_resource 
+
 def get_neo4j_driver():
     '''
     연결정보를 가지고 드라이버 객체를 반환하는 함수 

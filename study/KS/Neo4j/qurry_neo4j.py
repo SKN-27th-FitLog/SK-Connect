@@ -12,14 +12,6 @@ import streamlit as st
 import pandas as pd
 import ast
 
-# GraphDatabase: Neo4j 데이터베이스와 통신하기 위한 드라이버 클래스
-from neo4j import GraphDatabase
-from graphdatascience import GraphDataScience
-
-# 모듈
-from common.db.connenct_neo4j import get_neo4j_driver
-
-
 
 # ============================================
 # Cypher 쿼리 실행 헬퍼 함수
@@ -51,21 +43,6 @@ def run_query(query, driver=None, parameters=None):
         return [record for record in result]
 
 
-# ============================================
-# 기존 데이터 삭제
-# ============================================
-# 주의: 모든 데이터가 삭제됩니다!
-def clear_database(driver=None):
-    """Neo4j의 모든 노드와 관계를 삭제"""
-    with driver.session() as session:
-        # MATCH (n): 모든 노드 선택
-        # DETACH DELETE n: 노드와 연결된 모든 관계를 먼저 삭제한 후 노드 삭제
-        # (DETACH 없이 DELETE하면 관계가 있는 노드는 삭제 불가)
-        session.run("MATCH (n) DETACH DELETE n")
-    logger.info("기존 데이터 삭제 완료!")
-
-
-
 
 ###########################################################
 # 지정 테이블 쿼리  
@@ -92,3 +69,4 @@ def import_equipment(tx, row):
         "detail_type": row["DetailType"],
         "grade": row["Grade"],
     })
+    
