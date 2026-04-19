@@ -83,7 +83,6 @@ if __name__ == '__main__':
     for _, row in df.iterrows():
         query, rows = import_equipment(row)
         result = driver.execute_query(query, rows)
-        logger.info(result)
-
-    logger.info("Neo4j 적재 완료!")
+    
+    logger.info(f'데이터 {df.shape[0]}개 적재 완료!')
 
