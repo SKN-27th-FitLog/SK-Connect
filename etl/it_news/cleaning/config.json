@@ -1,0 +1,60 @@
+{
+  "timezone": "Asia/Seoul",
+  "paths": {
+    "raw_bucket": "raw",
+    "cleaning_bucket": "cleaning",
+    "thread_kind": "thread",
+    "comment_kind": "comment",
+    "success_dirname": "success",
+    "fail_dirname": "fail",
+    "csv_encoding": "utf-8-sig"
+  },
+  "db": {
+    "connect_timeout": 5,
+    "tables": {
+      "crawling": "crawling"
+    }
+  },
+  "incremental": {
+    "fallback_days": 90
+  },
+  "sources": {
+    "geeknews": {
+      "source_name": "geeknews",
+      "filename_prefix": "geeknews_",
+      "thread_prefix": "geek_",
+      "trim_limits": {
+        "title": 200,
+        "content": 4000,
+        "article_url": 500,
+        "author": 100
+      },
+      "defaults": {
+        "view_count": 0,
+        "comment_count": 0,
+        "point": 0.0,
+        "category_cd": "CA07"
+      }
+    },
+    "pytorch": {
+      "source_name": "pytorch",
+      "filename_prefix": "pytorch_",
+      "thread_prefix": "pyto_",
+      "trim_limits": {
+        "title": 200,
+        "content": 4000,
+        "article_url": 500,
+        "author": 100
+      },
+      "defaults": {
+        "view_count": 0,
+        "comment_count": 0,
+        "point": 0.0,
+        "category_cd": "CA07"
+      }
+    }
+  },
+  "comment": {
+    "default_status_cd": "ST01"
+  }
+}

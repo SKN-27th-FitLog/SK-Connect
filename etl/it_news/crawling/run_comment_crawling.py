@@ -1,3 +1,10 @@
+"""
+comment crawling 스테이지 오케스트레이터.
+
+DB에 저장된 게시글을 기준으로 소스별 댓글 수집 스크립트를 호출하고,
+comment raw 성공/실패 CSV를 생성해 다음 cleaning 단계로 넘긴다.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -5,9 +12,17 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from common.settings import get_config
 from common.runtime import make_stage_paths, run_python, source_csv_path, write_rows
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+COMMENT_COLLECTION_CONFIG = CONFIG["comment_collection"]
+COMMENT_JOBS = tuple(CONFIG["jobs"]["comment"])
+_KST = ZoneInfo(CONFIG["timezone"])
 
 
 ######################
@@ -23,10 +38,25 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="IT News comment crawling stage runner")
     parser.add_argument("--date", default=None, help="기본값은 오늘(KST), YYYY-MM-DD 형식")
     parser.add_argument("--limit-topics", type=int, default=None, help="사이트별 최대 대상 게시글 수")
-    parser.add_argument("--timeout", type=float, default=45.0, help="댓글 수집 타임아웃")
-    parser.add_argument("--sleep-seconds", type=float, default=0.75, help="요청 사이 대기 시간")
-    parser.add_argument("--max-comments", type=int, default=500, help="GeekNews 토픽당 최대 댓글 수")
-    parser.add_argument("--max-replies", type=int, default=500, help="PyTorch 토픽당 최대 댓글 수")
+    parser.add_argument("--timeout", type=float, default=COMMENT_COLLECTION_CONFIG["timeout"], help="댓글 수집 타임아웃")
+    parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=COMMENT_COLLECTION_CONFIG["sleep_seconds"],
+        help="요청 사이 대기 시간",
+    )
+    parser.add_argument(
+        "--max-comments",
+        type=int,
+        default=COMMENT_COLLECTION_CONFIG["max_comments"],
+        help="GeekNews 토픽당 최대 댓글 수",
+    )
+    parser.add_argument(
+        "--max-replies",
+        type=int,
+        default=COMMENT_COLLECTION_CONFIG["max_replies"],
+        help="PyTorch 토픽당 최대 댓글 수",
+    )
     return parser.parse_args()
 
 
@@ -57,27 +87,16 @@ def main() -> int:
     """
     args = parse_args()
     run_at = parse_run_at(args.date)
-    raw_paths = make_stage_paths("raw", run_at, kind="comment")
+    raw_paths = make_stage_paths(PATHS_CONFIG["raw_bucket"], run_at, kind=PATHS_CONFIG["comment_kind"])
     script_root = Path(__file__).resolve().parent / "comment"
 
-    # 사이트별로 같은 실행 계약을 맞추기 위해 스크립트와 추가 인자를 표로 정의한다.
-    jobs = (
-        {
-            "source": "geeknews",
-            "script": "gatter_reply_geeknews.py",
-            "extra_args": ["--max-comments", str(args.max_comments)],
-        },
-        {
-            "source": "pytorch",
-            "script": "gatter_reply_pytorch.py",
-            "extra_args": ["--max-replies", str(args.max_replies)],
-        },
-    )
-
+    # 소스별 추가 인자 구조는 다르지만, 공통 실행 계약(output/timeout/sleep)은 동일하다.
     had_success = False
-    for job in jobs:
+    for job in COMMENT_JOBS:
         success_path = source_csv_path(raw_paths, job["source"], run_at, ok=True)
         try:
+            limit_option = f"--{job['limit_arg']}"
+            limit_value = args.max_comments if job["limit_arg"] == "max-comments" else args.max_replies
             command_args = [
                 "--output",
                 str(success_path),
@@ -88,7 +107,7 @@ def main() -> int:
             ]
             if args.limit_topics is not None:
                 command_args.extend(["--limit-topics", str(args.limit_topics)])
-            command_args.extend(job["extra_args"])
+            command_args.extend([limit_option, str(limit_value)])
             run_python(script_root / job["script"], *command_args)
             had_success = True
             print(f"[ok] {job['source']} -> {success_path}")

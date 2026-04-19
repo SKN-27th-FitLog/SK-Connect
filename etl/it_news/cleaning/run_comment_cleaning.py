@@ -1,3 +1,10 @@
+"""
+comment cleaning 스테이지 실행기.
+
+comment raw 성공 파일을 comments 적재용 스키마로 정리하고,
+유효성 검증과 배치 내 중복 제거를 거쳐 success/fail CSV를 생성한다.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -6,9 +13,17 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from common.settings import get_config
 from common.runtime import make_stage_paths, raw_success_files, read_rows, source_csv_path, write_rows
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 설정 기반 상수 및 출력 스키마 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+SOURCE_CONFIGS = CONFIG["sources"]
+COMMENT_CONFIG = CONFIG["comment"]
+_KST = ZoneInfo(CONFIG["timezone"])
 SUCCESS_FIELDS = [
     "post_id",
     "crawling_id",
@@ -35,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description="IT News comment cleaning stage runner")
     parser.add_argument("--date", default=None, help="기본값은 오늘(KST), YYYY-MM-DD 형식")
-    parser.add_argument("--status-cd", default="ST01", help="comments 테이블 기본 상태 코드")
+    parser.add_argument("--status-cd", default=COMMENT_CONFIG["default_status_cd"], help="comments 테이블 기본 상태 코드")
     return parser.parse_args()
 
 
@@ -70,11 +85,11 @@ def infer_source_name(path: Path) -> str:
     Raises:
         ValueError: 지원하지 않는 파일명 패턴일 때 발생한다.
     """
+    # 파일 prefix와 source 매핑도 설정화해, 소스 추가 시 이 함수 로직을 바꾸지 않게 한다.
     stem = path.stem.lower()
-    if stem.startswith("geeknews_"):
-        return "geeknews"
-    if stem.startswith("pytorch_"):
-        return "pytorch"
+    for source_name, source_config in SOURCE_CONFIGS.items():
+        if stem.startswith(source_config["filename_prefix"]):
+            return source_name
     raise ValueError(f"지원하지 않는 comment raw 파일 이름입니다: {path.name}")
 
 
@@ -97,6 +112,7 @@ def normalize_row(
     Returns:
         정규화된 행 데이터와 실패 사유 문자열.
     """
+    # comment row는 저장 전 최소 필수값과 ISO 날짜 형식만 검증한다.
     reasons: list[str] = []
     content = (row.get("content") or "").strip()
     created_at = (row.get("created_at") or "").strip()
@@ -156,8 +172,8 @@ def main() -> int:
     """
     args = parse_args()
     run_at = parse_run_at(args.date)
-    cleaning_paths = make_stage_paths("cleaning", run_at, kind="comment")
-    files = raw_success_files(run_at, kind="comment")
+    cleaning_paths = make_stage_paths(PATHS_CONFIG["cleaning_bucket"], run_at, kind=PATHS_CONFIG["comment_kind"])
+    files = raw_success_files(run_at, kind=PATHS_CONFIG["comment_kind"])
     if not files:
         raise SystemExit("cleaning 대상 comment raw 성공 파일이 없습니다.")
 

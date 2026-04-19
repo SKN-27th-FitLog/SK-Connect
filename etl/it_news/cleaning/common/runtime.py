@@ -1,7 +1,13 @@
+"""
+cleaning 스테이지 공통 런타임 유틸리티.
+
+raw 입력 파일 탐색, CSV 입출력, 증분 기준 조회, fallback 계산처럼
+thread/comment cleaning 양쪽에서 반복되는 공통 동작을 모아 둔다.
+"""
+
 from __future__ import annotations
 
 import csv
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11,6 +17,20 @@ try:
     import psycopg
 except Exception:  # pragma: no cover - optional until runtime
     psycopg = None
+
+from common.settings import env, get_config
+
+
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+DB_CONFIG = CONFIG["db"]
+INCREMENTAL_CONFIG = CONFIG["incremental"]
+CSV_ENCODING = PATHS_CONFIG["csv_encoding"]
+SUCCESS_DIRNAME = PATHS_CONFIG["success_dirname"]
+FAIL_DIRNAME = PATHS_CONFIG["fail_dirname"]
 
 
 STAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -45,12 +65,13 @@ def make_stage_paths(bucket: str, run_at: datetime, *, kind: str | None = None) 
     Returns:
         생성된 디렉터리 경로 정보를 담은 StagePaths 객체.
     """
+    # cleaning 산출물도 날짜 기반 디렉터리 규칙을 따른다.
     base = STAGE_ROOT / bucket
     if kind:
         base = base / kind
     base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d")
-    success_dir = base / "success"
-    fail_dir = base / "fail"
+    success_dir = base / SUCCESS_DIRNAME
+    fail_dir = base / FAIL_DIRNAME
     success_dir.mkdir(parents=True, exist_ok=True)
     fail_dir.mkdir(parents=True, exist_ok=True)
     return StagePaths(success_dir=success_dir, fail_dir=fail_dir)
@@ -88,7 +109,8 @@ def read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     Raises:
         ValueError: CSV 헤더가 없을 때 발생한다.
     """
-    with path.open(encoding="utf-8-sig", newline="") as handle:
+    # 인코딩 규칙은 config.json에서 한 번만 정의해 모든 CSV 작업에 재사용한다.
+    with path.open(encoding=CSV_ENCODING, newline="") as handle:
         reader = csv.DictReader(handle)
         if not reader.fieldnames:
             raise ValueError(f"CSV header is missing: {path}")
@@ -105,7 +127,7 @@ def write_rows(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) ->
         rows: 저장할 행 데이터 목록.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+    with path.open("w", encoding=CSV_ENCODING, newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
@@ -121,10 +143,11 @@ def raw_success_files(run_at: datetime, *, kind: str | None = None) -> list[Path
     Returns:
         성공 디렉터리에 있는 CSV 파일 경로 목록.
     """
-    base = CRAWLING_ROOT / "raw"
+    # cleaning 입력은 항상 전날/동일 배치의 crawling 성공 산출물을 기준으로 찾는다.
+    base = CRAWLING_ROOT / PATHS_CONFIG["raw_bucket"]
     if kind:
         base = base / kind
-    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / "success"
+    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / SUCCESS_DIRNAME
     if not base.is_dir():
         return []
     return sorted(base.glob("*.csv"))
@@ -133,21 +156,6 @@ def raw_success_files(run_at: datetime, *, kind: str | None = None) -> list[Path
 ######################
 # 환경 변수 및 증분 기준 시각 조회 관련
 ######################
-def _env(name: str, default: str) -> str:
-    """
-    환경 변수를 읽고 비어 있으면 기본값을 반환한다.
-
-    Args:
-        name: 환경 변수 이름.
-        default: 기본값.
-
-    Returns:
-        환경 변수 값 또는 기본값.
-    """
-    value = os.environ.get(name)
-    return value if value not in (None, "") else default
-
-
 def fetch_last_created_at() -> datetime | None:
     """
     DB에 저장된 가장 최근 created_at 값을 조회한다.
@@ -161,17 +169,19 @@ def fetch_last_created_at() -> datetime | None:
     if psycopg is None:
         return None
 
+    # DB 연결 fallback을 유지하되, 실제 운영값은 스테이지 `.env`에서 주입받도록 한다.
     params = {
-        "host": _env("PGHOST", "localhost"),
-        "port": int(_env("PGPORT", "5432")),
-        "dbname": _env("PGDATABASE", "service"),
-        "user": _env("PGUSER", "user"),
-        "password": _env("PGPASSWORD", "password123"),
+        "host": env("PGHOST", "localhost"),
+        "port": int(env("PGPORT", "5432")),
+        "dbname": env("PGDATABASE", "service"),
+        "user": env("PGUSER", "user"),
+        "password": env("PGPASSWORD", "password"),
     }
     try:
-        with psycopg.connect(**params, connect_timeout=5) as conn:
+        crawling_table = DB_CONFIG["tables"]["crawling"]
+        with psycopg.connect(**params, connect_timeout=DB_CONFIG["connect_timeout"]) as conn:
             with conn.cursor() as cur:
-                cur.execute('SELECT MAX("created_at") FROM "crawling"')
+                cur.execute(f'SELECT MAX("created_at") FROM "{crawling_table}"')
                 row = cur.fetchone()
                 return row[0] if row else None
     except Exception:
@@ -186,6 +196,7 @@ def fallback_cutoff(run_at: datetime) -> datetime:
         run_at: 현재 실행 시각.
 
     Returns:
-        실행 시각 기준 90일 이전 시각.
+        실행 시각 기준 설정된 fallback 일수 이전 시각.
     """
-    return run_at - timedelta(days=90)
+    # DB 기준 시각 조회가 실패해도 파이프라인이 멈추지 않도록 설정된 일수만큼만 되돌린다.
+    return run_at - timedelta(days=INCREMENTAL_CONFIG["fallback_days"])

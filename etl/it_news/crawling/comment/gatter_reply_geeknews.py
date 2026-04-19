@@ -1,8 +1,14 @@
+"""
+GeekNews 댓글 수집 스크립트.
+
+이미 DB에 적재된 GeekNews 게시글 목록을 부모 집합으로 읽고,
+각 토픽 HTML에서 댓글을 추출해 comment raw CSV로 평탄화한다.
+"""
+
 from __future__ import annotations
 
 import argparse
 import csv
-import os
 import re
 import sys
 import time
@@ -16,25 +22,26 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
+######################
+# 스테이지 공통 설정 로딩 경로 보정 관련
+######################
+SCRIPT_STAGE_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_STAGE_ROOT) not in sys.path:
+    sys.path.append(str(SCRIPT_STAGE_ROOT))
+
+from common.settings import env, get_config
+
+######################
+# 설정 기반 상수 및 쿼리 관련
+######################
+CONFIG = get_config()
+SOURCE_CONFIG = CONFIG["sources"]["geeknews"]["comment"]
+CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
+
 
 ######################
 # DB 연결 정보 구성 관련
 ######################
-def _env(name: str, default: str) -> str:
-    """
-    환경 변수를 읽고 비어 있으면 기본값을 반환한다.
-
-    Args:
-        name: 환경 변수 이름.
-        default: 기본값.
-
-    Returns:
-        환경 변수 값 또는 기본값.
-    """
-    value = os.environ.get(name)
-    return value if value is not None and value != "" else default
-
-
 def get_connection_params() -> dict[str, Any]:
     """
     psycopg 연결 인자를 환경 변수 기준으로 조립한다.
@@ -42,12 +49,13 @@ def get_connection_params() -> dict[str, Any]:
     Returns:
         PostgreSQL 연결 파라미터 딕셔너리.
     """
+    # DB 연결 비밀값은 소스 코드가 아니라 현재 스테이지의 `.env`에서 읽는다.
     return {
-        "host": _env("PGHOST", "localhost"),
-        "port": int(_env("PGPORT", "5432")),
-        "dbname": _env("PGDATABASE", "service"),
-        "user": _env("PGUSER", "user"),
-        "password": _env("PGPASSWORD", "password"),
+        "host": env("PGHOST", "localhost"),
+        "port": int(env("PGPORT", "5432")),
+        "dbname": env("PGDATABASE", "service"),
+        "user": env("PGUSER", "user"),
+        "password": env("PGPASSWORD", "password"),
     }
 
 
@@ -60,7 +68,7 @@ def check_connection() -> psycopg.Connection:
     """
     params = get_connection_params()
     try:
-        conn = psycopg.connect(**params, connect_timeout=10)
+        conn = psycopg.connect(**params, connect_timeout=SOURCE_CONFIG["connect_timeout"])
         conn.execute("SELECT 1")
         return conn
     except psycopg.Error as exc:
@@ -68,8 +76,8 @@ def check_connection() -> psycopg.Connection:
         raise
 
 
-_KST = ZoneInfo("Asia/Seoul")
-_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it-threads-sample/1.0)"
+_KST = ZoneInfo(CONFIG["timezone"])
+_DEFAULT_USER_AGENT = SOURCE_CONFIG["user_agent"]
 _COMMENT_ROW_OPEN = re.compile(
     r"<div\s+class\s*=\s*(?:\"comment_row\"|'comment_row'|comment_row)\b[^>]*>",
     re.IGNORECASE,
@@ -83,13 +91,13 @@ _COMMENT_BODY = re.compile(
     re.IGNORECASE,
 )
 _FALLBACK_BODY = re.compile(r"comment_contents[^>]*>([\s\S]*?)</span>", re.IGNORECASE)
-_DEFAULT_SLEEP_SECONDS = 0.75
-_MAX_COMMENTS_PER_TOPIC = 500
+_DEFAULT_SLEEP_SECONDS = SOURCE_CONFIG["sleep_seconds"]
+_MAX_COMMENTS_PER_TOPIC = SOURCE_CONFIG["max_comments"]
 
-SQL_GEEK_ROWS = """
+SQL_GEEK_ROWS = f"""
 SELECT crawling_id, article_url, thread
 FROM crawling
-WHERE thread ~ '^geek_'
+WHERE thread ~ '{SOURCE_CONFIG["thread_pattern"]}'
   AND article_url IS NOT NULL
   AND trim(article_url) <> ''
 ORDER BY crawling_id
@@ -243,7 +251,7 @@ def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]
         fieldnames: CSV 헤더 순서.
         rows: 저장할 댓글 행 목록.
     """
-    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+    with path.open("w", encoding=CSV_ENCODING, newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
@@ -263,6 +271,7 @@ def fetch_geek_crawling_rows(conn: psycopg.Connection, *, limit: int | None) -> 
     Returns:
         (crawling_id, article_url, thread) 튜플 목록.
     """
+    # comment crawling은 DB에 적재된 게시글 목록을 부모 집합으로 사용한다.
     with conn.cursor() as cur:
         if limit is not None:
             cur.execute(SQL_GEEK_ROWS + " LIMIT %s", (limit,))
@@ -280,15 +289,16 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(description="GeekNews: DB crawling(geek_*)에서 article_url 읽어 댓글 CSV 저장")
     parser.add_argument("-o", "--output", type=Path, default=None, help="출력 CSV 경로")
-    parser.add_argument("--timeout", type=float, default=45.0, help="HTTP 타임아웃(초)")
+    parser.add_argument("--timeout", type=float, default=SOURCE_CONFIG["timeout"], help="HTTP 타임아웃(초)")
     parser.add_argument("--sleep-seconds", type=float, default=_DEFAULT_SLEEP_SECONDS, help="요청 사이 대기(초)")
     parser.add_argument("--limit-topics", type=int, default=None, help="처리할 crawling 행 수 상한")
     parser.add_argument("--max-comments", type=int, default=_MAX_COMMENTS_PER_TOPIC, help="토픽당 최대 댓글 수")
     args = parser.parse_args()
 
     date_sfx = datetime.now(_KST).strftime("%y%m%d")
-    out_path = args.output or (Path(__file__).resolve().parent / f"comment_geeknews_{date_sfx}.csv")
+    out_path = args.output or (Path(__file__).resolve().parent / f"{SOURCE_CONFIG['default_output_prefix']}{date_sfx}.csv")
 
+    # 이 스키마는 후속 comment cleaning/save 단계가 기대하는 공통 컬럼 집합이다.
     fieldnames = [
         "comment_id",
         "post_id",

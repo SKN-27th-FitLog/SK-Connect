@@ -1,0 +1,111 @@
+{
+  "timezone": "Asia/Seoul",
+  "paths": {
+    "raw_bucket": "raw",
+    "thread_kind": "thread",
+    "comment_kind": "comment",
+    "temp_dirname": ".tmp",
+    "success_dirname": "success",
+    "fail_dirname": "fail",
+    "csv_encoding": "utf-8-sig",
+    "time_filename_format": "%H%M%S",
+    "subprocess_cwd": "repo_root"
+  },
+  "thread_collection": {
+    "limit": 500,
+    "timeout": 60.0,
+    "content_timeout": 30.0,
+    "content_delay": 0.0
+  },
+  "comment_collection": {
+    "timeout": 45.0,
+    "sleep_seconds": 0.75,
+    "max_comments": 500,
+    "max_replies": 500
+  },
+  "jobs": {
+    "thread": [
+      {
+        "source": "geeknews",
+        "thread_script": "gatter_thread_geeknews.py",
+        "content_script": "gatter_content_geeknews.py",
+        "thread_filename": "thread",
+        "with_content_filename": "with_content"
+      },
+      {
+        "source": "pytorch",
+        "thread_script": "gatter_thread_pytorch.py",
+        "content_script": "gatter_content_pytorch.py",
+        "thread_filename": "thread",
+        "with_content_filename": "with_content"
+      }
+    ],
+    "comment": [
+      {
+        "source": "geeknews",
+        "script": "gatter_reply_geeknews.py",
+        "limit_arg": "max-comments"
+      },
+      {
+        "source": "pytorch",
+        "script": "gatter_reply_pytorch.py",
+        "limit_arg": "max-replies"
+      }
+    ]
+  },
+  "sources": {
+    "geeknews": {
+      "thread": {
+        "list_url": "https://news.hada.io/",
+        "origin": "https://news.hada.io",
+        "user_agent": "Mozilla/5.0 (compatible; it-threads-sample/1.0)",
+        "max_pages": 500,
+        "default_output": "thread_geeknews.csv",
+        "excerpt_max_chars": 500
+      },
+      "content": {
+        "user_agent": "Mozilla/5.0 (compatible; it-threads-sample/1.0)",
+        "timeout": 30.0,
+        "delay": 0.0,
+        "max_content_chars": 4000,
+        "ellipsis": "…"
+      },
+      "comment": {
+        "user_agent": "Mozilla/5.0 (compatible; it-threads-sample/1.0)",
+        "connect_timeout": 10,
+        "timeout": 45.0,
+        "sleep_seconds": 0.75,
+        "default_output_prefix": "comment_geeknews_",
+        "thread_pattern": "^geek_",
+        "max_comments": 500
+      }
+    },
+    "pytorch": {
+      "thread": {
+        "base_url": "https://discuss.pytorch.kr",
+        "json_url": "https://discuss.pytorch.kr/c/news/14.json",
+        "category_slug": "news",
+        "user_agent": "Mozilla/5.0 (compatible; it-thread-sample/1.0)",
+        "max_pages": 500,
+        "default_output": "thread_pytorch.csv"
+      },
+      "content": {
+        "user_agent": "Mozilla/5.0 (compatible; it-threads-sample/1.0)",
+        "timeout": 30.0,
+        "delay": 0.0,
+        "max_content_chars": 4000,
+        "ellipsis": "…"
+      },
+      "comment": {
+        "user_agent": "Mozilla/5.0 (compatible; it-threads-sample/1.0)",
+        "connect_timeout": 10,
+        "timeout": 45.0,
+        "sleep_seconds": 0.75,
+        "default_output_prefix": "comment_pytorch_",
+        "thread_pattern": "^pyto_",
+        "max_replies": 500,
+        "post_ids_chunk": 80
+      }
+    }
+  }
+}

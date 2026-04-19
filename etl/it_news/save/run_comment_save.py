@@ -1,13 +1,20 @@
+"""
+comment save 스테이지 실행기.
+
+comment cleaning 성공 파일을 읽어 comments 테이블에 적재하고,
+이미 존재하는 댓글은 건너뛰어 중복 적재를 방지한다.
+"""
+
 from __future__ import annotations
 
 import argparse
-import os
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from common.settings import env, get_config
 from common.runtime import (
     cleaning_success_files,
     connect,
@@ -19,7 +26,14 @@ from common.runtime import (
     source_csv_path,
 )
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+COMMENTS_CONFIG = CONFIG["comments"]
+CSV_ENCODING = PATHS_CONFIG["csv_encoding"]
+_KST = ZoneInfo(CONFIG["timezone"])
 
 
 ######################
@@ -69,9 +83,11 @@ def resolve_comment_user_id(arg_value: int | None) -> int:
     if arg_value is not None:
         return arg_value
 
-    raw = os.environ.get("IT_NEWS_COMMENT_USER_ID") or os.environ.get("COMMENT_USER_ID")
-    if raw not in (None, ""):
-        return int(raw)
+    # user_id 환경변수 이름도 설정화해 환경마다 키를 바꿔도 코드를 수정하지 않게 한다.
+    for env_key in COMMENTS_CONFIG["user_id_env_keys"]:
+        raw = env(env_key, "")
+        if raw not in (None, ""):
+            return int(raw)
     raise SystemExit("comment save용 user_id가 없습니다. --user-id 또는 IT_NEWS_COMMENT_USER_ID를 설정하세요.")
 
 
@@ -84,7 +100,7 @@ def write_dataframe(path: Path, df: pd.DataFrame) -> None:
         df: 저장할 데이터프레임.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False, encoding="utf-8-sig")
+    df.to_csv(path, index=False, encoding=CSV_ENCODING)
 
 
 ######################
@@ -97,11 +113,12 @@ def main() -> int:
     Returns:
         정상 종료 시 0, DB 연결 실패 시 1.
     """
+    # DB 중복 비교 키를 먼저 조회해 같은 댓글이 다시 들어가지 않도록 한다.
     args = parse_args()
     user_id = resolve_comment_user_id(args.user_id)
     run_at = parse_run_at(args.date)
-    save_paths = make_stage_paths("save", run_at, kind="comment")
-    files = cleaning_success_files(run_at, kind="comment")
+    save_paths = make_stage_paths(PATHS_CONFIG["save_bucket"], run_at, kind=PATHS_CONFIG["comment_kind"])
+    files = cleaning_success_files(run_at, kind=PATHS_CONFIG["comment_kind"])
     if not files:
         raise SystemExit("save 대상 comment cleaning 성공 파일이 없습니다.")
 

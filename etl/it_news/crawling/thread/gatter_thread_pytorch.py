@@ -14,31 +14,50 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it-thread-sample/1.0)"
+######################
+# 스테이지 공통 설정 로딩 경로 보정 관련
+######################
+SCRIPT_STAGE_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_STAGE_ROOT) not in sys.path:
+    sys.path.append(str(SCRIPT_STAGE_ROOT))
+
+from common.settings import get_config
+
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+SOURCE_CONFIG = CONFIG["sources"]["pytorch"]["thread"]
+CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
+_DEFAULT_USER_AGENT = SOURCE_CONFIG["user_agent"]
 
 
 def _fetch_json(url: str, timeout: float, *, user_agent: str = _DEFAULT_USER_AGENT) -> Any:
+    """Discourse 카테고리 JSON을 GET 요청으로 받아 파이썬 객체로 변환한다."""
     req = urllib.request.Request(url, headers={"User-Agent": user_agent})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
 
 
 def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
+    """수집 결과를 설정된 CSV 인코딩 규칙으로 기록한다."""
+    with path.open("w", encoding=CSV_ENCODING, newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
 
 
-BASE = "https://discuss.pytorch.kr"
-DEFAULT_JSON = f"{BASE}/c/news/14.json"
+BASE = SOURCE_CONFIG["base_url"]
+DEFAULT_JSON = SOURCE_CONFIG["json_url"]
 
 
 def topic_url(slug: str, topic_id: int) -> str:
+    """토픽 slug와 id를 조합해 브라우저용 토픽 URL을 만든다."""
     return f"{BASE}/t/{slug}/{topic_id}"
 
 
 def list_url_for_page(base_url: str, page: int) -> str:
+    """page 쿼리를 덮어쓴 카테고리 JSON URL을 생성한다."""
     p = urlparse(base_url.strip())
     path = p.path if p.path else "/"
     q = parse_qs(p.query, keep_blank_values=True)
@@ -48,6 +67,7 @@ def list_url_for_page(base_url: str, page: int) -> str:
 
 
 def topics_from_payload(data: Any) -> list[dict]:
+    """Discourse payload에서 실제 topic 목록만 안전하게 추출한다."""
     if not isinstance(data, dict):
         return []
     raw = (data.get("topic_list") or {}).get("topics")
@@ -57,6 +77,7 @@ def topics_from_payload(data: Any) -> list[dict]:
 
 
 def row_from_topic(topic: dict, category_slug: str) -> dict:
+    """Discourse 토픽 객체를 thread CSV 한 행 구조로 정규화한다."""
     tid = topic.get("id")
     slug = topic.get("slug") or ""
     replies = topic.get("reply_count")
@@ -89,9 +110,10 @@ def row_from_topic(topic: dict, category_slug: str) -> dict:
 
 
 def main() -> int:
+    """PyTorch 카테고리 JSON을 페이지 단위로 순회해 thread CSV를 생성한다."""
     p = argparse.ArgumentParser(description="Discourse 카테고리 샘플 → thread_pytorch.csv")
     p.add_argument("--json-url", default=DEFAULT_JSON, help="카테고리 .json 베이스 URL (page 쿼리는 자동 설정)")
-    p.add_argument("--limit", type=int, default=500, help="최대 행 수")
+    p.add_argument("--limit", type=int, default=CONFIG["thread_collection"]["limit"], help="최대 행 수")
     p.add_argument(
         "-o",
         "--output",
@@ -99,12 +121,12 @@ def main() -> int:
         default=None,
         help="출력 CSV (기본: 이 폴더/thread_pytorch.csv)",
     )
-    p.add_argument("--category-slug", default="news", help="스키마용 카테고리 슬러그 메타")
-    p.add_argument("--timeout", type=float, default=60.0)
-    p.add_argument("--max-pages", type=int, default=500, help="비정상 응답 시 최대 페이지 수")
+    p.add_argument("--category-slug", default=SOURCE_CONFIG["category_slug"], help="스키마용 카테고리 슬러그 메타")
+    p.add_argument("--timeout", type=float, default=CONFIG["thread_collection"]["timeout"])
+    p.add_argument("--max-pages", type=int, default=SOURCE_CONFIG["max_pages"], help="비정상 응답 시 최대 페이지 수")
     args = p.parse_args()
 
-    out = args.output or Path(__file__).resolve().parent / "thread_pytorch.csv"
+    out = args.output or Path(__file__).resolve().parent / SOURCE_CONFIG["default_output"]
     limit = max(0, args.limit)
     max_pages = max(1, args.max_pages)
 

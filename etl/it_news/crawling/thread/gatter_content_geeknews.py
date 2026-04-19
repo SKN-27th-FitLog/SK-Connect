@@ -15,7 +15,22 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
-_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it-threads-sample/1.0)"
+######################
+# 스테이지 공통 설정 로딩 경로 보정 관련
+######################
+SCRIPT_STAGE_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_STAGE_ROOT) not in sys.path:
+    sys.path.append(str(SCRIPT_STAGE_ROOT))
+
+from common.settings import get_config
+
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+CONTENT_CONFIG = CONFIG["sources"]["geeknews"]["content"]
+CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
+_DEFAULT_USER_AGENT = CONTENT_CONFIG["user_agent"]
 
 _TOPIC_OPEN = "<div id='topic_contents'>"
 _RELATED_MARKER = '<div class="related-topics">'
@@ -127,7 +142,7 @@ def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]
         fieldnames: CSV 헤더 순서.
         rows: 저장할 행 목록.
     """
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
+    with path.open("w", encoding=CSV_ENCODING, newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
@@ -143,6 +158,7 @@ def _merge_fieldnames(existing: list[str]) -> list[str]:
     Returns:
         필요한 컬럼이 보강된 헤더 목록.
     """
+    # 원본 컬럼 순서를 유지한 채 결과 컬럼만 뒤에 덧붙인다.
     out = list(existing)
     for col in ("state", "content"):
         if col not in out:
@@ -150,7 +166,7 @@ def _merge_fieldnames(existing: list[str]) -> list[str]:
     return out
 
 
-_ELLIPSIS = "…"
+_ELLIPSIS = CONTENT_CONFIG["ellipsis"]
 
 
 def _truncate_text(s: str, max_chars: int) -> str:
@@ -251,10 +267,15 @@ def main() -> int:
         default=None,
         help="출력 CSV (기본: 입력과 같은 폴더에 <이름>_with_content.csv)",
     )
-    p.add_argument("--timeout", type=float, default=30.0, help="행당 HTTP 타임아웃(초)")
-    p.add_argument("--delay", type=float, default=0.0, help="행 사이 대기(초)")
+    p.add_argument("--timeout", type=float, default=CONTENT_CONFIG["timeout"], help="행당 HTTP 타임아웃(초)")
+    p.add_argument("--delay", type=float, default=CONTENT_CONFIG["delay"], help="행 사이 대기(초)")
     p.add_argument("--limit", type=int, default=None, help="본문 수집할 최대 행 수")
-    p.add_argument("--max-content-chars", type=int, default=4000, help="content 최대 글자 수(0=무제한)")
+    p.add_argument(
+        "--max-content-chars",
+        type=int,
+        default=CONTENT_CONFIG["max_content_chars"],
+        help="content 최대 글자 수(0=무제한)",
+    )
     args = p.parse_args()
 
     inp: Path = args.input
@@ -264,7 +285,7 @@ def main() -> int:
 
     out_path: Path = args.output or inp.with_name(f"{inp.stem}_with_content{inp.suffix}")
 
-    with inp.open(encoding="utf-8-sig", newline="") as f:
+    with inp.open(encoding=CSV_ENCODING, newline="") as f:
         reader = csv.DictReader(f)
         if not reader.fieldnames:
             print("CSV 헤더가 없습니다.", file=sys.stderr)
@@ -272,6 +293,7 @@ def main() -> int:
         fieldnames = _merge_fieldnames(list(reader.fieldnames))
         rows = list(reader)
 
+    # 기존 파일에 컬럼이 없더라도 후속 로직이 항상 같은 키를 다루게 만든다.
     for row in rows:
         row.setdefault("state", "")
         row.setdefault("content", "")

@@ -1,3 +1,10 @@
+"""
+thread cleaning 스테이지 실행기.
+
+thread raw 성공 파일을 소스별 저장 스키마로 정규화하고,
+중복/증분 기준 검증을 거쳐 cleaning 성공/실패 CSV로 분리 저장한다.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -6,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from common.settings import get_config
 from common.runtime import (
     fallback_cutoff,
     fetch_last_created_at,
@@ -17,7 +25,13 @@ from common.runtime import (
 )
 
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 설정 기반 상수 및 출력 스키마 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+SOURCE_CONFIGS = CONFIG["sources"]
+_KST = ZoneInfo(CONFIG["timezone"])
 SUCCESS_FIELDS = [
     "title",
     "content",
@@ -139,13 +153,17 @@ def normalize_geeknews(row: dict[str, str], source_file: str) -> tuple[dict[str,
     Returns:
         정규화 결과와 실패 사유 문자열. 실패 사유가 없으면 두 번째 값은 None이다.
     """
+    # 소스별 길이 제한과 기본값은 config.json에서만 관리한다.
+    source_config = SOURCE_CONFIGS["geeknews"]
+    trim_limits = source_config["trim_limits"]
+    defaults = source_config["defaults"]
     reasons: list[str] = []
     topic_id = (row.get("topic_id") or "").strip()
-    title = trim_text(row.get("title"), 200)
-    content = trim_text(row.get("content"), 4000)
-    article_url = trim_text(row.get("article_url"), 500)
+    title = trim_text(row.get("title"), trim_limits["title"])
+    content = trim_text(row.get("content"), trim_limits["content"])
+    article_url = trim_text(row.get("article_url"), trim_limits["article_url"])
     created_at = (row.get("posted_at") or "").strip()
-    author = trim_text(row.get("author_display_name") or row.get("author_user_id"), 100)
+    author = trim_text(row.get("author_display_name") or row.get("author_user_id"), trim_limits["author"])
 
     if (row.get("state") or "").strip() != "ok":
         reasons.append("state_not_ok")
@@ -163,16 +181,16 @@ def normalize_geeknews(row: dict[str, str], source_file: str) -> tuple[dict[str,
     normalized = {
         "title": title,
         "content": content,
-        "thread": f"geek_{topic_id}" if topic_id else "",
+        "thread": f"{source_config['thread_prefix']}{topic_id}" if topic_id else "",
         "article_url": article_url,
         "created_at": created_at,
-        "view_count": 0,
-        "comment_count": to_int(row.get("comment_count"), 0),
-        "point": to_float(row.get("points"), 0.0),
+        "view_count": defaults["view_count"],
+        "comment_count": to_int(row.get("comment_count"), defaults["comment_count"]),
+        "point": to_float(row.get("points"), defaults["point"]),
         "author": author,
         "map_id": "",
-        "category_cd": "CA07",
-        "source_name": "geeknews",
+        "category_cd": defaults["category_cd"],
+        "source_name": source_config["source_name"],
         "source_file": source_file,
     }
     return (normalized, None) if not reasons else (normalized, "|".join(reasons))
@@ -189,13 +207,17 @@ def normalize_pytorch(row: dict[str, str], source_file: str) -> tuple[dict[str, 
     Returns:
         정규화 결과와 실패 사유 문자열. 실패 사유가 없으면 두 번째 값은 None이다.
     """
+    # PyTorch도 같은 스키마로 맞추되, 입력 필드명과 일부 기본값만 다르다.
+    source_config = SOURCE_CONFIGS["pytorch"]
+    trim_limits = source_config["trim_limits"]
+    defaults = source_config["defaults"]
     reasons: list[str] = []
     topic_id = (row.get("topic_id") or "").strip()
-    title = trim_text(row.get("title"), 200)
-    content = trim_text(row.get("content"), 4000)
-    article_url = trim_text(row.get("topic_url"), 500)
+    title = trim_text(row.get("title"), trim_limits["title"])
+    content = trim_text(row.get("content"), trim_limits["content"])
+    article_url = trim_text(row.get("topic_url"), trim_limits["article_url"])
     created_at = (row.get("created_at") or "").strip()
-    author = trim_text(row.get("last_poster_username"), 100)
+    author = trim_text(row.get("last_poster_username"), trim_limits["author"])
 
     if (row.get("state") or "").strip() != "ok":
         reasons.append("state_not_ok")
@@ -213,16 +235,16 @@ def normalize_pytorch(row: dict[str, str], source_file: str) -> tuple[dict[str, 
     normalized = {
         "title": title,
         "content": content,
-        "thread": f"pyto_{topic_id}" if topic_id else "",
+        "thread": f"{source_config['thread_prefix']}{topic_id}" if topic_id else "",
         "article_url": article_url,
         "created_at": created_at,
-        "view_count": to_int(row.get("views"), 0),
-        "comment_count": to_int(row.get("reply_count"), 0),
-        "point": 0.0,
+        "view_count": to_int(row.get("views"), defaults["view_count"]),
+        "comment_count": to_int(row.get("reply_count"), defaults["comment_count"]),
+        "point": defaults["point"],
         "author": author,
         "map_id": "",
-        "category_cd": "CA07",
-        "source_name": "pytorch",
+        "category_cd": defaults["category_cd"],
+        "source_name": source_config["source_name"],
         "source_file": source_file,
     }
     return (normalized, None) if not reasons else (normalized, "|".join(reasons))
@@ -240,6 +262,7 @@ def normalize_row(source_name: str, row: dict[str, str], source_file: str) -> tu
     Returns:
         정규화 결과와 실패 사유 문자열.
     """
+    # 소스 분기 로직을 한곳에 모아 호출부를 단순하게 유지한다.
     if source_name == "geeknews":
         return normalize_geeknews(row, source_file)
     if source_name == "pytorch":
@@ -261,10 +284,9 @@ def infer_source_name(path: Path) -> str:
         ValueError: 지원하지 않는 파일명 패턴일 때 발생한다.
     """
     stem = path.stem.lower()
-    if stem.startswith("geeknews_"):
-        return "geeknews"
-    if stem.startswith("pytorch_"):
-        return "pytorch"
+    for source_name, source_config in SOURCE_CONFIGS.items():
+        if stem.startswith(source_config["filename_prefix"]):
+            return source_name
     raise ValueError(f"지원하지 않는 raw 파일 이름입니다: {path.name}")
 
 
@@ -302,13 +324,14 @@ def main() -> int:
     Returns:
         정상 종료 시 0.
     """
+    # DB 기준 시각이 조회되면 그 시각 이후 데이터만 남기고, 실패하면 fallback 규칙을 사용한다.
     args = parse_args()
     run_at = parse_run_at(args.date)
-    cleaning_paths = make_stage_paths("cleaning", run_at, kind="thread")
+    cleaning_paths = make_stage_paths(PATHS_CONFIG["cleaning_bucket"], run_at, kind=PATHS_CONFIG["thread_kind"])
     cutoff = fetch_last_created_at() or fallback_cutoff(run_at)
     seen_article_urls: set[str] = set()
 
-    files = raw_success_files(run_at, kind="thread")
+    files = raw_success_files(run_at, kind=PATHS_CONFIG["thread_kind"])
     if not files:
         raise SystemExit("cleaning 대상 raw 성공 파일이 없습니다.")
 
@@ -328,6 +351,7 @@ def main() -> int:
             if failure_reason:
                 fail_rows.append({**normalized, "failure_reason": failure_reason})
                 continue
+            # 동일 실행 배치 안에서 article_url 중복은 한 번만 통과시킨다.
             if article_url in seen_article_urls:
                 fail_rows.append({**normalized, "failure_reason": "duplicate_article_url"})
                 continue

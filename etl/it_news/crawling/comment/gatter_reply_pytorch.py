@@ -1,9 +1,15 @@
+"""
+PyTorch 댓글 수집 스크립트.
+
+이미 DB에 적재된 PyTorch 게시글을 기준으로 Discourse 댓글 JSON을 모으고,
+원글을 제외한 reply만 comment raw CSV로 평탄화한다.
+"""
+
 from __future__ import annotations
 
 import argparse
 import csv
 import json
-import os
 import re
 import sys
 import time
@@ -19,31 +25,31 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it-threads-sample/1.0)"
-_KST = ZoneInfo("Asia/Seoul")
-_DEFAULT_SLEEP_SECONDS = 0.75
-_MAX_REPLIES_PER_TOPIC = 500
-_POST_IDS_CHUNK = 80
+######################
+# 스테이지 공통 설정 로딩 경로 보정 관련
+######################
+SCRIPT_STAGE_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_STAGE_ROOT) not in sys.path:
+    sys.path.append(str(SCRIPT_STAGE_ROOT))
+
+from common.settings import env, get_config
+
+######################
+# 설정 기반 상수 및 쿼리 관련
+######################
+CONFIG = get_config()
+SOURCE_CONFIG = CONFIG["sources"]["pytorch"]["comment"]
+CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
+_DEFAULT_USER_AGENT = SOURCE_CONFIG["user_agent"]
+_KST = ZoneInfo(CONFIG["timezone"])
+_DEFAULT_SLEEP_SECONDS = SOURCE_CONFIG["sleep_seconds"]
+_MAX_REPLIES_PER_TOPIC = SOURCE_CONFIG["max_replies"]
+_POST_IDS_CHUNK = SOURCE_CONFIG["post_ids_chunk"]
 
 
 ######################
 # DB 연결 정보 구성 관련
 ######################
-def _env(name: str, default: str) -> str:
-    """
-    환경 변수를 읽고 비어 있으면 기본값을 반환한다.
-
-    Args:
-        name: 환경 변수 이름.
-        default: 기본값.
-
-    Returns:
-        환경 변수 값 또는 기본값.
-    """
-    value = os.environ.get(name)
-    return value if value is not None and value != "" else default
-
-
 def get_connection_params() -> dict[str, Any]:
     """
     psycopg 연결 인자를 환경 변수 기준으로 조립한다.
@@ -51,12 +57,13 @@ def get_connection_params() -> dict[str, Any]:
     Returns:
         PostgreSQL 연결 파라미터 딕셔너리.
     """
+    # DB 연결값은 스테이지 `.env`에서 읽고, 코드에는 fallback만 남긴다.
     return {
-        "host": _env("PGHOST", "localhost"),
-        "port": int(_env("PGPORT", "5432")),
-        "dbname": _env("PGDATABASE", "service"),
-        "user": _env("PGUSER", "user"),
-        "password": _env("PGPASSWORD", "password"),
+        "host": env("PGHOST", "localhost"),
+        "port": int(env("PGPORT", "5432")),
+        "dbname": env("PGDATABASE", "service"),
+        "user": env("PGUSER", "user"),
+        "password": env("PGPASSWORD", "password"),
     }
 
 
@@ -69,7 +76,7 @@ def check_connection() -> psycopg.Connection:
     """
     params = get_connection_params()
     try:
-        conn = psycopg.connect(**params, connect_timeout=10)
+        conn = psycopg.connect(**params, connect_timeout=SOURCE_CONFIG["connect_timeout"])
         conn.execute("SELECT 1")
         return conn
     except psycopg.Error as exc:
@@ -77,10 +84,10 @@ def check_connection() -> psycopg.Connection:
         raise
 
 
-SQL_PYTORCH_ROWS = """
+SQL_PYTORCH_ROWS = f"""
 SELECT crawling_id, article_url, thread
 FROM crawling
-WHERE thread ~ '^pyto_'
+WHERE thread ~ '{SOURCE_CONFIG["thread_pattern"]}'
   AND article_url IS NOT NULL
   AND trim(article_url) <> ''
 ORDER BY crawling_id
@@ -101,6 +108,7 @@ def fetch_pytorch_crawling_rows(conn: psycopg.Connection, *, limit: int | None) 
     Returns:
         (crawling_id, article_url, thread) 튜플 목록.
     """
+    # comment crawling의 부모 집합은 crawling 테이블의 PyTorch 게시글 목록이다.
     with conn.cursor() as cur:
         if limit is not None:
             cur.execute(SQL_PYTORCH_ROWS + " LIMIT %s", (limit,))
@@ -347,7 +355,7 @@ def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]
         fieldnames: CSV 헤더 순서.
         rows: 저장할 댓글 행 목록.
     """
-    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+    with path.open("w", encoding=CSV_ENCODING, newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
@@ -365,15 +373,16 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(description="PyTorchKR Discourse: crawling(pyto_*)에서 답글 CSV 저장")
     parser.add_argument("-o", "--output", type=Path, default=None, help="출력 CSV 경로")
-    parser.add_argument("--timeout", type=float, default=45.0, help="HTTP 타임아웃(초)")
+    parser.add_argument("--timeout", type=float, default=SOURCE_CONFIG["timeout"], help="HTTP 타임아웃(초)")
     parser.add_argument("--sleep-seconds", type=float, default=_DEFAULT_SLEEP_SECONDS, help="토픽 요청 사이 대기(초)")
     parser.add_argument("--limit-topics", type=int, default=None, help="처리할 crawling 행 수 상한")
     parser.add_argument("--max-replies", type=int, default=_MAX_REPLIES_PER_TOPIC, help="토픽당 최대 답글 수")
     args = parser.parse_args()
 
     date_sfx = datetime.now(_KST).strftime("%y%m%d")
-    out_path = args.output or (Path(__file__).resolve().parent / f"comment_pytorch_{date_sfx}.csv")
+    out_path = args.output or (Path(__file__).resolve().parent / f"{SOURCE_CONFIG['default_output_prefix']}{date_sfx}.csv")
 
+    # 이 컬럼 집합을 기준으로 comment cleaning/save가 동일한 입력 스키마를 사용한다.
     fieldnames = [
         "comment_id",
         "post_id",

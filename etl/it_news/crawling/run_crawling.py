@@ -1,3 +1,10 @@
+"""
+thread crawling 스테이지 오케스트레이터.
+
+각 소스별 목록 수집 스크립트와 본문 보강 스크립트를 차례로 실행하고,
+최종 raw 성공/실패 CSV를 정리해 다음 cleaning 단계로 넘긴다.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -5,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from common.settings import get_config
 from common.runtime import (
     IT_NEWS_ROOT,
     make_stage_paths,
@@ -16,7 +24,14 @@ from common.runtime import (
 )
 
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+THREAD_COLLECTION_CONFIG = CONFIG["thread_collection"]
+THREAD_JOBS = tuple(CONFIG["jobs"]["thread"])
+_KST = ZoneInfo(CONFIG["timezone"])
 THREAD_SCRIPT_ROOT = Path(__file__).resolve().parent / "thread"
 
 
@@ -35,10 +50,20 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description="IT News crawling stage runner")
     parser.add_argument("--date", default=None, help="기본값은 오늘(KST), YYYY-MM-DD 형식")
-    parser.add_argument("--limit", type=int, default=500, help="사이트별 최대 수집 건수")
-    parser.add_argument("--timeout", type=float, default=60.0, help="목록 수집 타임아웃")
-    parser.add_argument("--content-timeout", type=float, default=30.0, help="본문 수집 타임아웃")
-    parser.add_argument("--content-delay", type=float, default=0.0, help="본문 수집 지연")
+    parser.add_argument("--limit", type=int, default=THREAD_COLLECTION_CONFIG["limit"], help="사이트별 최대 수집 건수")
+    parser.add_argument("--timeout", type=float, default=THREAD_COLLECTION_CONFIG["timeout"], help="목록 수집 타임아웃")
+    parser.add_argument(
+        "--content-timeout",
+        type=float,
+        default=THREAD_COLLECTION_CONFIG["content_timeout"],
+        help="본문 수집 타임아웃",
+    )
+    parser.add_argument(
+        "--content-delay",
+        type=float,
+        default=THREAD_COLLECTION_CONFIG["content_delay"],
+        help="본문 수집 지연",
+    )
     return parser.parse_args()
 
 
@@ -71,7 +96,8 @@ def build_temp_path(source: str, suffix: str, *, kind: str) -> Path:
     Returns:
         `.tmp` 디렉터리 아래의 임시 CSV 경로.
     """
-    tmp_dir = IT_NEWS_ROOT / "crawling" / ".tmp" / kind
+    # 목록 수집 결과와 본문 보강 결과를 분리해 저장하기 위해 `.tmp/<kind>` 하위 경로를 사용한다.
+    tmp_dir = IT_NEWS_ROOT / "crawling" / PATHS_CONFIG["temp_dirname"] / kind
     tmp_dir.mkdir(parents=True, exist_ok=True)
     return tmp_dir / f"{source}_{suffix}.csv"
 
@@ -101,11 +127,13 @@ def process_source(
     Returns:
         성공 CSV 경로와 실패 CSV 경로. 없으면 각각 None이다.
     """
-    raw_paths = make_stage_paths("raw", run_at, kind="thread")
+    # 한 소스의 중간 산출물과 최종 산출물을 같은 실행 시각 기준으로 정렬한다.
+    raw_paths = make_stage_paths(PATHS_CONFIG["raw_bucket"], run_at, kind=PATHS_CONFIG["thread_kind"])
 
     thread_csv = build_temp_path(source, thread_filename, kind="thread")
     content_csv = build_temp_path(source, with_content_filename, kind="thread")
 
+    # 1단계: 목록 수집
     run_python(
         THREAD_SCRIPT_ROOT / thread_script,
         "--limit",
@@ -115,6 +143,7 @@ def process_source(
         "--output",
         str(thread_csv),
     )
+    # 2단계: 본문 보강
     run_python(
         THREAD_SCRIPT_ROOT / content_script,
         "--input",
@@ -127,6 +156,7 @@ def process_source(
         str(args.content_delay),
     )
 
+    # 3단계: 공통 검증 규칙으로 success/fail 분리
     fieldnames, rows = read_rows(content_csv)
     if source == "geeknews":
         success_rows, fail_rows = split_rows(
@@ -173,29 +203,14 @@ def main() -> int:
     Returns:
         정상 종료 시 0.
     """
+    # 설정 기본값은 config.json에서 오지만, CLI가 들어오면 해당 실행에서만 override 된다.
     args = parse_args()
     run_at = parse_run_at(args.date)
-    raw_paths = make_stage_paths("raw", run_at, kind="thread")
-
-    jobs = (
-        {
-            "source": "geeknews",
-            "thread_script": "gatter_thread_geeknews.py",
-            "content_script": "gatter_content_geeknews.py",
-            "thread_filename": "thread",
-            "with_content_filename": "with_content",
-        },
-        {
-            "source": "pytorch",
-            "thread_script": "gatter_thread_pytorch.py",
-            "content_script": "gatter_content_pytorch.py",
-            "thread_filename": "thread",
-            "with_content_filename": "with_content",
-        },
-    )
+    raw_paths = make_stage_paths(PATHS_CONFIG["raw_bucket"], run_at, kind=PATHS_CONFIG["thread_kind"])
 
     had_success = False
-    for job in jobs:
+    # job 정의 자체를 설정화해 소스 추가/순서 변경 시 코드를 최소 수정하도록 구성했다.
+    for job in THREAD_JOBS:
         try:
             success_path, fail_path = process_source(run_at=run_at, args=args, **job)
         except Exception as exc:

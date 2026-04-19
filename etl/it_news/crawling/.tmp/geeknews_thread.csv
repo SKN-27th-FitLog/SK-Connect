@@ -1,2 +1,0 @@
-﻿rank,topic_id,title,article_url,external_url,source_domain_label,excerpt,points,author_user_id,author_display_name,time_text,posted_at,collected_at,comment_count
-1,28658,"Qwen3.5 모델 양자화, 왜 커뮤니티 버전은 성능이 떨어지나",https://news.hada.io/topic?id=28658,https://x.com/Brooooook_lyn/status/2037532299382882794,x.com/Brooooook_lyn,"AI 모델을 더 작고 빠르게 압축하는 기술인 &#039;양자화(quantization)&#039;에서 커뮤니티가 배포한 MLX 포맷 Qwen3.5 모델들이 도구 호출 오류, 무의미한 ...",7,ragingwind,ragingwind,3시간전,2026-04-18T21:59:01.329650+09:00,2026-04-19T00:59:01.329650+09:00,1

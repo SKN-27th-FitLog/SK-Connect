@@ -1,3 +1,10 @@
+"""
+thread save 스테이지 실행기.
+
+cleaning 성공 파일을 읽어 DB에 적재하고, 적재 성공/실패 결과를
+save 스테이지 산출물로 남겨 재실행과 추적이 가능하도록 만든다.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -7,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from common.settings import get_config
 from common.runtime import (
     cleaning_success_files,
     connect,
@@ -19,7 +27,13 @@ from common.runtime import (
 )
 
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 설정 기반 상수 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+CSV_ENCODING = PATHS_CONFIG["csv_encoding"]
+_KST = ZoneInfo(CONFIG["timezone"])
 
 
 ######################
@@ -67,7 +81,7 @@ def write_dataframe(path: Path, df: pd.DataFrame) -> None:
         df: 저장할 데이터프레임.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False, encoding="utf-8-sig")
+    df.to_csv(path, index=False, encoding=CSV_ENCODING)
 
 
 ######################
@@ -83,10 +97,11 @@ def main() -> int:
     Returns:
         정상 종료 시 0, DB 연결 실패 시 1.
     """
+    # baseline MAX(created_at)를 먼저 잡아 두고, 파일별로 동일 기준 증분 필터를 적용한다.
     args = parse_args()
     run_at = parse_run_at(args.date)
-    save_paths = make_stage_paths("save", run_at, kind="thread")
-    files = cleaning_success_files(run_at, kind="thread")
+    save_paths = make_stage_paths(PATHS_CONFIG["save_bucket"], run_at, kind=PATHS_CONFIG["thread_kind"])
+    files = cleaning_success_files(run_at, kind=PATHS_CONFIG["thread_kind"])
     if not files:
         raise SystemExit("save 대상 cleaning 성공 파일이 없습니다.")
 

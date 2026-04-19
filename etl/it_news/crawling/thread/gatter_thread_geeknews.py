@@ -31,8 +31,25 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
-_KST = ZoneInfo("Asia/Seoul")
+######################
+# 스테이지 공통 설정 로딩 경로 보정 관련
+######################
+# 단독 실행 시에도 `common.settings`를 읽을 수 있도록 스테이지 루트를 import path에 추가한다.
+SCRIPT_STAGE_ROOT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_STAGE_ROOT) not in sys.path:
+    sys.path.append(str(SCRIPT_STAGE_ROOT))
 
+from common.settings import get_config
+
+######################
+# 설정 기반 상수 및 시간 규칙 관련
+######################
+CONFIG = get_config()
+SOURCE_CONFIG = CONFIG["sources"]["geeknews"]["thread"]
+CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
+_KST = ZoneInfo(CONFIG["timezone"])
+
+# GeekNews 상대시각 문자열을 절대시각으로 역산하기 위한 규칙 테이블이다.
 _TIME_RULES: list[tuple[re.Pattern[str], Callable[[int], timedelta]]] = [
     (re.compile(r"^(\d+)시간전$"), lambda n: timedelta(hours=n)),
     (re.compile(r"^(\d+)일전$"), lambda n: timedelta(days=n)),
@@ -57,7 +74,7 @@ def geeknews_relative_to_posted_at(time_text: str, collected_at: datetime) -> st
     return fallback
 
 
-_DEFAULT_USER_AGENT = "Mozilla/5.0 (compatible; it-threads-sample/1.0)"
+_DEFAULT_USER_AGENT = SOURCE_CONFIG["user_agent"]
 
 
 def _fetch_text(url: str, timeout: float, *, user_agent: str = _DEFAULT_USER_AGENT) -> str:
@@ -69,14 +86,15 @@ def _fetch_text(url: str, timeout: float, *, user_agent: str = _DEFAULT_USER_AGE
 
 def _write_dict_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     """fieldnames 순서대로 열을 고정하고 CSV로 저장한다."""
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
+    with path.open("w", encoding=CSV_ENCODING, newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
 
 
-LIST_URL = "https://news.hada.io/"
-GEEKNEWS_ORIGIN = "https://news.hada.io"
+LIST_URL = SOURCE_CONFIG["list_url"]
+GEEKNEWS_ORIGIN = SOURCE_CONFIG["origin"]
+EXCERPT_MAX_CHARS = SOURCE_CONFIG["excerpt_max_chars"]
 
 _TOPIC_ROW_BLOCK_RE = re.compile(
     r"<div\s+class\s*=\s*['\"]topic_row['\"][^>]*>.*?(?=<div\s+class\s*=\s*['\"]topic_row['\"][^>]*>|$)",
@@ -140,7 +158,7 @@ def _parse_topic_row_block(block: str, *, collected_at: datetime) -> dict | None
         "article_url": article_url,
         "external_url": ext,
         "source_domain_label": domain_label.strip(),
-        "excerpt": desc_text[:500] if desc_text else "",
+        "excerpt": desc_text[:EXCERPT_MAX_CHARS] if desc_text else "",
         "points": points,
         "author_user_id": user_id,
         "author_display_name": user_name.strip(),
@@ -163,10 +181,12 @@ def parse_comment_count(comment_cell: str) -> str:
 
 
 def geeknews_topic_url(topic_id: str) -> str:
+    """GeekNews 토픽 상세 페이지 URL을 생성한다."""
     return f"{GEEKNEWS_ORIGIN}/topic?id={topic_id}"
 
 
 def list_url_for_page(base_url: str, page: int) -> str:
+    """페이지 번호를 반영한 GeekNews 목록 URL을 생성한다."""
     p = urlparse(base_url.strip())
     path = p.path if p.path else "/"
     q = parse_qs(p.query, keep_blank_values=True)
@@ -176,6 +196,7 @@ def list_url_for_page(base_url: str, page: int) -> str:
 
 
 def parse_page_rows(html: str, *, collected_at: datetime) -> list[dict]:
+    """한 페이지 HTML에서 topic_row 블록들을 모두 파싱해 행 목록으로 반환한다."""
     rows: list[dict] = []
     for m in _TOPIC_ROW_BLOCK_RE.finditer(html):
         row = _parse_topic_row_block(m.group(0), collected_at=collected_at)
@@ -185,9 +206,10 @@ def parse_page_rows(html: str, *, collected_at: datetime) -> list[dict]:
 
 
 def main() -> int:
+    """GeekNews 목록을 페이지 단위로 순회해 thread CSV를 생성한다."""
     p = argparse.ArgumentParser(description="GeekNews 메인 목록 샘플 → thread_geeknews.csv")
     p.add_argument("--url", default=LIST_URL, help="목록 페이지 베이스 URL (page 쿼리는 자동 설정)")
-    p.add_argument("--limit", type=int, default=500)
+    p.add_argument("--limit", type=int, default=CONFIG["thread_collection"]["limit"])
     p.add_argument(
         "-o",
         "--output",
@@ -195,15 +217,15 @@ def main() -> int:
         default=None,
         help="출력 CSV (기본: 이 폴더/thread_geeknews.csv)",
     )
-    p.add_argument("--timeout", type=float, default=60.0)
+    p.add_argument("--timeout", type=float, default=CONFIG["thread_collection"]["timeout"])
     p.add_argument(
         "--max-pages",
         type=int,
-        default=500,
+        default=SOURCE_CONFIG["max_pages"],
         help="비정상 응답 시 무한 루프 방지용 최대 페이지 수(기본 500)",
     )
     args = p.parse_args()
-    out = args.output or Path(__file__).resolve().parent / "thread_geeknews.csv"
+    out = args.output or Path(__file__).resolve().parent / SOURCE_CONFIG["default_output"]
     base_url = args.url
     limit = max(0, args.limit)
     max_pages = max(1, args.max_pages)
@@ -213,6 +235,7 @@ def main() -> int:
     stop_reason = ""
     collected_at = datetime.now(_KST)
 
+    # limit 또는 max_pages에 도달할 때까지 페이지를 늘려가며 누적 수집한다.
     while len(rows) < limit and page <= max_pages:
         page_url = list_url_for_page(base_url, page)
         try:

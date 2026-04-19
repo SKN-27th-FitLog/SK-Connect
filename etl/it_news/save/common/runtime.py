@@ -1,6 +1,12 @@
+"""
+save 스테이지 공통 런타임 유틸리티.
+
+cleaning 성공 파일 탐색, DB 연결, 증분 필터링, INSERT 파라미터 정규화,
+댓글 중복 키 조회처럼 저장 단계 전반에서 재사용하는 기능을 모아 둔다.
+"""
+
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -9,21 +15,26 @@ from typing import Any
 import pandas as pd
 import psycopg
 
+from common.settings import env, get_config
+
+
+######################
+# 설정 기반 상수 및 SQL 관련
+######################
+CONFIG = get_config()
+PATHS_CONFIG = CONFIG["paths"]
+DB_CONFIG = CONFIG["db"]
+COMMENTS_CONFIG = CONFIG["comments"]
+LIMITS = CONFIG["limits"]
+SUCCESS_DIRNAME = PATHS_CONFIG["success_dirname"]
+FAIL_DIRNAME = PATHS_CONFIG["fail_dirname"]
 
 STAGE_ROOT = Path(__file__).resolve().parents[1]
 IT_NEWS_ROOT = STAGE_ROOT.parent
 CLEANING_ROOT = IT_NEWS_ROOT / "cleaning"
 
-LIMITS = {
-    "title": 200,
-    "thread": 20,
-    "article_url": 500,
-    "author": 100,
-    "category_cd": 6,
-}
-
-INSERT_SQL = """
-INSERT INTO "crawling" (
+INSERT_SQL = f"""
+INSERT INTO "{DB_CONFIG["tables"]["crawling"]}" (
     title, content, thread, article_url, created_at,
     view_count, comment_count, point, author, map_id, category_cd
 ) VALUES (
@@ -31,8 +42,8 @@ INSERT INTO "crawling" (
 )
 """
 
-COMMENT_INSERT_SQL = """
-INSERT INTO "comments" (
+COMMENT_INSERT_SQL = f"""
+INSERT INTO "{DB_CONFIG["tables"]["comments"]}" (
     post_id, crawling_id, user_id, content, created_at, modify_at, status_cd
 ) VALUES (
     %s, %s, %s, %s, %s, %s, %s
@@ -67,12 +78,13 @@ def make_stage_paths(bucket: str, run_at: datetime, *, kind: str | None = None) 
     Returns:
         생성된 디렉터리 경로 정보를 담은 StagePaths 객체.
     """
+    # save 산출물도 다른 스테이지와 동일한 날짜 기반 디렉터리 규칙을 사용한다.
     base = STAGE_ROOT / bucket
     if kind:
         base = base / kind
     base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d")
-    success_dir = base / "success"
-    fail_dir = base / "fail"
+    success_dir = base / SUCCESS_DIRNAME
+    fail_dir = base / FAIL_DIRNAME
     success_dir.mkdir(parents=True, exist_ok=True)
     fail_dir.mkdir(parents=True, exist_ok=True)
     return StagePaths(success_dir=success_dir, fail_dir=fail_dir)
@@ -120,28 +132,14 @@ def cleaning_success_files(run_at: datetime, *, kind: str | None = None) -> list
     Returns:
         성공 디렉터리에 있는 CSV 파일 경로 목록.
     """
-    base = CLEANING_ROOT / "cleaning"
+    # save 입력은 항상 cleaning 성공 CSV를 기준으로 탐색한다.
+    base = CLEANING_ROOT / PATHS_CONFIG["cleaning_bucket"]
     if kind:
         base = base / kind
-    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / "success"
+    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / SUCCESS_DIRNAME
     if not base.is_dir():
         return []
     return sorted(base.glob("*.csv"))
-
-
-def _env(name: str, default: str) -> str:
-    """
-    환경 변수를 읽고 비어 있으면 기본값을 반환한다.
-
-    Args:
-        name: 환경 변수 이름.
-        default: 기본값.
-
-    Returns:
-        환경 변수 값 또는 기본값.
-    """
-    value = os.environ.get(name)
-    return value if value not in (None, "") else default
 
 
 ######################
@@ -157,13 +155,19 @@ def connect() -> psycopg.Connection:
     Returns:
         psycopg 연결 객체.
     """
+    # 비밀값은 `.env`에서 읽고, 코드는 로컬 fallback만 제공한다.
+    host = env("PGHOST", "localhost")
+    port = int(env("PGPORT", "5432"))
+    dbname = env("PGDATABASE", "service")
+    user = env("PGUSER", "user")
+    password = env("PGPASSWORD", "password")
     return psycopg.connect(
-        host=_env("PGHOST", "localhost"),
-        port=int(_env("PGPORT", "5432")),
-        dbname=_env("PGDATABASE", "service"),
-        user=_env("PGUSER", "user"),
-        password=_env("PGPASSWORD", "password123"),
-        connect_timeout=10,
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=user,
+        password=password,
+        connect_timeout=DB_CONFIG["connect_timeout"],
     )
 
 
@@ -178,7 +182,7 @@ def get_max_created_at(conn: psycopg.Connection) -> datetime | None:
         조회된 최신 created_at 또는 데이터가 없으면 None.
     """
     with conn.cursor() as cur:
-        cur.execute('SELECT MAX("created_at") FROM "crawling"')
+        cur.execute(f'SELECT MAX("created_at") FROM "{DB_CONFIG["tables"]["crawling"]}"')
         row = cur.fetchone()
         return row[0] if row else None
 
@@ -196,6 +200,7 @@ def filter_incremental(df: pd.DataFrame, max_created_at: datetime | None) -> pd.
     """
     if df.empty:
         return df
+    # parsing 실패한 created_at은 증분 비교가 불가능하므로 먼저 제외한다.
     created = pd.to_datetime(df["created_at"], utc=True, errors="coerce")
     df = df.loc[~created.isna()].copy()
     created = created.loc[df.index]
@@ -242,6 +247,7 @@ def _truncate(key: str, value: Any) -> Any:
     Returns:
         길이 제한이 적용된 값.
     """
+    # 길이 제한은 문자열 컬럼에만 적용한다.
     if not isinstance(value, str):
         return value
     limit = LIMITS.get(key)
@@ -268,6 +274,7 @@ def row_tuple(row: pd.Series) -> tuple[Any, ...]:
         except (TypeError, ValueError):
             map_id = None
 
+    # INSERT 순서는 SQL 컬럼 순서와 반드시 일치해야 하므로 튜플 생성 로직을 한곳에 모은다.
     return (
         _truncate("title", _empty_to_none(row.get("title"))),
         _empty_to_none(row.get("content")),
@@ -344,6 +351,7 @@ def comment_row_tuple(row: pd.Series, *, user_id: int) -> tuple[Any, ...]:
     """
     created_at = pd.to_datetime(row["created_at"], utc=True, errors="raise").to_pydatetime()
     modify_at = pd.to_datetime(row["modify_at"], utc=True, errors="raise").to_pydatetime()
+    # 댓글 상태 코드는 설정된 기본값과 최대 길이를 공통 적용한다.
     return (
         _parse_int_field(row.get("post_id")),
         _parse_int_field(row.get("crawling_id")),
@@ -351,7 +359,9 @@ def comment_row_tuple(row: pd.Series, *, user_id: int) -> tuple[Any, ...]:
         _empty_to_none(row.get("content")),
         created_at,
         modify_at,
-        str(_empty_to_none(row.get("status_cd")) or "ST01")[:6],
+        str(_empty_to_none(row.get("status_cd")) or COMMENTS_CONFIG["default_status_cd"])[
+            : COMMENTS_CONFIG["status_cd_max_length"]
+        ],
     )
 
 
@@ -370,6 +380,7 @@ def insert_comment_dataframe(conn: psycopg.Connection, df: pd.DataFrame, *, user
     if df.empty:
         return 0
     rows = [comment_row_tuple(row, user_id=user_id) for _, row in df.iterrows()]
+    # DB에 이미 같은 댓글이 있는지 확인하기 위해 키 컬럼만 조회한다.
     with conn.cursor() as cur:
         cur.executemany(COMMENT_INSERT_SQL, rows)
     return len(rows)
@@ -391,9 +402,9 @@ def existing_comment_keys(conn: psycopg.Connection, crawling_ids: list[int]) -> 
 
     with conn.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT crawling_id, created_at, content
-            FROM "comments"
+            FROM "{DB_CONFIG["tables"]["comments"]}"
             WHERE crawling_id = ANY(%s)
             """,
             (crawling_ids,),

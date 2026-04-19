@@ -42,11 +42,23 @@ docker compose up -d
 | PostgreSQL 이미지 | `postgres:16` |
 | DB 이름 (`POSTGRES_DB` / `SERVICE_DB_NAME`) | `service` |
 | 사용자 (`POSTGRES_USER` / `DB_USER`) | `user` |
-| 비밀번호 (`POSTGRES_PASSWORD` / `DB_PASSWORD`) | `password123` |
+| 비밀번호 (`POSTGRES_PASSWORD` / `DB_PASSWORD`) | `password` |
 | 호스트(로컬에서 접속) | `localhost` |
 | 포트 | `5432` |
 
 백엔드에서 쓰려면 `backend`에 `.env`를 두고, `backend/.env.example`을 복사한 뒤 `SECRET_KEY` 등만 채우면 됩니다.
+
+`etl/it_news` 파이프라인은 이제 루트 공용 환경변수만 보지 않고, 각 스테이지 폴더의 로컬 설정 파일을 직접 읽습니다.
+
+- `etl/it_news/crawling/.env`
+- `etl/it_news/cleaning/.env`
+- `etl/it_news/save/.env`
+
+또한 운영용 고정값은 아래 `config.json`에서 읽습니다.
+
+- `etl/it_news/crawling/config.json`
+- `etl/it_news/cleaning/config.json`
+- `etl/it_news/save/config.json`
 
 ---
 
@@ -99,7 +111,7 @@ docker ps
 
 `sk_connect_db`가 보이면 됩니다.
 
-`comments` 저장까지 검증하려면 `users` 테이블에 참조 가능한 사용자 행이 하나 이상 있어야 하며, 실행 시 `IT_NEWS_COMMENT_USER_ID` 또는 `--comment-user-id`로 그 `user_id`를 넘겨야 합니다.
+`comments` 저장까지 검증하려면 `users` 테이블에 참조 가능한 사용자 행이 하나 이상 있어야 하며, 실행 시 `save/.env`의 `IT_NEWS_COMMENT_USER_ID` 또는 `run_comment_save.py --user-id`로 그 `user_id`를 넘겨야 합니다.
 
 테이블 존재 여부 예시:
 
@@ -123,7 +135,7 @@ docker exec -it sk_connect_db psql -U user -d service -c "\dt"
    | Port | `5432` |
    | Database | `service` |
    | Username | `user` |
-   | Password | `password123` |
+   | Password | `password` |
 
    비밀번호 저장 여부는 로컬 정책에 맞게 선택하면 됩니다.
 4. **SSL** 탭: 로컬 Docker 개발이면 SSL을 끕니다(예: SSL 사용 안 함 / SSL mode `disable`).
