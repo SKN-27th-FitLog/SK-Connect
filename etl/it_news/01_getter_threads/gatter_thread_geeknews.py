@@ -133,7 +133,7 @@ def _parse_topic_row_block(block: str, *, collected_at: datetime) -> dict | None
     m_info = re.search(
         r"<div\s+class\s*=\s*['\"]topicinfo['\"]\s*>"
         r"<span\s+id\s*=\s*['\"]tp\d+['\"]>(\d+)</span>\s+points\s+by\s+"
-        r"<a\s+href\s*=\s*['\"]/user/([^'\"]+)['\"]>([^<]+)</a>\s*"
+        r"<a\s+href\s*=\s*['\"](?:/@|/user/)([^'\"]+)['\"]>([^<]+)</a>\s*"
         r"([^<]*?)<span\s+id\s*=\s*['\"]unvote\d+['\"]>\s*</span>\s*\|\s*"
         r"<a\s+[^>]*href\s*=\s*(['\"])([^'\"]*)\5[^>]*>([^<]+)</a>",
         block,
