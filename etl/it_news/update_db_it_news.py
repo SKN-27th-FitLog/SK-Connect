@@ -6,11 +6,13 @@ IT 뉴스 ETL: crawling → cleaning → save 3단계를 순차 실행한다.
 from __future__ import annotations
 
 import argparse
+import logging
 import subprocess
 import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+logger = logging.getLogger(__name__)
 
 _THREAD_STEPS: tuple[Path, ...] = (
     _REPO_ROOT / "etl" / "it_news" / "crawling" / "run_crawling.py",
@@ -104,13 +106,13 @@ def main() -> int:
     steps = selected_steps(list(args.targets))
     missing = _check_scripts_exist(steps)
     if missing:
-        print("다음 스크립트 파일을 찾을 수 없습니다:", file=sys.stderr)
+        logger.error("다음 스크립트 파일을 찾을 수 없습니다:")
         for p in missing:
-            print(f"  {p}", file=sys.stderr)
+            logger.error("  %s", p)
         return 1
 
     for script in steps:
-        print(f"\n--- 실행: {script.relative_to(_REPO_ROOT)} ---\n")
+        logger.info("--- 실행: %s ---", script.relative_to(_REPO_ROOT))
         command = [sys.executable, str(script)]
         if args.date:
             command.extend(["--date", args.date])
@@ -125,5 +127,11 @@ def main() -> int:
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

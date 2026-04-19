@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import re
 import sys
 import time
@@ -45,6 +46,7 @@ _KST = ZoneInfo(CONFIG["timezone"])
 _DEFAULT_SLEEP_SECONDS = SOURCE_CONFIG["sleep_seconds"]
 _MAX_REPLIES_PER_TOPIC = SOURCE_CONFIG["max_replies"]
 _POST_IDS_CHUNK = SOURCE_CONFIG["post_ids_chunk"]
+logger = logging.getLogger(__name__)
 
 
 ######################
@@ -80,7 +82,7 @@ def check_connection() -> psycopg.Connection:
         conn.execute("SELECT 1")
         return conn
     except psycopg.Error as exc:
-        print(f"DB 연결 실패: {exc}", file=sys.stderr)
+        logger.error("DB 연결 실패: %s", exc)
         raise
 
 
@@ -417,17 +419,17 @@ def main() -> int:
             posts = fetch_all_topic_posts(url, args.timeout)
             triples = iter_reply_rows_from_posts(posts, max_replies=args.max_replies, now_iso=now_iso)
         except (TimeoutError, OSError, urllib.error.HTTPError, urllib.error.URLError) as exc:
-            print(f"[skip] fetch 실패 crawling_id={crawling_id} url={url!r}: {exc}", file=sys.stderr)
+            logger.warning("[skip] fetch 실패 crawling_id=%s url=%r: %s", crawling_id, url, exc)
             if index < n_topics - 1 and args.sleep_seconds > 0:
                 time.sleep(args.sleep_seconds)
             continue
         except json.JSONDecodeError as exc:
-            print(f"[skip] JSON 실패 crawling_id={crawling_id}: {exc}", file=sys.stderr)
+            logger.warning("[skip] JSON 실패 crawling_id=%s: %s", crawling_id, exc)
             if index < n_topics - 1 and args.sleep_seconds > 0:
                 time.sleep(args.sleep_seconds)
             continue
         except Exception as exc:
-            print(f"[skip] 처리 오류 crawling_id={crawling_id}: {exc}", file=sys.stderr)
+            logger.warning("[skip] 처리 오류 crawling_id=%s: %s", crawling_id, exc)
             if index < n_topics - 1 and args.sleep_seconds > 0:
                 time.sleep(args.sleep_seconds)
             continue
@@ -451,9 +453,15 @@ def main() -> int:
             time.sleep(args.sleep_seconds)
 
     _write_dict_csv(out_path, fieldnames, rows_out)
-    print(f"저장: {out_path} ({len(rows_out)}행)")
+    logger.info("저장: %s (%s행)", out_path, len(rows_out))
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

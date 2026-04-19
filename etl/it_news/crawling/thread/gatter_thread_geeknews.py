@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import logging
 import re
 import sys
 import urllib.error
@@ -48,6 +49,7 @@ CONFIG = get_config()
 SOURCE_CONFIG = CONFIG["sources"]["geeknews"]["thread"]
 CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
 _KST = ZoneInfo(CONFIG["timezone"])
+logger = logging.getLogger(__name__)
 
 # GeekNews 상대시각 문자열을 절대시각으로 역산하기 위한 규칙 테이블이다.
 _TIME_RULES: list[tuple[re.Pattern[str], Callable[[int], timedelta]]] = [
@@ -241,10 +243,10 @@ def main() -> int:
         try:
             html = _fetch_text(page_url, args.timeout)
         except urllib.error.HTTPError as e:
-            print(f"HTTP {e.code}: page={page} {page_url}", file=sys.stderr)
+            logger.error("HTTP %s: page=%s %s", e.code, page, page_url)
             return 1
         except OSError as e:
-            print(f"{type(e).__name__}: page={page} {page_url} — {e}", file=sys.stderr)
+            logger.error("%s: page=%s %s - %s", type(e).__name__, page, page_url, e)
             return 1
 
         batch = parse_page_rows(html, collected_at=collected_at)
@@ -253,7 +255,7 @@ def main() -> int:
             if len(rows) >= limit:
                 stop_reason = f"reached limit {limit}"
                 break
-        print(f"page={page} fetched {len(batch)} rows (total {len(rows)}, limit={limit})")
+        logger.info("page=%s fetched %s rows (total %s, limit=%s)", page, len(batch), len(rows), limit)
 
         if not batch:
             stop_reason = f"no more rows at page {page} (total {len(rows)})"
@@ -266,10 +268,10 @@ def main() -> int:
         stop_reason = f"max-pages {max_pages} reached (total {len(rows)})"
 
     if not rows:
-        print("topic_row 파싱 결과가 없습니다. HTML 구조 변경 여부를 확인하세요.", file=sys.stderr)
+        logger.error("topic_row 파싱 결과가 없습니다. HTML 구조 변경 여부를 확인하세요.")
         return 1
 
-    print(f"stopped: {stop_reason}")
+    logger.info("stopped: %s", stop_reason)
     fieldnames = [
         "rank",
         "topic_id",
@@ -287,9 +289,15 @@ def main() -> int:
         "comment_count",
     ]
     _write_dict_csv(out, fieldnames, rows)
-    print(len(rows), "rows ->", out)
+    logger.info("%s rows -> %s", len(rows), out)
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

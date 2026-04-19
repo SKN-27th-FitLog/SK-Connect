@@ -8,6 +8,7 @@ save 스테이지 산출물로 남겨 재실행과 추적이 가능하도록 만
 from __future__ import annotations
 
 import argparse
+import logging
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -34,6 +35,7 @@ CONFIG = get_config()
 PATHS_CONFIG = CONFIG["paths"]
 CSV_ENCODING = PATHS_CONFIG["csv_encoding"]
 _KST = ZoneInfo(CONFIG["timezone"])
+logger = logging.getLogger(__name__)
 
 
 ######################
@@ -108,12 +110,12 @@ def main() -> int:
     try:
         conn = connect()
     except Exception as exc:
-        print(f"DB 연결 실패: {exc}")
+        logger.error("DB 연결 실패: %s", exc)
         return 1
 
     try:
         baseline_max_created_at = get_max_created_at(conn)
-        print(f"DB MAX(created_at) = {baseline_max_created_at!r}")
+        logger.info("DB MAX(created_at) = %r", baseline_max_created_at)
 
         for file_path in files:
             df = pd.read_csv(file_path)
@@ -125,17 +127,23 @@ def main() -> int:
                 inserted = insert_dataframe(conn, filtered)
                 conn.commit()
                 write_dataframe(success_path, filtered)
-                print(f"[ok] {file_path.name}: {inserted} rows -> {success_path}")
+                logger.info("[ok] %s: %s rows -> %s", file_path.name, inserted, success_path)
             except Exception as exc:
                 conn.rollback()
                 write_dataframe(fail_path, df)
                 log_path(save_paths, file_path.name).write_text(str(exc), encoding="utf-8")
-                print(f"[fail] {file_path.name}: {exc}")
+                logger.error("[fail] %s: %s", file_path.name, exc)
     finally:
         conn.close()
 
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

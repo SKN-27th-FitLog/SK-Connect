@@ -8,6 +8,7 @@ thread crawling 스테이지 오케스트레이터.
 from __future__ import annotations
 
 import argparse
+import logging
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -33,6 +34,7 @@ THREAD_COLLECTION_CONFIG = CONFIG["thread_collection"]
 THREAD_JOBS = tuple(CONFIG["jobs"]["thread"])
 _KST = ZoneInfo(CONFIG["timezone"])
 THREAD_SCRIPT_ROOT = Path(__file__).resolve().parent / "thread"
+logger = logging.getLogger(__name__)
 
 
 ######################
@@ -220,14 +222,14 @@ def main() -> int:
                 ["source_name", "failure_reason"],
                 [{"source_name": job["source"], "failure_reason": str(exc)}],
             )
-            print(f"[fail] {job['source']} -> {fail_path}")
+            logger.error("[fail] %s -> %s", job["source"], fail_path)
             continue
 
         if success_path is not None:
             had_success = True
-            print(f"[ok] {job['source']} -> {success_path}")
+            logger.info("[ok] %s -> %s", job["source"], success_path)
         if fail_path is not None:
-            print(f"[fail] {job['source']} -> {fail_path}")
+            logger.error("[fail] %s -> %s", job["source"], fail_path)
 
     if not had_success:
         raise SystemExit("수집 성공 파일이 없습니다.")
@@ -235,5 +237,11 @@ def main() -> int:
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

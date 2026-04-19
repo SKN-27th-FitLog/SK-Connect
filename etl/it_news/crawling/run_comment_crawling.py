@@ -8,6 +8,7 @@ comment raw 성공/실패 CSV를 생성해 다음 cleaning 단계로 넘긴다.
 from __future__ import annotations
 
 import argparse
+import logging
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -23,6 +24,7 @@ PATHS_CONFIG = CONFIG["paths"]
 COMMENT_COLLECTION_CONFIG = CONFIG["comment_collection"]
 COMMENT_JOBS = tuple(CONFIG["jobs"]["comment"])
 _KST = ZoneInfo(CONFIG["timezone"])
+logger = logging.getLogger(__name__)
 
 
 ######################
@@ -110,7 +112,7 @@ def main() -> int:
             command_args.extend([limit_option, str(limit_value)])
             run_python(script_root / job["script"], *command_args)
             had_success = True
-            print(f"[ok] {job['source']} -> {success_path}")
+            logger.info("[ok] %s -> %s", job["source"], success_path)
         except Exception as exc:
             fail_path = source_csv_path(raw_paths, job["source"], run_at, ok=False)
             write_rows(
@@ -118,12 +120,18 @@ def main() -> int:
                 ["source_name", "failure_reason"],
                 [{"source_name": job["source"], "failure_reason": str(exc)}],
             )
-            print(f"[fail] {job['source']} -> {fail_path}")
+            logger.error("[fail] %s -> %s", job["source"], fail_path)
 
     if not had_success:
         raise SystemExit("댓글 수집 성공 파일이 없습니다.")
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

@@ -8,6 +8,7 @@ comment raw 성공 파일을 comments 적재용 스키마로 정리하고,
 from __future__ import annotations
 
 import argparse
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ PATHS_CONFIG = CONFIG["paths"]
 SOURCE_CONFIGS = CONFIG["sources"]
 COMMENT_CONFIG = CONFIG["comment"]
 _KST = ZoneInfo(CONFIG["timezone"])
+logger = logging.getLogger(__name__)
 SUCCESS_FIELDS = [
     "post_id",
     "crawling_id",
@@ -212,13 +214,19 @@ def main() -> int:
         fail_path = source_csv_path(cleaning_paths, file_path.name, ok=False)
         if success_rows:
             write_rows(success_path, SUCCESS_FIELDS, success_rows)
-            print(f"[ok] {file_path.name} -> {success_path}")
+            logger.info("[ok] %s -> %s", file_path.name, success_path)
         if fail_rows:
             write_rows(fail_path, FAIL_FIELDS, fail_rows)
-            print(f"[fail] {file_path.name} -> {fail_path}")
+            logger.error("[fail] %s -> %s", file_path.name, fail_path)
 
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

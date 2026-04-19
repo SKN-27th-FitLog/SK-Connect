@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import re
 import sys
 import time
@@ -33,6 +34,7 @@ CONFIG = get_config()
 CONTENT_CONFIG = CONFIG["sources"]["pytorch"]["content"]
 CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
 _DEFAULT_USER_AGENT = CONTENT_CONFIG["user_agent"]
+logger = logging.getLogger(__name__)
 
 
 ######################
@@ -296,7 +298,7 @@ def main() -> int:
 
     inp: Path = args.input
     if not inp.is_file():
-        print(f"입력 파일 없음: {inp}", file=sys.stderr)
+        logger.error("입력 파일 없음: %s", inp)
         return 1
 
     out_path: Path = args.output or inp.with_name(f"{inp.stem}_with_content{inp.suffix}")
@@ -304,7 +306,7 @@ def main() -> int:
     with inp.open(encoding=CSV_ENCODING, newline="") as f:
         reader = csv.DictReader(f)
         if not reader.fieldnames:
-            print("CSV 헤더가 없습니다.", file=sys.stderr)
+            logger.error("CSV 헤더가 없습니다.")
             return 1
         fieldnames = _merge_fieldnames(list(reader.fieldnames))
         rows = list(reader)
@@ -325,5 +327,11 @@ def main() -> int:
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())

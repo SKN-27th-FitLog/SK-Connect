@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import sys
 import urllib.error
 import urllib.request
@@ -30,6 +31,7 @@ CONFIG = get_config()
 SOURCE_CONFIG = CONFIG["sources"]["pytorch"]["thread"]
 CSV_ENCODING = CONFIG["paths"]["csv_encoding"]
 _DEFAULT_USER_AGENT = SOURCE_CONFIG["user_agent"]
+logger = logging.getLogger(__name__)
 
 
 def _fetch_json(url: str, timeout: float, *, user_agent: str = _DEFAULT_USER_AGENT) -> Any:
@@ -139,13 +141,13 @@ def main() -> int:
         try:
             data = _fetch_json(page_url, args.timeout)
         except urllib.error.HTTPError as e:
-            print(f"HTTP {e.code}: page={page} {page_url}", file=sys.stderr)
+            logger.error("HTTP %s: page=%s %s", e.code, page, page_url)
             return 1
         except OSError as e:
-            print(f"{type(e).__name__}: page={page} {page_url} — {e}", file=sys.stderr)
+            logger.error("%s: page=%s %s - %s", type(e).__name__, page, page_url, e)
             return 1
         except json.JSONDecodeError as e:
-            print(f"JSONDecodeError: page={page} {page_url} — {e}", file=sys.stderr)
+            logger.error("JSONDecodeError: page=%s %s - %s", page, page_url, e)
             return 1
 
         batch = [row_from_topic(topic, args.category_slug) for topic in topics_from_payload(data)]
@@ -154,7 +156,7 @@ def main() -> int:
             if len(rows) >= limit:
                 stop_reason = f"reached limit {limit}"
                 break
-        print(f"page={page} fetched {len(batch)} rows (total {len(rows)}, limit={limit})")
+        logger.info("page=%s fetched %s rows (total %s, limit=%s)", page, len(batch), len(rows), limit)
 
         if not batch:
             stop_reason = f"no more rows at page {page} (total {len(rows)})"
@@ -167,10 +169,10 @@ def main() -> int:
         stop_reason = f"max-pages {max_pages} reached (total {len(rows)})"
 
     if not rows:
-        print("topic_list.topics 파싱 결과가 없습니다. JSON URL·형식 변경 여부를 확인하세요.", file=sys.stderr)
+        logger.error("topic_list.topics 파싱 결과가 없습니다. JSON URL·형식 변경 여부를 확인하세요.")
         return 1
 
-    print(f"stopped: {stop_reason}")
+    logger.info("stopped: %s", stop_reason)
     fieldnames = [
         "topic_id",
         "title",
@@ -186,9 +188,15 @@ def main() -> int:
         "category_slug",
     ]
     _write_dict_csv(out, fieldnames, rows)
-    print(len(rows), "rows ->", out)
+    logger.info("%s rows -> %s", len(rows), out)
     return 0
 
 
+def configure_logging() -> None:
+    """진입점 기본 로깅 설정을 INFO 수준으로 초기화한다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
 if __name__ == "__main__":
+    configure_logging()
     raise SystemExit(main())
