@@ -304,11 +304,11 @@ def main() -> int:
     """
     args = parse_args()
     run_at = parse_run_at(args.date)
-    cleaning_paths = make_stage_paths("cleaning", run_at)
+    cleaning_paths = make_stage_paths("cleaning", run_at, kind="thread")
     cutoff = fetch_last_created_at() or fallback_cutoff(run_at)
     seen_article_urls: set[str] = set()
 
-    files = raw_success_files(run_at)
+    files = raw_success_files(run_at, kind="thread")
     if not files:
         raise SystemExit("cleaning 대상 raw 성공 파일이 없습니다.")
 

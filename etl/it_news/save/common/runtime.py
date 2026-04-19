@@ -31,6 +31,14 @@ INSERT INTO "crawling" (
 )
 """
 
+COMMENT_INSERT_SQL = """
+INSERT INTO "comments" (
+    post_id, crawling_id, user_id, content, created_at, modify_at, status_cd
+) VALUES (
+    %s, %s, %s, %s, %s, %s, %s
+)
+"""
+
 
 ######################
 # 스테이지 경로 관리 관련
@@ -48,7 +56,7 @@ class StagePaths:
     fail_dir: Path
 
 
-def make_stage_paths(bucket: str, run_at: datetime) -> StagePaths:
+def make_stage_paths(bucket: str, run_at: datetime, *, kind: str | None = None) -> StagePaths:
     """
     실행 일자 기준으로 스테이지의 성공/실패 디렉터리를 생성한다.
 
@@ -59,7 +67,10 @@ def make_stage_paths(bucket: str, run_at: datetime) -> StagePaths:
     Returns:
         생성된 디렉터리 경로 정보를 담은 StagePaths 객체.
     """
-    base = STAGE_ROOT / bucket / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d")
+    base = STAGE_ROOT / bucket
+    if kind:
+        base = base / kind
+    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d")
     success_dir = base / "success"
     fail_dir = base / "fail"
     success_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +110,7 @@ def log_path(paths: StagePaths, filename: str) -> Path:
 ######################
 # 입력 파일 조회 및 환경 변수 처리 관련
 ######################
-def cleaning_success_files(run_at: datetime) -> list[Path]:
+def cleaning_success_files(run_at: datetime, *, kind: str | None = None) -> list[Path]:
     """
     지정한 날짜의 cleaning 성공 결과 CSV 목록을 조회한다.
 
@@ -109,7 +120,10 @@ def cleaning_success_files(run_at: datetime) -> list[Path]:
     Returns:
         성공 디렉터리에 있는 CSV 파일 경로 목록.
     """
-    base = CLEANING_ROOT / "cleaning" / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / "success"
+    base = CLEANING_ROOT / "cleaning"
+    if kind:
+        base = base / kind
+    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / "success"
     if not base.is_dir():
         return []
     return sorted(base.glob("*.csv"))
@@ -286,3 +300,135 @@ def insert_dataframe(conn: psycopg.Connection, df: pd.DataFrame) -> int:
     with conn.cursor() as cur:
         cur.executemany(INSERT_SQL, rows)
     return len(rows)
+
+
+def _normalize_comment_datetime(value: Any) -> str:
+    """
+    댓글 생성/수정 시각을 UTC 기준 ISO 문자열로 정규화한다.
+
+    Args:
+        value: 정규화할 원본 시각 값.
+
+    Returns:
+        비교용 ISO 문자열.
+    """
+    return pd.to_datetime(value, utc=True, errors="raise").isoformat()
+
+
+def _parse_int_field(value: Any) -> int | None:
+    """
+    DB 적재용 숫자 필드를 int 또는 None으로 정규화한다.
+
+    Args:
+        value: 정규화할 원본 값.
+
+    Returns:
+        정수 값 또는 None.
+    """
+    normalized = _empty_to_none(value)
+    if normalized is None:
+        return None
+    return int(float(normalized))
+
+
+def comment_row_tuple(row: pd.Series, *, user_id: int) -> tuple[Any, ...]:
+    """
+    댓글 DataFrame 한 행을 comments INSERT 파라미터 튜플로 변환한다.
+
+    Args:
+        row: 적재할 단일 댓글 행.
+        user_id: comments.user_id 에 넣을 기본 사용자 ID.
+
+    Returns:
+        COMMENT_INSERT_SQL 순서에 맞춘 값 튜플.
+    """
+    created_at = pd.to_datetime(row["created_at"], utc=True, errors="raise").to_pydatetime()
+    modify_at = pd.to_datetime(row["modify_at"], utc=True, errors="raise").to_pydatetime()
+    return (
+        _parse_int_field(row.get("post_id")),
+        _parse_int_field(row.get("crawling_id")),
+        user_id,
+        _empty_to_none(row.get("content")),
+        created_at,
+        modify_at,
+        str(_empty_to_none(row.get("status_cd")) or "ST01")[:6],
+    )
+
+
+def insert_comment_dataframe(conn: psycopg.Connection, df: pd.DataFrame, *, user_id: int) -> int:
+    """
+    댓글 DataFrame 전체를 DB에 일괄 INSERT 한다.
+
+    Args:
+        conn: 활성화된 DB 연결 객체.
+        df: 적재할 댓글 데이터프레임.
+        user_id: comments.user_id 에 넣을 기본 사용자 ID.
+
+    Returns:
+        실제로 적재한 행 수.
+    """
+    if df.empty:
+        return 0
+    rows = [comment_row_tuple(row, user_id=user_id) for _, row in df.iterrows()]
+    with conn.cursor() as cur:
+        cur.executemany(COMMENT_INSERT_SQL, rows)
+    return len(rows)
+
+
+def existing_comment_keys(conn: psycopg.Connection, crawling_ids: list[int]) -> set[tuple[int, str, str]]:
+    """
+    지정한 crawling_id 목록에 대해 이미 저장된 댓글 키를 조회한다.
+
+    Args:
+        conn: 활성화된 DB 연결 객체.
+        crawling_ids: 비교 대상 crawling_id 목록.
+
+    Returns:
+        (crawling_id, created_at_iso, content) 조합의 집합.
+    """
+    if not crawling_ids:
+        return set()
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT crawling_id, created_at, content
+            FROM "comments"
+            WHERE crawling_id = ANY(%s)
+            """,
+            (crawling_ids,),
+        )
+        rows = cur.fetchall()
+
+    keys: set[tuple[int, str, str]] = set()
+    for crawling_id, created_at, content in rows:
+        if crawling_id is None or created_at is None or content is None:
+            continue
+        keys.add((int(crawling_id), _normalize_comment_datetime(created_at), str(content).strip()))
+    return keys
+
+
+def filter_existing_comments(df: pd.DataFrame, existing_keys: set[tuple[int, str, str]]) -> pd.DataFrame:
+    """
+    이미 DB에 저장된 댓글과 동일한 키를 가진 행을 제외한다.
+
+    Args:
+        df: 원본 댓글 데이터프레임.
+        existing_keys: DB에서 조회한 기존 댓글 키 집합.
+
+    Returns:
+        신규 댓글만 남긴 데이터프레임.
+    """
+    if df.empty or not existing_keys:
+        return df
+
+    keep_indexes: list[int] = []
+    for index, row in df.iterrows():
+        key = (
+            int(float(row["crawling_id"])),
+            _normalize_comment_datetime(row["created_at"]),
+            str(row["content"]).strip(),
+        )
+        if key not in existing_keys:
+            keep_indexes.append(index)
+    return df.loc[keep_indexes].copy()

@@ -34,7 +34,7 @@ class StagePaths:
     fail_dir: Path
 
 
-def make_stage_paths(bucket: str, run_at: datetime) -> StagePaths:
+def make_stage_paths(bucket: str, run_at: datetime, *, kind: str | None = None) -> StagePaths:
     """
     실행 일자 기준으로 스테이지의 성공/실패 디렉터리를 생성한다.
 
@@ -45,7 +45,10 @@ def make_stage_paths(bucket: str, run_at: datetime) -> StagePaths:
     Returns:
         생성된 디렉터리 경로 정보를 담은 StagePaths 객체.
     """
-    base = STAGE_ROOT / bucket / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d")
+    base = STAGE_ROOT / bucket
+    if kind:
+        base = base / kind
+    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d")
     success_dir = base / "success"
     fail_dir = base / "fail"
     success_dir.mkdir(parents=True, exist_ok=True)
@@ -108,7 +111,7 @@ def write_rows(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) ->
         writer.writerows(rows)
 
 
-def raw_success_files(run_at: datetime) -> list[Path]:
+def raw_success_files(run_at: datetime, *, kind: str | None = None) -> list[Path]:
     """
     지정한 날짜의 crawling 성공 결과 CSV 목록을 조회한다.
 
@@ -118,7 +121,10 @@ def raw_success_files(run_at: datetime) -> list[Path]:
     Returns:
         성공 디렉터리에 있는 CSV 파일 경로 목록.
     """
-    base = CRAWLING_ROOT / "raw" / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / "success"
+    base = CRAWLING_ROOT / "raw"
+    if kind:
+        base = base / kind
+    base = base / run_at.strftime("%Y") / run_at.strftime("%m") / run_at.strftime("%d") / "success"
     if not base.is_dir():
         return []
     return sorted(base.glob("*.csv"))

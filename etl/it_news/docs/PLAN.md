@@ -56,16 +56,22 @@ etl\it_news : 실제 작업사항이 등록 (현재는 이전 구현 사항을 �
 - 저장의 경우 쿼리 요청해서 저장하는데 만약 실패한 경우가 발생하면 실패한 파일은 따로 분류해서 나중에 재시도 한다. 
 
 ## 1. 수집 폴더 (crawling - 년/월/일은 폴더, 시분초는 파일 이름으로 사용 )
-- 수집 성공 : raw/2026/04/19/success/geeknews_011127.csv
-- 수집 실패 : raw/2026/04/19/fail/geeknews_030745.csv
+- thread 수집 성공 : raw/thread/2026/04/19/success/geeknews_011127.csv
+- thread 수집 실패 : raw/thread/2026/04/19/fail/geeknews_030745.csv
+- comment 수집 성공 : raw/comment/2026/04/19/success/geeknews_011127.csv
+- comment 수집 실패 : raw/comment/2026/04/19/fail/geeknews_030745.csv
 
 ## 2. 처리 폴더 (cleaning - 년/월/일은 폴더, 시분초는 파일 이름으로 사용 )
-- 처리 성공 : cleaning/2026/04/19/success/geeknews_011127.csv
-- 처리 실패 : cleaning/2026/04/19/fail/geeknews_030745.csv
+- thread 처리 성공 : cleaning/thread/2026/04/19/success/geeknews_011127.csv
+- thread 처리 실패 : cleaning/thread/2026/04/19/fail/geeknews_030745.csv
+- comment 처리 성공 : cleaning/comment/2026/04/19/success/geeknews_011127.csv
+- comment 처리 실패 : cleaning/comment/2026/04/19/fail/geeknews_030745.csv
 
 ## 3. 저장 폴더 (save - 년/월/일은 폴더, 시분초는 파일 이름으로 사용 )
-- 저장 성공 : save/2026/04/19/success/geeknews_011127.csv
-- 저장 실패 : save/2026/04/19/fail/geeknews_030745.csv
+- thread 저장 성공 : save/thread/2026/04/19/success/geeknews_011127.csv
+- thread 저장 실패 : save/thread/2026/04/19/fail/geeknews_030745.csv
+- comment 저장 성공 : save/comment/2026/04/19/success/geeknews_011127.csv
+- comment 저장 실패 : save/comment/2026/04/19/fail/geeknews_030745.csv
 
 
 # 주의사항 : 다음 사항을 주의하면서 계획 및 작업을 진행한다. 

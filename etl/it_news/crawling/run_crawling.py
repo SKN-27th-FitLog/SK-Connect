@@ -6,7 +6,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from common.runtime import (
-    LEGACY_ROOT,
     IT_NEWS_ROOT,
     make_stage_paths,
     read_rows,
@@ -18,6 +17,7 @@ from common.runtime import (
 
 
 _KST = ZoneInfo("Asia/Seoul")
+THREAD_SCRIPT_ROOT = Path(__file__).resolve().parent / "thread"
 
 
 ######################
@@ -60,7 +60,7 @@ def parse_run_at(date_arg: str | None) -> datetime:
 ######################
 # 임시 파일 경로 및 소스 처리 관련
 ######################
-def build_temp_path(source: str, suffix: str) -> Path:
+def build_temp_path(source: str, suffix: str, *, kind: str) -> Path:
     """
     소스별 임시 CSV 파일 경로를 생성한다.
 
@@ -71,7 +71,7 @@ def build_temp_path(source: str, suffix: str) -> Path:
     Returns:
         `.tmp` 디렉터리 아래의 임시 CSV 경로.
     """
-    tmp_dir = IT_NEWS_ROOT / "crawling" / ".tmp"
+    tmp_dir = IT_NEWS_ROOT / "crawling" / ".tmp" / kind
     tmp_dir.mkdir(parents=True, exist_ok=True)
     return tmp_dir / f"{source}_{suffix}.csv"
 
@@ -101,13 +101,13 @@ def process_source(
     Returns:
         성공 CSV 경로와 실패 CSV 경로. 없으면 각각 None이다.
     """
-    raw_paths = make_stage_paths("raw", run_at)
+    raw_paths = make_stage_paths("raw", run_at, kind="thread")
 
-    thread_csv = build_temp_path(source, thread_filename)
-    content_csv = build_temp_path(source, with_content_filename)
+    thread_csv = build_temp_path(source, thread_filename, kind="thread")
+    content_csv = build_temp_path(source, with_content_filename, kind="thread")
 
     run_python(
-        LEGACY_ROOT / thread_script,
+        THREAD_SCRIPT_ROOT / thread_script,
         "--limit",
         str(args.limit),
         "--timeout",
@@ -116,7 +116,7 @@ def process_source(
         str(thread_csv),
     )
     run_python(
-        LEGACY_ROOT / content_script,
+        THREAD_SCRIPT_ROOT / content_script,
         "--input",
         str(thread_csv),
         "--output",
@@ -175,7 +175,7 @@ def main() -> int:
     """
     args = parse_args()
     run_at = parse_run_at(args.date)
-    raw_paths = make_stage_paths("raw", run_at)
+    raw_paths = make_stage_paths("raw", run_at, kind="thread")
 
     jobs = (
         {

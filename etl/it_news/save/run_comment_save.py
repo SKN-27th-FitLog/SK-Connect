@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -10,14 +11,13 @@ import pandas as pd
 from common.runtime import (
     cleaning_success_files,
     connect,
-    filter_incremental,
-    get_max_created_at,
-    insert_dataframe,
+    existing_comment_keys,
+    filter_existing_comments,
+    insert_comment_dataframe,
     log_path,
     make_stage_paths,
     source_csv_path,
 )
-
 
 _KST = ZoneInfo("Asia/Seoul")
 
@@ -27,16 +27,14 @@ _KST = ZoneInfo("Asia/Seoul")
 ######################
 def parse_args() -> argparse.Namespace:
     """
-    save 스테이지 실행 인자를 파싱한다.
-
-    Args:
-        없음.
+    comment save 단계 실행 인자를 파싱한다.
 
     Returns:
-        실행 날짜를 포함한 argparse 네임스페이스.
+        실행 날짜와 기본 사용자 ID 옵션이 담긴 argparse 네임스페이스.
     """
-    parser = argparse.ArgumentParser(description="IT News save stage runner")
+    parser = argparse.ArgumentParser(description="IT News comment save stage runner")
     parser.add_argument("--date", default=None, help="기본값은 오늘(KST), YYYY-MM-DD 형식")
+    parser.add_argument("--user-id", type=int, default=None, help="comments.user_id 로 사용할 기본 사용자 ID")
     return parser.parse_args()
 
 
@@ -56,11 +54,30 @@ def parse_run_at(date_arg: str | None) -> datetime:
 
 
 ######################
-# 결과 파일 저장 관련
+# comment 저장 기본값 처리 관련
 ######################
+def resolve_comment_user_id(arg_value: int | None) -> int:
+    """
+    comments.user_id 에 넣을 기본 사용자 ID를 CLI 또는 환경 변수에서 결정한다.
+
+    Args:
+        arg_value: CLI에서 받은 사용자 ID.
+
+    Returns:
+        실제 저장에 사용할 사용자 ID.
+    """
+    if arg_value is not None:
+        return arg_value
+
+    raw = os.environ.get("IT_NEWS_COMMENT_USER_ID") or os.environ.get("COMMENT_USER_ID")
+    if raw not in (None, ""):
+        return int(raw)
+    raise SystemExit("comment save용 user_id가 없습니다. --user-id 또는 IT_NEWS_COMMENT_USER_ID를 설정하세요.")
+
+
 def write_dataframe(path: Path, df: pd.DataFrame) -> None:
     """
-    DataFrame을 UTF-8 BOM이 포함된 CSV 파일로 저장한다.
+    DataFrame을 UTF-8 BOM CSV로 저장한다.
 
     Args:
         path: 저장 대상 CSV 경로.
@@ -71,24 +88,22 @@ def write_dataframe(path: Path, df: pd.DataFrame) -> None:
 
 
 ######################
-# save 실행 흐름 관련
+# comment save 실행 흐름 관련
 ######################
 def main() -> int:
     """
-    cleaning 성공 파일을 읽어 DB에 적재하고 결과 파일을 기록한다.
-
-    Args:
-        없음.
+    comment cleaning 성공 파일을 읽어 comments 테이블에 적재하고 결과 파일을 기록한다.
 
     Returns:
         정상 종료 시 0, DB 연결 실패 시 1.
     """
     args = parse_args()
+    user_id = resolve_comment_user_id(args.user_id)
     run_at = parse_run_at(args.date)
-    save_paths = make_stage_paths("save", run_at, kind="thread")
-    files = cleaning_success_files(run_at, kind="thread")
+    save_paths = make_stage_paths("save", run_at, kind="comment")
+    files = cleaning_success_files(run_at, kind="comment")
     if not files:
-        raise SystemExit("save 대상 cleaning 성공 파일이 없습니다.")
+        raise SystemExit("save 대상 comment cleaning 성공 파일이 없습니다.")
 
     try:
         conn = connect()
@@ -97,19 +112,21 @@ def main() -> int:
         return 1
 
     try:
-        baseline_max_created_at = get_max_created_at(conn)
-        print(f"DB MAX(created_at) = {baseline_max_created_at!r}")
-
         for file_path in files:
             df = pd.read_csv(file_path)
-            filtered = filter_incremental(df, baseline_max_created_at)
             success_path = source_csv_path(save_paths, file_path.name, ok=True)
             fail_path = source_csv_path(save_paths, file_path.name, ok=False)
 
             try:
-                inserted = insert_dataframe(conn, filtered)
+                # crawling_id/created_at/content 조합이 이미 DB에 있으면 다시 넣지 않는다.
+                crawling_ids = sorted({int(value) for value in df["crawling_id"].dropna().tolist()}) if not df.empty else []
+                filtered = filter_existing_comments(df, existing_comment_keys(conn, crawling_ids))
+                inserted = insert_comment_dataframe(conn, filtered, user_id=user_id)
                 conn.commit()
-                write_dataframe(success_path, filtered)
+                result_df = filtered.copy()
+                if not result_df.empty:
+                    result_df["user_id"] = user_id
+                write_dataframe(success_path, result_df)
                 print(f"[ok] {file_path.name}: {inserted} rows -> {success_path}")
             except Exception as exc:
                 conn.rollback()

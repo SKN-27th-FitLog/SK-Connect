@@ -99,6 +99,8 @@ docker ps
 
 `sk_connect_db`가 보이면 됩니다.
 
+`comments` 저장까지 검증하려면 `users` 테이블에 참조 가능한 사용자 행이 하나 이상 있어야 하며, 실행 시 `IT_NEWS_COMMENT_USER_ID` 또는 `--comment-user-id`로 그 `user_id`를 넘겨야 합니다.
+
 테이블 존재 여부 예시:
 
 ```powershell
