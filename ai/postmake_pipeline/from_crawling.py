@@ -23,7 +23,7 @@ ORDER BY c.crawling_id ASC
 LIMIT %s;
 """
     with connection.cursor() as cursor:
-        cursor.execute(get_query)
+        cursor.execute(get_query, ['it', limit])
         columns = [col[0] for col in cursor.description]
         rows = cursor.fetchall()
 

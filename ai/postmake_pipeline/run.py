@@ -26,8 +26,7 @@ def run_batch():
 
             except Exception as e:
                 print(f"Error: {e}")
-                logging.error(f"Error: {e}")
-                logging.error(f"Batch {batch_count} failed.../ crawling_id: {row['crawling_id']}")
+                logging.error(f"Error={e} | crawling_id={row['crawling_id']}")
                 continue
 
         logging.info(f"Batch {batch_count} completed...")
