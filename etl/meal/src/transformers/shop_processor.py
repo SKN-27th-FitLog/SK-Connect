@@ -3,56 +3,32 @@ import json
 import pandas as pd
 from .base_processor import BaseProcessor
 from ..core.file_manager import logger
+from ..core.code_manager.resolver import CodeResolver
+from ..core.constants import CodePrefix, MapsColumns, ShopColumns
 
 class ShopProcessor(BaseProcessor):
     """
-    식당 정보를 DB 적재 및 전처리 포맷으로 변환하며, 데이터 무결성을 검증합니다.
+    식당 정보를 DB 적재 포맷으로 변환하며, 코드 리졸버를 통해 실시간으로 코드를 조회합니다.
     """
     
-    def __init__(self, code_csv: str):
-        self.category_map, self.address_map = self.load_code_tables(code_csv)
-        self.default_food_cd = "FC06" # FUSION/기타
-        self.default_address_cd = "LA00" # 기본 지역
-        self.map_category_cd = "CA01" # RESTAURANT
+    def __init__(self, code_resolver: CodeResolver):
+        super().__init__(code_resolver)
+        # 기본 코드 설정 (Exact Match 정책)
+        self.default_food_cd = self.resolver.resolve("기타", CodePrefix.FOOD) or "FC06"
+        self.default_address_cd = "LA00" 
+        self.map_category_cd = self.resolver.resolve("맛집", CodePrefix.CATEGORY) or "CA01"
 
     def resolve_address_cd(self, address: str) -> str:
-        for name, cd in self.address_map.items():
-            if name in address:
-                return cd
+        # 주소 문자열에서 시/구 추출하여 코드 조회 (단순화된 로직)
+        for part in address.split():
+             cd = self.resolver.resolve(part, CodePrefix.LOCATION)
+             if cd: return cd
         return self.default_address_cd
 
     def resolve_food_category(self, source_category: str) -> str:
-        for name, cd in self.category_map.items():
-            if name in source_category and cd.startswith("FC"):
-                return cd
-        return self.default_food_cd
-
-    def validate_master_data(self, data: Dict[str, Any]) -> List[str]:
-        """
-        데이터 무결성을 검증합니다. 실패 시 실패 사유 리스트를 반환합니다.
-        필수 요건: 주소, 좌표(lat, lon), 메뉴(최소 1건).
-        """
-        errors = []
-        
-        # 1. 주소 검증
-        if not data.get("address_detail"):
-            errors.append("Missing address_detail")
-            
-        # 2. 좌표 검증
-        lat = data.get("latitude")
-        lon = data.get("longitude")
-        if lat is None or lon is None or (lat == 0.0 and lon == 0.0):
-            errors.append("Invalid coordinates (0.0 or None)")
-            
-        # 3. 메뉴 검증
-        try:
-            menus = json.loads(data.get("menus_json", "[]"))
-            if not menus:
-                errors.append("No menu items found")
-        except:
-            errors.append("Menu data format error")
-            
-        return errors
+        # 카테고리 명칭으로 코드 조회
+        cd = self.resolver.resolve(source_category, CodePrefix.FOOD)
+        return cd if cd else self.default_food_cd
 
     def process_for_master(self, row: pd.Series, lat: Optional[float] = None, lon: Optional[float] = None) -> Dict[str, Any]:
         """마스터 테이블(maps, shop) 적재용 데이터 정제"""
@@ -60,19 +36,20 @@ class ShopProcessor(BaseProcessor):
         source_category = str(row.get("source_category", ""))
         
         return {
-            "name": str(row.get("store_name", "")).strip(),
-            "address_detail": store_address,
+            MapsColumns.NAME.value: str(row.get("store_name", "")).strip(),
+            MapsColumns.ADDRESS_DETAIL.value: store_address,
             "address_cd": self.resolve_address_cd(store_address),
             "food_category_cd": self.resolve_food_category(source_category),
-            "rating": self.safe_float(row.get("store_rating")),
+            "maps_category_cd": self.map_category_cd,
+            ShopColumns.RATING.value: self.safe_float(row.get("store_rating")),
             "menus_json": str(row.get("menus_json", "[]")),
-            "latitude": lat,
-            "longitude": lon,
-            "shop_image_urls": str(row.get("shop_image_urls", "[]"))
+            MapsColumns.LATITUDE.value: lat,
+            MapsColumns.LONGITUDE.value: lon,
+            MapsColumns.SOURCE_URL.value: str(row.get("store_url", ""))
         }
 
     def process_for_crawling(self, row: pd.Series) -> Dict[str, Any]:
-        """crawling 테이블(thread='shop') 적재용 데이터 정제"""
+        """crawling 테이블 적재용 데이터 정제"""
         from datetime import datetime
         name = str(row.get("store_name", "")).strip()
         address = str(row.get("store_address", ""))
@@ -92,8 +69,3 @@ class ShopProcessor(BaseProcessor):
             "author": "crawler_bot",
             "category_cd": self.map_category_cd
         }
-
-    def process_batch_crawling(self, df: pd.DataFrame) -> pd.DataFrame:
-        if df.empty: return pd.DataFrame()
-        records = [self.process_for_crawling(row) for _, row in df.iterrows()]
-        return pd.DataFrame(records)

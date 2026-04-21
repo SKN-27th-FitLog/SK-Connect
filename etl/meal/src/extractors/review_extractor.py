@@ -72,6 +72,16 @@ class ReviewExtractor(BaseCrawler):
                 content = self.safe_text(block.locator(".review_contents, p.review_contents"))
                 if not content: continue
 
+                # 키워드(태그) 추출 추가
+                tags = []
+                for t_selector in [".tags", ".tag-list", ".review_tags", "span.badge"]:
+                    t_locs = block.locator(t_selector)
+                    for k in range(t_locs.count()):
+                        t_text = self.safe_text(t_locs.nth(k)).strip()
+                        if t_text and t_text not in tags:
+                            # '#' 제거 처리 등 클렌징
+                            tags.append(t_text.replace("#", ""))
+
                 # 이미지 URL 추출
                 img_locators = block.locator("img.review_img, .img_box img")
                 image_urls: List[str] = []
@@ -85,6 +95,7 @@ class ReviewExtractor(BaseCrawler):
                     "rating": rating,
                     "date_text": date_text,
                     "content": content,
+                    "keywords": json.dumps(tags, ensure_ascii=False),
                     "image_urls": json.dumps(image_urls, ensure_ascii=False)
                 })
             except Exception:

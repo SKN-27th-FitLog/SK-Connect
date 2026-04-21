@@ -1,16 +1,21 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 import pandas as pd
 from .base_processor import BaseProcessor
+from ..core.code_manager.resolver import CodeResolver
+from ..core.constants.code_rules import CodePrefix
 
 class ReviewProcessor(BaseProcessor):
     """
-    수집된 리뷰 데이터를 crawling 테이블 형식에 맞게 변환합니다.
+    수집된 리뷰 데이터를 crawling 테이블 형식에 맞게 변환하며, 키워드 데이터를 포함합니다.
     """
     
-    def __init__(self):
-        super().__init__()
-        self.default_category = "CA01" # 맛집(RESTAURANT)
+    def __init__(self, code_resolver: Optional[CodeResolver] = None):
+        super().__init__(code_resolver)
+        if self.resolver:
+            self.default_category = self.resolver.resolve("맛집", CodePrefix.CATEGORY) or "CA01"
+        else:
+            self.default_category = "CA01"
 
     def process_for_crawling(self, row: pd.Series) -> Dict[str, Any]:
         """crawling 테이블 적재용 데이터 정제"""
@@ -23,14 +28,13 @@ class ReviewProcessor(BaseProcessor):
             "title": f"{store_name} 리뷰",
             "content": content,
             "thread": "review",
-            "article_url": str(row.get("store_url", "")),
-            "created_at": str(row.get("date")) if pd.notna(row.get("date")) else now.strftime("%Y-%m-%d"),
+            "article_url": str(row.get("review_id", "")), # 식별자로 사용
+            "created_at": str(row.get("date_text")) if pd.notna(row.get("date_text")) else now.strftime("%Y-%m-%d"),
             "view_count": 0,
             "comment_count": 0,
             "point": self.safe_float(row.get("rating")),
             "author": "crawler_bot",
-            "map_id": None, # Loader에서 조회하여 채울 예정
-            "local_image_paths": row.get("local_image_paths", "[]"),
+            "keywords": row.get("keywords", "[]"),
             "category_cd": self.default_category
         }
 

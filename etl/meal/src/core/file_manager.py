@@ -69,7 +69,8 @@ class FileManager:
         p_name = process.split('=')[-1]
         s_name = service.split('=')[-1]
         now = datetime.now()
-        path = self.root / f"process={p_name}" / f"service={s_name}" / \
+        # data_lake 하위에 저장되도록 수정 (v4.0)
+        path = self.root / "data_lake" / f"process={p_name}" / f"service={s_name}" / \
                f"year={now.year}" / f"month={now.month:02d}" / f"day={now.day:02d}" / \
                f"status={status}"
         path.mkdir(parents=True, exist_ok=True)
@@ -78,8 +79,35 @@ class FileManager:
     def save_df(self, df: Any, process: str, service: str, status: str = "success") -> Path:
         save_path = self.get_hive_path(process, service, status)
         df.to_csv(save_path, index=False, encoding="utf-8-sig")
-        self.logger.info(f"--- [{process.upper()}] 파일 저장 완료 ({service}): {save_path.name} (status={status})")
+        self.logger.info(f"--- [{process.upper()}] 파일 저장 완료 ({service}): {status}")
         return save_path
+
+    def list_hive_files(self, status: str = "fail") -> List[str]:
+        """data_lake 내 특정 상태(status=fail 등)의 모든 파일 목록을 반환합니다."""
+        data_lake_dir = self.root / "data_lake"
+        if not data_lake_dir.exists():
+            return []
+        
+        # status=[status] 디렉토리 하위의 .csv 파일 검색
+        pattern = f"**/status={status}/*.csv"
+        paths = list(data_lake_dir.rglob(pattern))
+        return [str(p) for p in paths]
+
+    def move_to_archive(self, file_path: str):
+        """성공적으로 재처리된 파일을 archive 폴더로 이동합니다."""
+        p = Path(file_path)
+        if not p.exists(): return
+
+        archive_dir = self.root / "data_lake" / "archive" / datetime.now().strftime("%Y-%m-%d")
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        
+        target = archive_dir / p.name
+        # 파일명 중복 방지
+        if target.exists():
+            target = archive_dir / f"{p.stem}_{int(time.time())}{p.suffix}"
+            
+        p.rename(target)
+        self.logger.info(f"--- [ARCHIVE] 파일 이동 완료: {target.name}")
 
 # Singleton
 file_manager = FileManager()
