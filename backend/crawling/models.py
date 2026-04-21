@@ -19,8 +19,9 @@ class Crawling(models.Model):
     comment_count = models.IntegerField(blank=True, null=True)
     point = models.FloatField(blank=True, null=True)
     author = models.CharField(max_length=100, blank=True, null=True)
-    map = models.ForeignKey('places.Maps', blank=True, null=True, on_delete=models.DO_NOTHING)
-    category_cd = models.ForeignKey('common.Codet', db_column='category_cd', blank=True, null=True, on_delete=models.SET_NULL)
+    map = models.ForeignKey('places.Maps', on_delete=models.SET_NULL, blank=True, null=True, db_column='map_id')
+    category_cd = models.CharField(max_length=6, blank=True, null=True)
+    keywords = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
         managed = False
