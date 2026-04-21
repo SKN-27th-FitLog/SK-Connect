@@ -4,13 +4,9 @@ common에서 필요한 함수들을 임포트 하는 경우는 해당 파일에�
 실제는 해당 코드에 실행 함수 하나를 놓고 실행함수에는 설정값을 받아서 동작하도록 한다. 
 실행부에는 설정값을 받아서 실행하는 식으로 한다. 
 '''
-from common.utils import build_csv_path, save_csv, get_run_time
-from common.crawling_thread_geeknews import crawling_thread_geeknews
-from common.crawling_thread_pytorch import crawling_thread_pytorch
-
-
-
-
+from common.utils import get_run_time
+from crawling_thread_geeknews import crawling_thread_geeknews
+from crawling_thread_pytorch import crawling_thread_pytorch
 
 
 
@@ -21,9 +17,8 @@ from common.crawling_thread_pytorch import crawling_thread_pytorch
 
 def crawling(run_time:str=None, ):
 
-    
-    crawling_thread_geeknews()
-    crawling_thread_pytorch()
+    crawling_thread_geeknews(run_time)
+    crawling_thread_pytorch(run_time)
 
 
 

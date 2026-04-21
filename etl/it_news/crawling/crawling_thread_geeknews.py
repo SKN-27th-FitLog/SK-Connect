@@ -14,17 +14,35 @@ geeknews 크롤링 작업 순서
 '''
 
 # 패키지
+import sys
 import time
-from urllib.parse import urljoin, urlparse
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Tuple
+from urllib.parse import parse_qs, urljoin, urlparse
+
+
 
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
-# 모듈
-from constant import CrawlingConstant as C_Constant
-from constant import PageURL as P_URL
-from common.utils import get_run_time
+# 모듈 (크롤링 전용 — 패키지명이 상위 common 과 겹치지 않도록 common_crawling)
+from common_crawling.constant import CrawlingConstant as C_Constant
+from common_crawling.constant import PageURL as P_URL
+from common_crawling.utils import korean_relative_time
+
+# 공용 저장·경로 (etl/it_news/common)
+
+# 디버그/직접 실행 시 PYTHONPATH 없이도 etl/it_news 의 common 패키지를 찾도록 함
+_IT_NEWS_ROOT = Path(__file__).resolve().parents[1]
+if str(_IT_NEWS_ROOT) not in sys.path:
+    sys.path.insert(0, str(_IT_NEWS_ROOT))
+    
+from common.constant import Stage, Status
+from common.utils import build_csv_path, get_run_time, save_csv
+
+
 
 
 
@@ -66,8 +84,6 @@ def get_article_list() -> list[str]:
     return article_urls
 
 
-
-
 #########################################################################
 # 게시글 1개 목록에 대한 실행 함수 
 #########################################################################
@@ -84,7 +100,7 @@ def parse_article(url:str) -> dict:
     article_dict = {
         "title": slicing_title(soup),
         "content": slicing_content(soup),
-        "thread": slicing_thread(soup),
+        "thread": slicing_thread(url),
         "article_url": url,                                 # 입력받은 URL 주소 그대로 반환
         "created_at": slicing_created_at(soup),
         "view_count": 0,                                    # 해당 게시글에는 글 조회수 없음 
@@ -92,11 +108,10 @@ def parse_article(url:str) -> dict:
         "point": slicing_point(soup),
         "author": slicing_author(soup),
         "map_id": 0,                                        # 해당 게시글은 위치정보 없음 
-        "category_cd": "CA07"                               # 카테고리 정보글 타입으로 고정
+        "category_cd": "CA07"                               # 코드테이블에서 가져오거나 상수로 고정해야 함 
     }
 
     return article_dict
-
 
 
 
@@ -108,71 +123,102 @@ def parse_article(url:str) -> dict:
 def slicing_title(soup: BeautifulSoup) -> str:
     '''게시글 1개의 HTML 문서에서 제목을 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
 
-
-    title_el = soup.select_one("div.topic .topictitle h1") or soup.select_one(".topictitle h1")
-
-    if title_el:
-        title = title_el.get_text(strip=True)
-    else:
-        og = soup.select_one('meta[property="og:title"]')
-        title = (og.get("content") or "").strip() if og else ""
-
-    return title
+    title = soup.select_one("div.topic .topictitle h1") \
+            or soup.select_one(".topictitle h1")
+    
+    return title.get_text(strip=True)
 
 # 내용 슬라이싱 
 def slicing_content(soup: BeautifulSoup) -> str:
     '''게시글 1개의 HTML 문서에서 내용을 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
 
     # 본문: topic.js 렌더 영역 — id=topic_contents
-    content_el = soup.select_one("#topic_contents") or soup.select_one("div.topic_contents")
+    content = soup.select_one("#topic_contents") \
+            or soup.select_one("div.topic_contents")
 
-    if content_el:
-        content = content_el.get_text("\n", strip=True)
-    else:
-        content = ""
+    return content.get_text("\n", strip=True)
 
-    return content
-
-# 게시글 id 슬라이싱 
-def slicing_thread(soup: BeautifulSoup) -> str:
-    pass
+# 게시글 id 슬라이싱
+def slicing_thread(article_url: str) -> str:
+    """URL 의 topic?id= 값에 geeknews_ 접두사. id 없으면 예외로 실패."""
+    # geeknews_1234 형식으로 고유 id 값을 가지도록 처리함 
+    return f"geeknews_{parse_qs(urlparse(article_url).query)['id'][0]}"
 
 # 작성일자 슬라이싱
-def slicing_created_at(soup: BeautifulSoup) -> str:
-    pass
+def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
+    """div.topicinfo 내 상대 시각(예: 8시간전)을 현재 시각에서 차감해 datetime으로 반환."""
+    topicinfo = soup.select_one("div.topicinfo")
+
+    # topicinfo 내 span 태그 내 텍스트를 차례대로 추출 
+    # korean_relative_time 함수를 사용해 datetime으로 변환
+    for span in topicinfo.find_all("span"):
+        text = span.get_text(strip=True)
+        dt = korean_relative_time(text)
+        return dt
+
 
 # 댓글 수 슬라이싱
-def slicing_comment_count(soup: BeautifulSoup) -> str:
-    pass
+def slicing_comment_count(soup: BeautifulSoup) -> int:
+    """a[data-topic-comment-count] 정수값. 요소·속성 없음·변환 실패 시 0."""
+    try:
+        return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
+    except (TypeError, KeyError, ValueError):
+        return 0 # 종류에 관계 없이 에러 발생시 0 
+
 
 # 점수/좋아요 수 슬라이싱
-def slicing_point(soup: BeautifulSoup) -> str:
-    pass
+def slicing_point(soup: BeautifulSoup) -> int:
+    """topicinfo 안 '… P by …' 구조에서 P 앞 숫자(예: id=tp12345 span 텍스트)."""
+    t = soup.select_one("div.topicinfo span[id^='tp']").get_text(strip=True)
+    return int(t) if t.isdigit() else 0 # t가 숫자면 반환, 아니면 0 으로 처리 
+
 
 # 작성자 슬라이싱
 def slicing_author(soup: BeautifulSoup) -> str:
-    pass
-
+    """topicinfo 내 /@username 링크의 사용자명. DOM이 없으면 AttributeError 등으로 실패."""
+    # 작성자 이름이 들어있는 부분 pick > href 부분의 값을 추출 
+    href = soup.select_one('div.topicinfo a[href^="/@"]')["href"]
+    return href.strip().removeprefix("/@") # 추출 값에서 앞부분 제거 
 
 
 
 #########################################################################
 # 전체 실행함수 
 #########################################################################
-def crawling_thread_geeknews(run_time:str=None):
-    pass
+def crawling_thread_geeknews(run_time: Optional[datetime] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
+    if run_time is None:
+        run_time = get_run_time()
 
-
-
-
-
-
-
-if __name__ == "__main__":
-    run_time = get_run_time()
     article_urls = get_article_list()
-    article_dict = parse_article(article_urls[0])
-    print(article_dict)
+    success_rows: list[dict] = []
+    fail_rows: list[dict] = []
+
+    for url in article_urls:
+        try:
+            success_rows.append(parse_article(url))
+        except Exception as e:
+            fail_rows.append(parse_article(url))
+
+    df_success = pd.DataFrame(success_rows)
+    df_fail = pd.DataFrame(fail_rows)
+
+    path_success = build_csv_path(Stage.CRAWLILNG, "geeknews", Status.SUCCESS, run_time)
+    path_fail = build_csv_path(Stage.CRAWLILNG, "geeknews", Status.FAIL, run_time)
+    save_csv(df_success, path_success)
+    save_csv(df_fail, path_fail)
+
+    return df_success, df_fail
+
+
+
+
+##############################################
+# 내부 직접 실행 
+##############################################
+if __name__ == "__main__":
+    df_ok, df_bad = crawling_thread_geeknews()
+    print(f"success: {len(df_ok)} rows, fail: {len(df_bad)} rows")
 
 
 
