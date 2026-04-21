@@ -16,12 +16,12 @@ if __name__ == "__main__":
     df = pd.DataFrame()
 
     # 저장 경로 생성
-    crawling_path1  = build_csv_path(Stage.CRAWLILNG, "it_news", Status.SUCCESS, run_time)
-    crawling_path2  = build_csv_path(Stage.CRAWLILNG, "it_news", Status.FAIL, run_time)
-    cleaning_path1  = build_csv_path(Stage.CLEANING, "it_news", Status.SUCCESS, run_time)
-    cleaning_path2  = build_csv_path(Stage.CLEANING, "it_news", Status.FAIL, run_time)
-    save_path1      = build_csv_path(Stage.SAVE, "it_news", Status.SUCCESS, run_time)
-    save_path2      = build_csv_path(Stage.SAVE, "it_news", Status.FAIL, run_time)
+    crawling_path1  = build_csv_path(Stage.CRAWLILNG, "it", Status.SUCCESS, run_time)
+    crawling_path2  = build_csv_path(Stage.CRAWLILNG, "it", Status.FAIL, run_time)
+    cleaning_path1  = build_csv_path(Stage.CLEANING, "it", Status.SUCCESS, run_time)
+    cleaning_path2  = build_csv_path(Stage.CLEANING, "it", Status.FAIL, run_time)
+    save_path1      = build_csv_path(Stage.SAVE, "it", Status.SUCCESS, run_time)
+    save_path2      = build_csv_path(Stage.SAVE, "it", Status.FAIL, run_time)
 
     # 저장
     save_csv(df, crawling_path1)
