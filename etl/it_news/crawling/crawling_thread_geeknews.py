@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
+from tqdm import tqdm
 
 import requests
 import pandas as pd
@@ -39,10 +40,6 @@ from common.constant import Stage, Status, CodeTable
 from common.utils import build_csv_path, get_run_time, save_csv
 
 
-
-
-
-
 #########################################################################
 # 게시글 전체 목록 주회 
 #########################################################################
@@ -56,26 +53,27 @@ def get_article_list() -> list[str]:
     # news.hada.io 목록은 ?page=1 이 첫 페이지
     page_num = 1
 
-    # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
-    while True:
-        url = P_URL.GEEKNEWS.url + f"?page={page_num}"
-        response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
-        soup = BeautifulSoup(response.text, "html.parser")
+    with tqdm(desc="geeknews 게시글 목록 URL 수집", unit="page") as pbar:
+        # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
+        while True:
+            url = P_URL.GEEKNEWS.url + f"?page={page_num}"
+            response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        # 긱뉴스(하다) 목록: 각 행의 GN 토픽 링크는 div.topicdesc 내 a[href^='topic?id=']
-        articles = soup.select("div.topic_row div.topicdesc a[href^='topic?id=']")
-        # 게시글이 없으면 반복문을 종료한다.
+            # 긱뉴스(하다) 목록: 각 행의 GN 토픽 링크는 div.topicdesc 내 a[href^='topic?id=']
+            articles = soup.select("div.topic_row div.topicdesc a[href^='topic?id=']")
+            # 게시글이 없으면 반복문을 종료한다.
 
-        if not articles:
-            break
-        for a in articles:
-            href = a.get("href")
-            if href:
-                article_urls.append(urljoin(site_base, href))
-        if page_num >= C_Constant.PAGE_COUNT:
-            break
-        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
-        page_num += 1
+            if not articles:
+                break
+            for a in articles:
+                href = a.get("href")
+                if href:
+                    article_urls.append(urljoin(site_base, href))
+            if page_num >= C_Constant.PAGE_COUNT:
+                break
+            time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
+            page_num += 1
 
     return article_urls
 
@@ -194,7 +192,7 @@ def crawling_thread_geeknews(run_time: Optional[datetime] = None) -> Tuple[pd.Da
     success_rows: list[dict] = []
     fail_rows: list[dict] = []
 
-    for url in article_urls:
+    for url in tqdm(article_urls, desc="geeknews 게시글 파싱", unit="개"):
         try:
             success_rows.append(parse_article(url))
         except Exception as e:

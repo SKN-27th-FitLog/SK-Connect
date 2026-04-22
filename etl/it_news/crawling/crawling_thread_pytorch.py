@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urljoin, urlparse
+from tqdm import tqdm
 
 import requests
 import pandas as pd
@@ -55,26 +56,27 @@ def get_article_list() -> list[str]:
     # discuss.pytorch.kr (Discourse) 목록은 ?page=0 이 첫 페이지 (0 인덱스)
     page_num = 0
 
-    # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
-    while True:
-        url = P_URL.PYTORCH.url + f"?page={page_num}"
-        response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
-        soup = BeautifulSoup(response.text, "html.parser")
+    with tqdm(desc="pytorch 게시글 목록 URL 수집", unit="page") as pbar:
+        # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
+        while True:
+            url = P_URL.PYTORCH.url + f"?page={page_num}"
+            response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        # Discourse 토픽 목록: tr.topic-list-item 내 td.main-link 안의 a.title 링크
-        articles = soup.select("tr.topic-list-item td.main-link a.title")
-        # 게시글이 없으면 반복문을 종료한다.
+            # Discourse 토픽 목록: tr.topic-list-item 내 td.main-link 안의 a.title 링크
+            articles = soup.select("tr.topic-list-item td.main-link a.title")
+            # 게시글이 없으면 반복문을 종료한다.
 
-        if not articles:
-            break
-        for a in articles:
-            href = a.get("href")
-            if href:
-                article_urls.append(urljoin(site_base, href))
-        if page_num >= C_Constant.PAGE_COUNT:
-            break
-        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
-        page_num += 1
+            if not articles:
+                break
+            for a in articles:
+                href = a.get("href")
+                if href:
+                    article_urls.append(urljoin(site_base, href))
+            if page_num >= C_Constant.PAGE_COUNT:
+                break
+            time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
+            page_num += 1
 
     return article_urls
 
@@ -187,7 +189,7 @@ def crawling_thread_pytorch(run_time: Optional[datetime] = None) -> Tuple[pd.Dat
     success_rows: list[dict] = []
     fail_rows: list[dict] = []
 
-    for url in article_urls:
+    for url in tqdm(article_urls, desc="pytorch 게시글 파싱", unit="개"):
         try:
             success_rows.append(parse_article(url))
         except Exception as e:
