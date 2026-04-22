@@ -21,25 +21,21 @@ from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
 
-
-
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-
-# 모듈 (크롤링 전용 — 패키지명이 상위 common 과 겹치지 않도록 common_crawling)
-from common_crawling.constant import CrawlingConstant as C_Constant
-from common_crawling.constant import PageURL as P_URL
-from common_crawling.utils import korean_relative_time
-
-# 공용 저장·경로 (etl/it_news/common)
 
 # 디버그/직접 실행 시 PYTHONPATH 없이도 etl/it_news 의 common 패키지를 찾도록 함
 _IT_NEWS_ROOT = Path(__file__).resolve().parents[1]
 if str(_IT_NEWS_ROOT) not in sys.path:
     sys.path.insert(0, str(_IT_NEWS_ROOT))
+
+# 모듈
+from common.constant import CrawlingConstant as C_Constant
+from common.constant import PageURL as P_URL
+from common.utils import korean_relative_time
     
-from common.constant import Stage, Status
+from common.constant import Stage, Status, CodeTable
 from common.utils import build_csv_path, get_run_time, save_csv
 
 
@@ -54,7 +50,7 @@ from common.utils import build_csv_path, get_run_time, save_csv
 def get_article_list() -> list[str]:
     '''기준 페이지에서 수집해야 할 게시글의 절대 URL 목록을 구하는 함수'''
     article_urls = []
-    list_origin = urlparse(P_URL.GEEKNEWS.value)
+    list_origin = urlparse(P_URL.GEEKNEWS.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
 
     # news.hada.io 목록은 ?page=1 이 첫 페이지
@@ -62,7 +58,7 @@ def get_article_list() -> list[str]:
 
     # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
     while True:
-        url = P_URL.GEEKNEWS.value + f"?page={page_num}"
+        url = P_URL.GEEKNEWS.url + f"?page={page_num}"
         response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -108,7 +104,7 @@ def parse_article(url:str) -> dict:
         "point": slicing_point(soup),
         "author": slicing_author(soup),
         "map_id": 0,                                        # 해당 게시글은 위치정보 없음 
-        "category_cd": "CA07"                               # 코드테이블에서 가져오거나 상수로 고정해야 함 
+        "category_cd": CodeTable.IT_NEWS.value,           # 코드테이블에서 가져오거나 상수로 고정해야 함 
     }
 
     return article_dict
@@ -154,7 +150,11 @@ def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
     for span in topicinfo.find_all("span"):
         text = span.get_text(strip=True)
         dt = korean_relative_time(text)
-        return dt
+        if dt is not None: 
+            return dt
+
+    # 모든 span을 순회했는데도 작성일자를 찾을 수 없으면 예외 발생 
+    raise ValueError("작성일자를 찾을 수 없습니다.")
 
 
 # 댓글 수 슬라이싱
@@ -198,15 +198,19 @@ def crawling_thread_geeknews(run_time: Optional[datetime] = None) -> Tuple[pd.Da
         try:
             success_rows.append(parse_article(url))
         except Exception as e:
-            fail_rows.append(parse_article(url))
+            fail_rows.append({"article_url": url, "error": str(e)})
+        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
 
     df_success = pd.DataFrame(success_rows)
     df_fail = pd.DataFrame(fail_rows)
 
-    path_success = build_csv_path(Stage.CRAWLILNG, "geeknews", Status.SUCCESS, run_time)
-    path_fail = build_csv_path(Stage.CRAWLILNG, "geeknews", Status.FAIL, run_time)
-    save_csv(df_success, path_success)
-    save_csv(df_fail, path_fail)
+    if not df_success.empty:
+        path_success = build_csv_path(Stage.CRAWLILNG, P_URL.GEEKNEWS.service, Status.SUCCESS, run_time)
+        save_csv(df_success, path_success)
+
+    if not df_fail.empty:
+        path_fail = build_csv_path(Stage.CRAWLILNG, P_URL.GEEKNEWS.service, Status.FAIL, run_time)
+        save_csv(df_fail, path_fail)
 
     return df_success, df_fail
 
