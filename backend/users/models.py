@@ -10,12 +10,12 @@ from django.db import models
 
 class Users(models.Model):
     user_id = models.BigAutoField(primary_key=True)
-    email = models.CharField(unique=True, null=False, max_length=255)
+    email = models.CharField(unique=True, max_length=255, null=False)
     nickname = models.CharField(max_length=100, blank=True, null=True)
     profile_image = models.CharField(max_length=255, blank=True, null=True)
-    google_id = models.CharField(unique=True, null=False, max_length=255)
-    created_at = models.DateTimeField(null=False)
-    status_cd = models.ForeignKey('common.Codet', on_delete=models.DO_NOTHING, null=False, db_column='status_cd')
+    google_id = models.CharField(unique=True, max_length=255, null=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    status_cd = models.CharField(max_length=6, null=False)
 
     class Meta:
         managed = False
