@@ -14,30 +14,18 @@ class Posts(models.Model):
     content = models.TextField(null=False)
     created_at = models.DateTimeField(null=False)
     modify_at = models.DateTimeField(null=False)
-    status_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='status_cd')
-    post_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='post_cd', related_name='posts_post_cd_set')
-    user = models.ForeignKey('users.Users', models.DO_NOTHING, blank=True, null=True, db_column='user_id')
-    map = models.ForeignKey('places.Maps', models.SET_NULL, blank=True, null=True, db_column='map_id')
-    shop = models.ForeignKey('places.Shop', models.SET_NULL, blank=True, null=True, db_column='shop_id')
-    crawling = models.ForeignKey('crawling.Crawling', models.DO_NOTHING, blank=True, null=True, db_column='crawling_id')
+    status_cd = models.CharField(max_length=6, null=False)
+    post_cd = models.CharField(max_length=6, null=False)
+    category_cd = models.CharField(max_length=6, blank=True, null=True)
+    user = models.ForeignKey('users.Users', on_delete=models.SET_NULL, blank=True, null=True, db_column='user_id')
+    map = models.ForeignKey('places.Maps', on_delete=models.SET_NULL, blank=True, null=True, db_column='map_id')
+    shop = models.ForeignKey('places.Shop', on_delete=models.SET_NULL, blank=True, null=True, db_column='shop_id')
+    crawling = models.ForeignKey('crawling.Crawling', on_delete=models.DO_NOTHING, blank=True, null=True, db_column='crawling_id')
+    tag = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'posts'
-
-
-class Comments(models.Model):
-    comment_id = models.BigAutoField(primary_key=True)
-    post = models.ForeignKey('community.Posts', null=False, on_delete=models.CASCADE, db_column='post_id')
-    user = models.ForeignKey('users.Users', null=False, on_delete=models.DO_NOTHING, db_column='user_id')
-    content = models.TextField(null=False)
-    created_at = models.DateTimeField(null=False)
-    modify_at = models.DateTimeField(null=False)
-    status_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='status_cd')
-
-    class Meta:
-        managed = False
-        db_table = 'comments'
 
 
 class Likes(models.Model):
@@ -48,3 +36,18 @@ class Likes(models.Model):
     class Meta:
         managed = False
         db_table = 'likes'
+
+
+class Comments(models.Model):
+    comment_id = models.BigAutoField(primary_key=True)
+    post = models.ForeignKey('community.Posts', models.CASCADE, blank=True, null=True, db_column='post_id')
+    crawling = models.ForeignKey('crawling.Crawling', models.CASCADE, blank=True, null=True, db_column='crawling_id')
+    user = models.ForeignKey('users.Users', null=False, on_delete=models.DO_NOTHING, db_column='user_id')
+    content = models.TextField(null=False)
+    created_at = models.DateTimeField(null=False)
+    modify_at = models.DateTimeField(null=False)
+    status_cd = models.CharField(max_length=6, null=False)
+
+    class Meta:
+        managed = False
+        db_table = 'comments'

@@ -11,8 +11,8 @@ from django.db import models
 class Maps(models.Model):
     map_id = models.BigAutoField(primary_key=True)
     name = models.TextField(blank=True, null=True)
-    category_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='category_cd')
-    address_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='address_cd', related_name='maps_address_cd_set')
+    category_cd = models.CharField(max_length=6, null=False)
+    address_cd = models.CharField(max_length=6, null=False)
     address_detail = models.TextField(null=False)
     latitude = models.FloatField(null=False)
     longitude = models.FloatField(null=False)
@@ -20,17 +20,6 @@ class Maps(models.Model):
     class Meta:
         managed = False
         db_table = 'maps'
-
-
-class Shop(models.Model):
-    shop_id = models.BigAutoField(primary_key=True)
-    map = models.ForeignKey('places.Maps', null=False, on_delete=models.CASCADE, db_column='map_id')
-    category_cd = models.ForeignKey('common.Codet', null=False, on_delete=models.DO_NOTHING, db_column='category_cd')
-    rating = models.FloatField(blank=True, null=True)
-
-    class Meta:
-        managed = False
-        db_table = 'shop'
 
 
 class Menu(models.Model):
@@ -42,3 +31,14 @@ class Menu(models.Model):
     class Meta:
         managed = False
         db_table = 'menu'
+
+
+class Shop(models.Model):
+    shop_id = models.BigAutoField(primary_key=True)
+    map = models.ForeignKey('places.Maps', null=False, on_delete=models.CASCADE, db_column='map_id')
+    shop_cd = models.CharField(max_length=6, null=False)
+    rating = models.FloatField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'shop'
