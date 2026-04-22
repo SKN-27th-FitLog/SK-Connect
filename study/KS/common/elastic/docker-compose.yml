@@ -1,0 +1,201 @@
+version: '3.8'  # Docker Compose 파일 버전
+
+services:
+  ############################################################
+  # Elasticsearch (Single Node for Development)
+  ############################################################
+  elasticsearch:
+    # Elasticsearch 공식 이미지 사용
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
+    
+    # 컨테이너 이름 지정
+    container_name: elasticsearch
+    
+    # 환경 변수 설정
+    environment:
+      # Single-node 클러스터 설정 (개발용)
+      - discovery.type=single-node
+      
+      # 보안 설정 활성화
+      - xpack.security.enabled=true
+      # SSL은 개발 환경에서 비활성화 (운영에서는 활성화 필요)
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      
+      # 기본 사용자 비밀번호 설정
+      - ELASTIC_PASSWORD=changeme123!           # elastic 슈퍼유저
+      - KIBANA_PASSWORD=changeme123!            # kibana_system 사용자
+      
+      # 메모리 설정 (JVM Heap Size)
+      # 운영 환경에서는 시스템 메모리의 50% 권장 (최대 31GB)
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      
+      # 네트워크 설정
+      - network.host=0.0.0.0
+      
+      # 클러스터 이름
+      - cluster.name=elasticsearch-cluster
+      
+      # 노드 이름
+      - node.name=elasticsearch-node-1
+      
+    # 포트 매핑
+    ports:
+      - "9200:9200"  # REST API 포트 (HTTP)
+      - "9300:9300"  # 노드 간 통신 포트 (TCP)
+    
+    # 데이터 영속성을 위한 볼륨 마운트
+    # 컨테이너 재시작 시에도 데이터가 유지됩니다
+    volumes:
+      - ./database:/usr/share/elasticsearch/data
+    
+    # 헬스체크 설정 (인증 정보 포함)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -u elastic:changeme123! -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    
+    # 재시작 정책
+    restart: unless-stopped
+    
+    # 리소스 제한 (선택사항)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2G
+    #     reservations:
+    #       memory: 1G
+
+  ############################################################
+  # Setup Container (kibana_system 비밀번호 자동 설정)
+  ############################################################
+  setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.1
+    container_name: elasticsearch-setup
+    
+    # Elasticsearch가 healthy 상태가 된 후 실행
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    
+    # kibana_system 사용자 비밀번호 설정
+    command: >
+      bash -c '
+        echo "Waiting for Elasticsearch to be ready...";
+        until curl -s -u elastic:changeme123! http://elasticsearch:9200/_cluster/health | grep -q "yellow\|green"; do
+          sleep 5;
+        done;
+        echo "Setting kibana_system password...";
+        curl -X POST -u elastic:changeme123! \
+          "http://elasticsearch:9200/_security/user/kibana_system/_password" \
+          -H "Content-Type: application/json" \
+          -d "{\"password\":\"changeme123!\"}";
+        echo "";
+        echo "kibana_system password has been set successfully!";
+      '
+    
+    # 한 번만 실행하고 종료
+    restart: "no"
+
+  ############################################################
+  # Kibana (Elasticsearch Web UI)
+  ############################################################
+  kibana:
+    # Kibana 공식 이미지 (Elasticsearch와 동일한 버전 사용)
+    image: docker.elastic.co/kibana/kibana:8.12.1
+    
+    # 컨테이너 이름 지정
+    container_name: kibana
+    
+    # 환경 변수 설정
+    environment:
+      # Elasticsearch 연결 설정
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      
+      # Elasticsearch 인증 정보 (kibana_system 전용 계정 사용)
+      # elastic 슈퍼유저는 사용 불가 - kibana_system 사용 필수
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=changeme123!
+      
+      # Kibana 서버 설정
+      - SERVER_NAME=kibana
+      - SERVER_HOST=0.0.0.0
+      
+      # 다국어 설정 (한국어)
+      - I18N_LOCALE=ko-KR
+      
+    # 포트 매핑
+    ports:
+      - "5601:5601"  # Kibana Web UI
+    
+    # Setup 컨테이너가 kibana_system 비밀번호 설정 완료 후 실행
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
+    
+    # 헬스체크 설정
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    
+    # 재시작 정책
+    restart: unless-stopped
+
+############################################################
+# 디렉토리 구조
+# ├── docker-compose.yml
+# └── database/              # Elasticsearch 데이터 저장 디렉토리
+#
+# 서비스 구성:
+# 1. elasticsearch: 메인 Elasticsearch 서버
+# 2. setup: kibana_system 비밀번호 자동 설정 (1회 실행)
+# 3. kibana: Kibana Web UI
+#
+# 접속 정보 (보안 활성화):
+# - Elasticsearch REST API: http://localhost:9200
+#   * 사용자명: elastic
+#   * 비밀번호: changeme123!
+# - Kibana Web UI:          http://localhost:5601
+#   * Kibana는 kibana_system 계정으로 Elasticsearch 연결
+#
+# 주요 엔드포인트 (인증 필요):
+# - 클러스터 상태:           curl -u elastic:changeme123! http://localhost:9200/_cluster/health
+# - 인덱스 목록:            curl -u elastic:changeme123! http://localhost:9200/_cat/indices?v
+# - 노드 정보:              curl -u elastic:changeme123! http://localhost:9200/_cat/nodes?v
+#
+# Python에서 접속 시:
+# from elasticsearch import Elasticsearch
+# es = Elasticsearch(
+#     "http://localhost:9200",
+#     basic_auth=("elastic", "changeme123!")
+# )
+#
+# 계정 정보:
+# - elastic (슈퍼유저): API 접속용, 모든 권한
+# - kibana_system: Kibana 전용, 시스템 인덱스 접근 가능
+#
+# 실행 방법:
+# docker-compose up -d
+# 
+# 실행 순서:
+# 1. elasticsearch 시작 및 헬스체크 통과 대기
+# 2. setup 컨테이너가 kibana_system 비밀번호 설정
+# 3. kibana 시작
+#
+# 운영 환경 고려사항:
+# 1. ✅ xpack.security.enabled=true (보안 활성화 완료)
+# 2. 강력한 비밀번호로 변경 (현재는 예시용)
+# 3. SSL/TLS 인증서 설정 (HTTPS 활성화)
+# 4. 추가 사용자 생성 및 역할 기반 접근 제어 (RBAC)
+# 5. 메모리 설정 최적화 (시스템 메모리의 50%, 최대 31GB)
+# 6. 디스크 워터마크 설정
+# 7. 정기적인 백업 및 스냅샷 설정
+############################################################
+
