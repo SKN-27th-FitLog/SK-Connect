@@ -32,7 +32,7 @@ CREATE TABLE "maps"(
 CREATE TABLE "shop"(
     shop_id BIGSERIAL PRIMARY KEY, --가게 고유 번호--
     map_id BIGINT NOT NULL REFERENCES maps(map_id) ON DELETE CASCADE, --지도 고유 번호--
-    category_cd VARCHAR(6) NOT NULL, --한식/중식/양식/일식/카페/기타--
+    shop_cd VARCHAR(6) NOT NULL, --한식/중식/양식/일식/카페/기타--
     rating FLOAT --평점--
 );
 

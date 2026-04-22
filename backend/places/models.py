@@ -35,8 +35,8 @@ class Menu(models.Model):
 
 class Shop(models.Model):
     shop_id = models.BigAutoField(primary_key=True)
-    map = models.ForeignKey(Maps, null=False, on_delete=models.CASCADE, db_column='map_id')
-    category_cd = models.CharField(max_length=6, null=False)
+    map = models.ForeignKey('places.Maps', null=False, on_delete=models.CASCADE, db_column='map_id')
+    shop_cd = models.CharField(max_length=6, null=False)
     rating = models.FloatField(blank=True, null=True)
 
     class Meta:
