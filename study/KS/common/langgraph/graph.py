@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 from common.langgraph.state import ChatbotState
 from common.langgraph.nodes import chatbot_node, create_keyword_node, create_coding_node, create_cooking_node
 from common.langgraph.agents import create_agent_by_weather, create_agent_by_news, create_agent_by_stock
-from common.db.checkpointer import get_postgres_checkpointer
+from common.postgresql.checkpointer import get_postgres_checkpointer
 
 # LangGraph 라이브러리 
 from langgraph.graph import StateGraph, START, END

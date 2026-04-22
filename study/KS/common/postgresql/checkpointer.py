@@ -1,5 +1,5 @@
 import streamlit as st
-from common.db.connection import get_encrypted_serde, get_db_config_from_env, PostgreDB
+from connection import get_encrypted_serde, get_db_config_from_env, PostgreDB
 
 
 # from langgraph.checkpoint.sqlite import SqliteSaver

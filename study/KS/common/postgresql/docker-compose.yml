@@ -5,7 +5,7 @@ services:
   # PostgreSQL
   ############################################################
   postgres:
-    image: postgres:16                  # PostgreSQL 16  이미지
+    image: pgvector/pgvector:pg16       # PostgreSQL 16  이미지
     container_name: postgres-db         # 컨테이너 이름
     restart: always                     # 컨테이너 비정상 종료 시 항상 재시작
 
@@ -16,7 +16,7 @@ services:
       POSTGRES_DB: langchain_db          # 기본으로 생성할 데이터베이스 이름
 
     ports:
-      - "5555:5432"                      # 호스트 포트:컨테이너 포트 (기본 PostgreSQL 포트 5432)
+      - "5433:5432"                      # 호스트 포트:컨테이너 포트 (기본 PostgreSQL 포트 5432)
       
     volumes:
       # PostgreSQL 데이터 영속화 (컨테이너 재시작 시에도 데이터 유지)
@@ -25,3 +25,10 @@ services:
       # 초기화 SQL 스크립트 자동 실행
       # docker-compose 실행 시 init.sql을 이용해 테이블 생성/pgvector 확장 자동 설치
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+    healthcheck:
+      # PostgreSQL이 정상적으로 실행 중인지 확인
+      test: ["CMD-SHELL", "pg_isready -U admin"]  # admin 계정으로 접속 테스트
+      interval: 10s    # 10초마다 헬스체크
+      timeout: 5s      # 응답이 5초 안에 없으면 실패로 간주
+      retries: 5       # 5회 시도 후에도 실패하면 unhealthy 상태로 표시

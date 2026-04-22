@@ -8,3 +8,7 @@ __pycache__/
 
 # PostgreSQL 데이터 디렉터리 (Docker 볼륨/로컬 DB 파일 — 커밋 제외)
 postgresql/database/
+
+database
+data
+models
