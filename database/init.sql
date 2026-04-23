@@ -12,9 +12,41 @@ CREATE TABLE "users"(
     email VARCHAR(255) NOT NULL UNIQUE,
     nickname VARCHAR(100),
     profile_image VARCHAR(255),
-    google_id VARCHAR(255) NOT NULL UNIQUE,
+    google_id VARCHAR(255) UNIQUE,              -- NOT NULL 제거 (Day 2에서 컬럼 자체 삭제 예정)
+    role VARCHAR(10) DEFAULT 'user',            -- 추가
     created_at TIMESTAMP NOT NULL,
     status_cd VARCHAR(6) NOT NULL REFERENCES "codeT"(cd)
+);
+-- 소셜 로그인 계정 테이블
+CREATE TABLE "social_accounts" (
+    id               BIGSERIAL PRIMARY KEY,
+    user_id          BIGINT NOT NULL REFERENCES "users"(user_id) ON DELETE CASCADE,
+    provider         VARCHAR(20) NOT NULL,
+    provider_user_id VARCHAR(100) NOT NULL,
+    created_at       TIMESTAMP DEFAULT NOW(),
+    UNIQUE (provider, provider_user_id)
+);
+
+-- Refresh Token 관리 테이블
+CREATE TABLE "refresh_tokens" (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES "users"(user_id) ON DELETE CASCADE,
+    token      VARCHAR(512) NOT NULL UNIQUE,
+    ip_address INET,
+    user_agent TEXT,
+    is_revoked BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 의심 로그인 기록 테이블
+CREATE TABLE "suspicious_logins" (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES "users"(user_id) ON DELETE CASCADE,
+    ip_address INET NOT NULL,
+    user_agent TEXT,
+    status     VARCHAR(10) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 --지도테이블--
