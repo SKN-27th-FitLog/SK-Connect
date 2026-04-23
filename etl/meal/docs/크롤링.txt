@@ -1,0 +1,812 @@
+크롤링
+일단 대략적으로 크롤링 할 것들을 차례로 가져와 봤어 리뷰는 너무 많아서 해당 밑에 더 있는걸 못 찾았거든 이걸 기준으로 찾는게 좋을 것같은데 그리고 확인해보니간 메뉴가 메뉴 접기라는 버튼으로 접혀져 있었고 이미지는 굳이 리뷰에서 가져오지 않아도 각각의 사진들에 대한 각각의 버튼(음식, 실내, 실외, 메뉴/정보) 눌러서 이미지링크 저장할 수 있을 것같고 그리고 리뷰는 접혀져 있는 경우가 있더라 평가 더보기 눌러야 펼쳐지더라고 그래야 전체 리뷰가 나올 것 같아 
+<h1 class="tit">카페 구움</h1>
+<a class="btxt category-0" href="/list.dc?query=독산동 베이커리">베이커리</a>
+<a class="btxt category-1" href="/list.dc?query=독산동  두쫀쿠"> 두쫀쿠</a>
+<strong id="lbl_review_point">4.7</strong>
+<a href="/list.dc?query=서울특별시 금천구 시흥대로 315" target="_blank">315</a>
+<span> 2층 212호 (롯데마트건물아닙니다)</span>
+<img src="https://dfzrjox9sv97l.cloudfront.net/new/images/web/profile/address_toggle.png" width="16px" height="16px" alt="영업시간 토글 아이콘">
+<div class="hour-main-grid expanded">
+        <!-- 메인 영업시간 정보 (첫 번째 행) -->
+        <span class="open-status" style="color:#E85049;">
+          영업 종료        </span>
+
+                <span class="open-desc">
+          오늘(목)
+        </span>
+        
+                <span class="separator-dot">·</span>
+        
+        <span class="today-main-hours" id="today-main-hours">영업시간: 11:00 - 17:00</span>
+
+        <button class="open_hour_toggle_btn" style="display: none;">
+          <img src="https://dfzrjox9sv97l.cloudfront.net/new/images/web/profile/address_toggle.png" width="16px" height="16px" alt="영업시간 토글 아이콘">
+        </button>
+
+        <!-- 상세 영업시간 (두 번째 행, 토글 시 표시) -->
+        <div class="hour-detail-empty" style="display: block;"></div> <!-- 첫 번째 컬럼 빈 공간 -->
+
+        <div class="hour-dates-column" style="display: flex;">
+          <span class="hour_date" style="height: 22px;">4월 24일(금)</span><span class="hour_date" style="height: 22px;">4월 25일(토)</span><span class="hour_date" style="height: 22px;">4월 26일(일)</span><span class="hour_date" style="height: 22px;">4월 27일(월)</span><span class="hour_date" style="height: 22px;">4월 28일(화)</span><span class="hour_date" style="height: 22px;">4월 29일(수)</span>        </div>
+
+        <div class="hour-separator-empty" style="display: block;"></div> <!-- 세 번째 컬럼 빈 공간 -->
+
+        <div class="hour-times-column" style="display: flex;">
+          <div class="hour_time_item"><span class="hour_time">영업시간: 11:00 - 17:00</span></div><div class="hour_time_item"><span class="hour_time">영업시간: 11:00 - 17:00</span></div><div class="hour_time_item"><span class="hour_time">영업시간: 11:00 - 17:00</span></div><div class="hour_time_item"><span class="hour_time closed">휴무일</span></div><div class="hour_time_item"><span class="hour_time">영업시간: 11:00 - 17:00</span></div><div class="hour_time_item last-hour-item"><span class="hour_time">영업시간: 11:00 - 17:00</span></div><button class="fold_button" onclick="foldLastOrderItem(event)">접기<img src="https://dfzrjox9sv97l.cloudfront.net/new/images/web/profile/address_toggle.png" alt="접기 아이콘"></button>        </div>
+
+        <div class="hour-toggle-empty" style="display: block;"></div> <!-- 다섯 번째 컬럼 빈 공간 -->
+      </div>
+
+<li class="tel">0507-1312-9281</li>
+<a href="/list.dc?query=독산동 혼카페">혼카페</a>
+<a href="/list.dc?query=독산동 간식">간식</a>
+<li class="char"><a href="/list.dc?query=독산동 조용한">조용한</a>, <a href="/list.dc?query=독산동 예약">예약</a>, <a href="/list.dc?query=독산동 점심식사">점심식사</a>, <a href="/list.dc?query=독산동 예약가능">예약가능</a>, <a href="/list.dc?query=독산동 무료주차">무료주차</a>, <a href="/list.dc?query=독산동 배달">배달</a></li>
+<span class="more-btn">
+                <span>메뉴 더보기</span>
+                <img class="toggle-arrow" src="https://dfzrjox9sv97l.cloudfront.net/new/images/web/profile/address_toggle.png" alt="">
+            </span>
+<ul class="list Restaurant-MenuList">
+                        <li data-menu-group="0" data-menu-index="0" data-orig-index="0" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">두바이 쫀득쿠키</span>
+                                </p>
+                                <p class="restaurant-price">5,500<span class="won-unit">원</span></p>                            </div>
+                                                        <p class="menu-description">바삭한 카다이프피스타치오를 마시멜로우로 감싼 수제 쫀득쿠키 (인공감미료x)</p>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-0"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="1" data-orig-index="1" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">에그타르트</span>
+                                </p>
+                                <p class="restaurant-price">3,900<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-1"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="2" data-orig-index="2" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">에스프레소</span>
+                                </p>
+                                <p class="restaurant-price">3,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-2"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="3" data-orig-index="3" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">헤이즐넛아메리카노</span>
+                                </p>
+                                <p class="restaurant-price">4,200<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-3"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="4" data-orig-index="4" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">아인슈페너</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-4"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="5" data-orig-index="5" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">카페라떼</span>
+                                </p>
+                                <p class="restaurant-price">4,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-5"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="6" data-orig-index="6" data-comment-count="0" class="">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">카푸치노</span>
+                                </p>
+                                <p class="restaurant-price">4,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-6"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="7" data-orig-index="7" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">돌체라떼</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-7"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="8" data-orig-index="8" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">카페모카</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-8"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="9" data-orig-index="9" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">바닐라라떼</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-9"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="10" data-orig-index="10" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">카라멜마끼아또</span>
+                                </p>
+                                <p class="restaurant-price">4,700<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-10"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="11" data-orig-index="11" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">아몬드라떼</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-11"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="12" data-orig-index="12" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">휘낭시에</span>
+                                </p>
+                                <p class="restaurant-price">2,900<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-12"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="13" data-orig-index="13" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">헤이즐넛라떼</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-13"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="14" data-orig-index="14" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">그린티라떼</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-14"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="15" data-orig-index="15" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">토피넛파떼</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-15"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="16" data-orig-index="16" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">홍차로얄밀크티</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-16"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="17" data-orig-index="17" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">핫초코&amp;아이스초코</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-17"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="18" data-orig-index="18" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">수제청자몽티</span>
+                                </p>
+                                <p class="restaurant-price">5,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-18"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="19" data-orig-index="19" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">수제청자몽에이드</span>
+                                </p>
+                                <p class="restaurant-price">5,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-19"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="20" data-orig-index="20" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">히비스커스</span>
+                                </p>
+                                <p class="restaurant-price">4,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-20"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="21" data-orig-index="21" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">캐모마일</span>
+                                </p>
+                                <p class="restaurant-price">4,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-21"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="22" data-orig-index="22" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">루이보스</span>
+                                </p>
+                                <p class="restaurant-price">4,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-22"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="23" data-orig-index="23" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">까눌레</span>
+                                </p>
+                                <p class="restaurant-price">2,900<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-23"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="24" data-orig-index="24" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">얼그레이</span>
+                                </p>
+                                <p class="restaurant-price">4,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-24"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="25" data-orig-index="25" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">마들렌</span>
+                                </p>
+                                <p class="restaurant-price">3,400<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-25"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="26" data-orig-index="26" data-comment-count="0" class="">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">상하목장 유기농 아이스크림</span>
+                                </p>
+                                <p class="restaurant-price">3,700<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-26"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="27" data-orig-index="27" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">후르츠산도</span>
+                                </p>
+                                <p class="restaurant-price">7,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-27"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="28" data-orig-index="28" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">버터떡(4ea)</span>
+                                </p>
+                                <p class="restaurant-price">6,000<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-28"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="29" data-orig-index="29" data-comment-count="0">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">두바이 초코타르트</span>
+                                </p>
+                                <p class="restaurant-price">6,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-29"></div>
+            </li>
+                        <li data-menu-group="0" data-menu-index="30" data-orig-index="30" data-comment-count="0" class="last-visible">
+                <div class="menu-item-row">
+                    <div class="menu-item-left">
+                                                <div class="menu-info-wrapper">
+                            <div class="first-line">
+                                <p class="restaurant-menu-item">
+                                    <span class="restaurant-menu">아메리카노</span>
+                                </p>
+                                <p class="restaurant-price">3,500<span class="won-unit">원</span></p>                            </div>
+                                                    </div>
+                    </div>
+                                    </div>
+                <div class="reviews short" id="reviews-30"></div>
+            </li>
+                    </ul>
+
+<div class="photo_type_div photo_type_selected" data-sort-value="food" onclick="selectPhotoType('food', 13); setTimeout(function(){ try { if (typeof trackPhotoSubtitleClick === 'function') { trackPhotoSubtitleClick('food', 13); } } catch(e) {} }, 0);">
+        음식 (13)
+      </div>
+<div class="photos" id="photos_container">
+        <div class="photo_box btn-img-popup button" data-index="0" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439906_photo_5e416ba8e916.webp" data-pd-id="4423468" data-nickname="떠랑" data-date="2025년 10월 1일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439906_photo_5e416ba8e916.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="1" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250710013535290_photo_92ff447a9b71.webp" data-pd-id="4174908" data-nickname="해피마이라이프" data-date="2025년 7월 10일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250710013535290_photo_92ff447a9b71.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="2" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250710013535671_photo_92ff447a9b71.webp" data-pd-id="4174909" data-nickname="해피마이라이프" data-date="2025년 7월 10일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250710013535671_photo_92ff447a9b71.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="3" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250701081003552_photo_a981b7896903.webp" data-pd-id="4146293" data-nickname="신정동산타" data-date="2025년 7월 1일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250701081003552_photo_a981b7896903.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="4" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250701081003890_photo_a981b7896903.webp" data-pd-id="4146294" data-nickname="신정동산타" data-date="2025년 7월 1일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250701081003890_photo_a981b7896903.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="5" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250701081004217_photo_a981b7896903.webp" data-pd-id="4146295" data-nickname="신정동산타" data-date="2025년 7월 1일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250701081004217_photo_a981b7896903.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="6" data-origin="https://d12zq4w4guyljn.cloudfront.net/20241229025107467_photo_ea94d1fec849.webp" data-pd-id="3588173" data-nickname="토키" data-date="2024년 12월 29일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20241229025107467_photo_ea94d1fec849.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="7" data-origin="https://d12zq4w4guyljn.cloudfront.net/20241229025107871_photo_ea94d1fec849.webp" data-pd-id="3588174" data-nickname="토키" data-date="2024년 12월 29일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20241229025107871_photo_ea94d1fec849.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="8" data-origin="https://d12zq4w4guyljn.cloudfront.net/20240524102633191_photo_3dbdb59e9149.webp" data-pd-id="2926206" data-nickname="뿌우" data-date="2024년 5월 24일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20240524102633191_photo_3dbdb59e9149.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="9" data-origin="https://d12zq4w4guyljn.cloudfront.net/20230114121910_photo1_6b5ae9466b68.webp" data-pd-id="1125892" data-nickname="asdfghjk" data-date="2023년 1월 14일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20230114121910_photo1_6b5ae9466b68.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="10" data-origin="https://d12zq4w4guyljn.cloudfront.net/20230114121910_photo2_6b5ae9466b68.webp" data-pd-id="1125893" data-nickname="asdfghjk" data-date="2023년 1월 14일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20230114121910_photo2_6b5ae9466b68.webp" alt="카페 구움 사진">
+    </div>
+        <div class="photo_box btn-img-popup button" data-index="11" data-origin="https://d12zq4w4guyljn.cloudfront.net/20200513051101_photo1_512ea4b06587.webp" data-pd-id="344260" data-nickname="JM" data-date="2020년 5월 13일">
+      <img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20200513051101_photo1_512ea4b06587.webp" alt="카페 구움 사진">
+    </div>
+      </div>
+
+<div class="photo_type_div photo_type_selected" data-sort-value="interior" onclick="selectPhotoType('interior', 7); setTimeout(function(){ try { if (typeof trackPhotoSubtitleClick === 'function') { trackPhotoSubtitleClick('interior', 7); } } catch(e) {} }, 0);">
+        실내 (7)
+      </div>
+<div class="photos" id="photos_container"><div class="photo_box btn-img-popup button" data-index="0" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439413_photo_5e416ba8e916.webp" data-pd-id="4423465" style="position: relative;" data-nickname="떠랑" data-date="2025년 10월 1일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439413_photo_5e416ba8e916.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="1" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250627120101_photo1_f09a726db95e.webp" data-pd-id="4129040" style="position: relative;" data-nickname="쓰리윤" data-date="2025년 6월 27일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250627120101_photo1_f09a726db95e.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="2" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250511010055_photo2_41a656182398.webp" data-pd-id="3997744" style="position: relative;" data-nickname="BK" data-date="2025년 5월 11일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250511010055_photo2_41a656182398.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="3" data-origin="https://d12zq4w4guyljn.cloudfront.net/20241229025108247_photo_ea94d1fec849.webp" data-pd-id="3588175" style="position: relative;" data-nickname="토키" data-date="2024년 12월 29일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20241229025108247_photo_ea94d1fec849.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="4" data-origin="https://d12zq4w4guyljn.cloudfront.net/20241229025108615_photo_ea94d1fec849.webp" data-pd-id="3588176" style="position: relative;" data-nickname="토키" data-date="2024년 12월 29일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20241229025108615_photo_ea94d1fec849.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="5" data-origin="https://d12zq4w4guyljn.cloudfront.net/20240524102633536_photo_3dbdb59e9149.webp" data-pd-id="2926207" style="position: relative;" data-nickname="뿌우" data-date="2024년 5월 24일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20240524102633536_photo_3dbdb59e9149.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="6" data-origin="https://d12zq4w4guyljn.cloudfront.net/20200513051101_photo3_512ea4b06587.webp" data-pd-id="344262" style="position: relative;" data-nickname="JM" data-date="2020년 5월 13일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20200513051101_photo3_512ea4b06587.webp" alt=" 사진"></div></div>
+<div class="photo_type_div" data-sort-value="exterior" onclick="selectPhotoType('exterior', 1); setTimeout(function(){ try { if (typeof trackPhotoSubtitleClick === 'function') { trackPhotoSubtitleClick('exterior', 1); } } catch(e) {} }, 0);">
+        실외 (1)
+      </div>
+<div class="photos" id="photos_container"><div class="photo_box btn-img-popup button" data-index="0" data-origin="https://d12zq4w4guyljn.cloudfront.net/20241229025527489_menu_ea94d1fec849.webp" data-pd-id="3588178" style="position: relative;" data-nickname="토키" data-date="2024년 12월 29일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20241229025527489_menu_ea94d1fec849.webp" alt=" 사진"></div></div>
+<div class="photo_type_div" data-sort-value="menu_info" onclick="selectPhotoType('menu_info', 9); setTimeout(function(){ try { if (typeof trackPhotoSubtitleClick === 'function') { trackPhotoSubtitleClick('menu_info', 9); } } catch(e) {} }, 0);">
+        메뉴ㆍ정보 (9)
+      </div>
+<div class="photos" id="photos_container"><div class="photo_box btn-img-popup button" data-index="0" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439687_photo_5e416ba8e916.webp" data-pd-id="4423466" style="position: relative;" data-nickname="떠랑" data-date="2025년 10월 1일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439687_photo_5e416ba8e916.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="1" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439781_photo_5e416ba8e916.webp" data-pd-id="4423467" style="position: relative;" data-nickname="떠랑" data-date="2025년 10월 1일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439781_photo_5e416ba8e916.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="2" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095448000_menu_5e416ba8e916.webp" data-pd-id="4423469" style="position: relative;" data-nickname="떠랑" data-date="2025년 10월 1일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095448000_menu_5e416ba8e916.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="3" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250627120101_photo2_f09a726db95e.webp" data-pd-id="4129041" style="position: relative;" data-nickname="쓰리윤" data-date="2025년 6월 27일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250627120101_photo2_f09a726db95e.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="4" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250627120101_menu1_f09a726db95e.webp" data-pd-id="4129042" style="position: relative;" data-nickname="쓰리윤" data-date="2025년 6월 27일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250627120101_menu1_f09a726db95e.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="5" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250627120101_menu2_f09a726db95e.webp" data-pd-id="4129043" style="position: relative;" data-nickname="쓰리윤" data-date="2025년 6월 27일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250627120101_menu2_f09a726db95e.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="6" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250511010055_photo1_41a656182398.webp" data-pd-id="3997743" style="position: relative;" data-nickname="BK" data-date="2025년 5월 11일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250511010055_photo1_41a656182398.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="7" data-origin="https://d12zq4w4guyljn.cloudfront.net/20250511010055_menu1_41a656182398.webp" data-pd-id="3997745" style="position: relative;" data-nickname="BK" data-date="2025년 5월 11일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20250511010055_menu1_41a656182398.webp" alt=" 사진"></div><div class="photo_box btn-img-popup button" data-index="8" data-origin="https://d12zq4w4guyljn.cloudfront.net/20241229025505259_menu_ea94d1fec849.webp" data-pd-id="3588177" style="position: relative;" data-nickname="토키" data-date="2024년 12월 29일"><img class="photo" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20241229025505259_menu_ea94d1fec849.webp" alt=" 사진"></div></div>
+<div class="grade-info" style="min-height:140px;">
+        <div id="lbl_star_point" class="star-point">
+            <span class="point">4.7</span>
+            
+            <div class="star-wrapper">
+                <span class="star"><i style="width:91.632653061224%;"></i></span>
+            </div>
+            <span class="review-count-sentence"><span class="review-count">11건</span>의 리뷰가
+                작성되었어요.</span>
+        </div>
+        <ul class="app-graph">
+            
+            <li class="max-score">
+                <div class="score-tag">
+                    <span class="score-number">5</span>
+                </div>
+                <p class="btxt">최고에요</p>
+                <p class="graph"><span style="width:64%; background-color: #0088ff;"></span></p>
+                <p class="score-count">(7)</p>
+            </li>
+    
+            <li>
+                <div class="score-tag">
+                    <span class="score-number">4.5</span>
+                </div>
+                <p class="btxt">마음에 들어요</p>
+                <p class="graph"><span style="width:27%; background-color: #0088ff;"></span></p>
+                <p class="score-count">(3)</p>
+            </li>
+    
+            <li>
+                <div class="score-tag">
+                    <span class="score-number">4</span>
+                </div>
+                <p class="btxt">만족해요</p>
+                <p class="graph"><span style="width:9%; background-color: #0088ff;"></span></p>
+                <p class="score-count">(1)</p>
+            </li>
+    
+            <li>
+                <div class="score-tag">
+                    <span class="score-number">3</span>
+                </div>
+                <p class="btxt">무난해요</p>
+                <p class="graph"><span style="width:0%; background-color: #c4c4c4;"></span></p>
+                <p class="score-count zero-count">(0)</p>
+            </li>
+    
+            <li>
+                <div class="score-tag">
+                    <span class="score-number">2</span>
+                </div>
+                <p class="btxt">아쉬워요</p>
+                <p class="graph"><span style="width:0%; background-color: #c4c4c4;"></span></p>
+                <p class="score-count zero-count">(0)</p>
+            </li>
+    
+            <li>
+                <div class="score-tag">
+                    <span class="score-number">1</span>
+                </div>
+                <p class="btxt">별로예요</p>
+                <p class="graph"><span style="width:0%; background-color: #c4c4c4;"></span></p>
+                <p class="score-count zero-count">(0)</p>
+            </li>
+            </ul>
+        <!-- 맛/가격/응대/위생 상세 평가 -->
+        
+                <div class="detail-evaluation three-items">
+                        <div class="eval-item">
+                <div class="eval-category">
+                    <div class="category-name">맛</div>
+                    <div class="category-score">5.0</div>
+                </div>
+                <div class="eval-bars">
+                                        <div class="eval-bar-item max-value">
+                        <div class="bar-label ">좋음</div>
+                        <div class="bar-graph">
+                            <span style="width: 100%;"></span>
+                        </div>
+                        <div class="bar-percent ">100%</div>
+                    </div>
+                                        <div class="eval-bar-item ">
+                        <div class="bar-label normal-spacing">보통</div>
+                        <div class="bar-graph">
+                            <span style="width: 0%;"></span>
+                        </div>
+                        <div class="bar-percent zero-percent">0%</div>
+                    </div>
+                                        <div class="eval-bar-item ">
+                        <div class="bar-label ">부족</div>
+                        <div class="bar-graph">
+                            <span style="width: 0%;"></span>
+                        </div>
+                        <div class="bar-percent zero-percent">0%</div>
+                    </div>
+                                    </div>
+            </div>
+                  <div class="eval-item">
+                <div class="eval-category">
+                    <div class="category-name">가격</div>
+                    <div class="category-score">4.5</div>
+                </div>
+                <div class="eval-bars">
+                                        <div class="eval-bar-item max-value">
+                        <div class="bar-label ">만족</div>
+                        <div class="bar-graph">
+                            <span style="width: 73%;"></span>
+                        </div>
+                        <div class="bar-percent ">73%</div>
+                    </div>
+                                        <div class="eval-bar-item ">
+                        <div class="bar-label normal-spacing">보통</div>
+                        <div class="bar-graph">
+                            <span style="width: 27%;"></span>
+                        </div>
+                        <div class="bar-percent ">27%</div>
+                    </div>
+                                        <div class="eval-bar-item ">
+                        <div class="bar-label ">불만</div>
+                        <div class="bar-graph">
+                            <span style="width: 0%;"></span>
+                        </div>
+                        <div class="bar-percent zero-percent">0%</div>
+                    </div>
+                                    </div>
+            </div>
+                  <div class="eval-item">
+                <div class="eval-category">
+                    <div class="category-name">응대</div>
+                    <div class="category-score">4.8</div>
+                </div>
+                <div class="eval-bars">
+                                        <div class="eval-bar-item max-value">
+                        <div class="bar-label ">친절함</div>
+                        <div class="bar-graph">
+                            <span style="width: 91%;"></span>
+                        </div>
+                        <div class="bar-percent ">91%</div>
+                    </div>
+                                        <div class="eval-bar-item ">
+                        <div class="bar-label normal-spacing">보통</div>
+                        <div class="bar-graph">
+                            <span style="width: 9%;"></span>
+                        </div>
+                        <div class="bar-percent ">9%</div>
+                    </div>
+                                        <div class="eval-bar-item ">
+                        <div class="bar-label ">불친절</div>
+                        <div class="bar-graph">
+                            <span style="width: 0%;"></span>
+                        </div>
+                        <div class="bar-percent zero-percent">0%</div>
+                    </div>
+                                    </div>
+            </div>
+          </div>
+          </div>
+<p class="cate js-keyword-expand-trigger" id="keyword_preview_1" data-index="1" style="cursor: default;">
+                <span style="display: inline-block;">혼카페 <b>6</b></span><span style="display: inline-block;">간식 <b>5</b></span><span style="display: inline-block;">데이트 <b>3</b></span><span style="display: inline-block;">차모임 <b>3</b></span><span style="display: inline-block;">배달 <b>2</b></span><span style="display: inline-block;">혼밥 <b>1</b></span><span style="display: inline-block;">혼술 <b>1</b></span><span style="display: inline-block;">회식 <b>1</b></span><span style="display: inline-block;">기념일 <b>1</b></span><span style="display: inline-block;">저녁식사 <b>1</b></span><span style="display: inline-block;">점심식사 <b>1</b></span>                <a href="#" class="btn_more_keyword js-keyword-toggle" data-index="1" style="display: none;">
+                  더보기 <img src="https://dfzrjox9sv97l.cloudfront.net/2018/images/mobile/profile/more_down.png" alt="더보기">
+                </a>
+              </p>
+<p class="cate js-keyword-expand-trigger" id="keyword_preview_2" data-index="2" style="cursor: default;">
+                <span style="display: inline-block;">무료주차 <b>3</b></span><span style="display: inline-block;">2시간주차 <b>1</b></span>                <a href="#" class="btn_more_keyword js-keyword-toggle" data-index="2" style="display: none;">
+                  더보기 <img src="https://dfzrjox9sv97l.cloudfront.net/2018/images/mobile/profile/more_down.png" alt="더보기">
+                </a>
+              </p>
+<p class="cate js-keyword-expand-trigger" id="keyword_preview_3" data-index="3" style="cursor: default;">
+                <span style="display: inline-block;">조용한 <b>5</b></span><span style="display: inline-block;">깔끔한 <b>4</b></span><span style="display: inline-block;">지역주민이찾는 <b>4</b></span><span style="display: inline-block;">숨은맛집 <b>4</b></span><span style="display: inline-block;">예쁜 <b>3</b></span><span style="display: inline-block;">고급스러운 <b>3</b></span><span style="display: inline-block;">캐주얼한 <b>1</b></span><span style="display: inline-block;">푸짐한 <b>1</b></span><span style="display: inline-block;">가성비좋은 <b>1</b></span>                <a href="#" class="btn_more_keyword js-keyword-toggle" data-index="3" style="display: none;">
+                  더보기 <img src="https://dfzrjox9sv97l.cloudfront.net/2018/images/mobile/profile/more_down.png" alt="더보기">
+                </a>
+              </p>
+
+<div class="latter-graph-body processed">
+            <div style="position:absolute; width:54px; height:54px;">
+                <div style="border-radius:50%; background: url('https://s3-ap-northeast-1.amazonaws.com/dcicons/members/user-profile-no-image_thumb.png') no-repeat center; background-size:cover; width:54px;height:54px; margin-top: 14px; box-shadow: inset 0 0 3px rgba(0,0,0,0.08);">
+                </div>
+            </div>
+            <p class="person-grade">
+                <span class="btxt">
+                                        <strong>떠랑</strong>
+                </span>
+                <span class="info">
+                    평균 별점 <span class="avg_score">4.1</span>&nbsp;&nbsp;
+                    평가 <span class="rv_cnt">118</span>&nbsp;&nbsp;
+                    팔로워 <span class="follower_cnt">0</span>
+                </span>
+            </p>
+
+            <!--// 사진 -->
+            
+            <div style="margin:10px 0 16px 0;">
+                <div style="float:left; display: flex; flex-wrap: wrap; gap: 8px;">
+                                        <div class="button btn-gallery-review btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439413_photo_5e416ba8e916.webp" data-nickname="떠랑" data-date="2025년 10월 1일" style="width:148px; height:148px; overflow:hidden; border-radius:8px; position:relative;" data-index="0" data-vrvid="ffbdab1cc7db" data-pd-id="4423465" data-tags="">
+                        <img src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439413_photo_5e416ba8e916.webp" style="width:100%; height:100%; object-fit:cover;" alt="카페 구움 리뷰 사진">
+                                            </div>
+                                        <div class="button btn-gallery-review btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439687_photo_5e416ba8e916.webp" data-nickname="떠랑" data-date="2025년 10월 1일" style="width:148px; height:148px; overflow:hidden; border-radius:8px; position:relative;" data-index="1" data-vrvid="ffbdab1cc7db" data-pd-id="4423466" data-tags="">
+                        <img src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439687_photo_5e416ba8e916.webp" style="width:100%; height:100%; object-fit:cover;" alt="카페 구움 리뷰 사진">
+                                            </div>
+                                        <div class="button btn-gallery-review btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439781_photo_5e416ba8e916.webp" data-nickname="떠랑" data-date="2025년 10월 1일" style="width:148px; height:148px; overflow:hidden; border-radius:8px; position:relative;" data-index="2" data-vrvid="ffbdab1cc7db" data-pd-id="4423467" data-tags="">
+                        <img src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439781_photo_5e416ba8e916.webp" style="width:100%; height:100%; object-fit:cover;" alt="카페 구움 리뷰 사진">
+                                            </div>
+                                        <div class="button btn-gallery-review " data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439906_photo_5e416ba8e916.webp" data-nickname="떠랑" data-date="2025년 10월 1일" style="width:148px; height:148px; overflow:hidden; border-radius:8px; position:relative;" data-index="3" data-vrvid="ffbdab1cc7db" data-pd-id="4423468" data-tags="">
+                        <img src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439906_photo_5e416ba8e916.webp" style="width:100%; height:100%; object-fit:cover;" alt="카페 구움 리뷰 사진">
+                                                <div class="more_photos" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); color: white; display: flex; align-items: center; justify-content: center;">
+                            <span class="more_photos_text">1장 더보기</span>
+                        </div>
+                                            </div>
+                                        <div class="button btn-gallery-review btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095448000_menu_5e416ba8e916.webp" data-nickname="떠랑" data-date="2025년 10월 1일" style="width:148px; height:148px; overflow:hidden; border-radius:8px; position:relative; display:none;" data-index="4" data-vrvid="ffbdab1cc7db" data-pd-id="4423469" data-tags="">
+                        <img src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095448000_menu_5e416ba8e916.webp" style="width:100%; height:100%; object-fit:cover;" alt="카페 구움 리뷰 사진">
+                                            </div>
+                                    </div>
+                <div style="clear:both;"></div>
+                <div id="viewer_photos_container_983042" style="display: none;">
+                                        <img class="photo btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439413_photo_5e416ba8e916.webp" data-index="0" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439413_photo_5e416ba8e916.webp" alt="카페 구움 리뷰 사진 [1/5] - 떠랑 님, 2025년 10월 1일" data-vrvid="ffbdab1cc7db" data-pd-id="4423465" data-tags="">
+                                        <img class="photo btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439687_photo_5e416ba8e916.webp" data-index="1" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439687_photo_5e416ba8e916.webp" alt="카페 구움 리뷰 사진 [2/5] - 떠랑 님, 2025년 10월 1일" data-vrvid="ffbdab1cc7db" data-pd-id="4423466" data-tags="">
+                                        <img class="photo btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439781_photo_5e416ba8e916.webp" data-index="2" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439781_photo_5e416ba8e916.webp" alt="카페 구움 리뷰 사진 [3/5] - 떠랑 님, 2025년 10월 1일" data-vrvid="ffbdab1cc7db" data-pd-id="4423467" data-tags="">
+                                        <img class="photo btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095439906_photo_5e416ba8e916.webp" data-index="3" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095439906_photo_5e416ba8e916.webp" alt="카페 구움 리뷰 사진 [4/5] - 떠랑 님, 2025년 10월 1일" data-vrvid="ffbdab1cc7db" data-pd-id="4423468" data-tags="">
+                                        <img class="photo btn-img-popup" data-origin="https://d12zq4w4guyljn.cloudfront.net/20251001095448000_menu_5e416ba8e916.webp" data-index="4" src="https://d12zq4w4guyljn.cloudfront.net/300_300_20251001095448000_menu_5e416ba8e916.webp" alt="카페 구움 리뷰 사진 [5/5] - 떠랑 님, 2025년 10월 1일" data-vrvid="ffbdab1cc7db" data-pd-id="4423469" data-tags="">
+                                    </div>
+            </div>
+            
+            <!-- 사진 //-->
+
+                        <!--// 상세별점 -->
+                        <p class="point-detail has-photos">
+                <span class="score-group">
+                                        <span class="star"><i style="width:90%;"></i></span>
+                    <span class="total_score">4.5점</span>
+                </span>
+                <span class="date" style="color:#9e9e9e; font-size: 14px;">2025년 10월 1일</span>
+            </p>
+                        <div class="review_contents btxt">디저트로 유명해요~ 가끔가면 다만 환기가잘되지않아서<br>
+빵구움 냄새가 남아요 옷과머리에~<br>
+그래도 디저트맛집이라아주이용을잘합니다^^        </div>
+                        
+                        <div class="sub_title_wrapper"><span class="sub_title">맛: <span class="text">좋음</span></span><span class="sub_title_separator">|</span><span class="sub_title">가격: <span class="text">만족</span></span><span class="sub_title_separator">|</span><span class="sub_title">응대: <span class="text">보통</span></span></div>
+            
+                        <div class="ordered_menu">
+                <p class="ordered_menu_title">주문한 메뉴</p>
+                <p class="ordered_menu_list">그린티라떼</p>
+            </div>
+            
+            <!-- aspect_list 표시 -->
+                        <!-- 상세별점 //-->
+
+
+            <!--// 키워드 -->
+                        <!-- <div class="keyword">
+        <div style="display: inline-block; margin-right: 10px;">
+      <i></i><span>간식</span>
+    </div>
+        <div style="display: inline-block; margin-right: 10px;">
+      <i></i><span>지역주민이찾는</span>
+    </div>
+        <div style="display: inline-block; margin-right: 10px;">
+      <i></i><span>2시간주차</span>
+    </div>
+      </div> -->
+                        <div class="new-keyword">
+                <p class="new-keyword_title">키워드</p>
+                <p class="new-keyword_list">
+                    간식, 지역주민이찾는, 2시간주차                </p>
+            </div>
+                                    <!-- 키워드 // -->
+            <a href="JavaScript:setMoreContentsNew(983042);" class="more-btn" style="display:none;">...더보기</a>
+            </div>
+<button class="More__Review__Button" onclick="getMoreReviewList();">
+            <span class="More__Review__Text">평가 더보기</span>
+            <img class="More__Review__Img" src="https://dfzrjox9sv97l.cloudfront.net/2018/images/mobile/profile/more_down.png" alt="평가 더보기 아이콘">
+        </button>

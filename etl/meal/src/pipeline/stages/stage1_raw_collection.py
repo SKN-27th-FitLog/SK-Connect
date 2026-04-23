@@ -45,6 +45,7 @@ class Stage1RawCollection(BaseStage):
                 "entity_id": target_id,
                 "entity_ref": {"target_id": target_id, "url": url, "shard_id": shard_id},
                 "raw_file_path": full_file_path,
+                "photo_data": raw_data.get("photo_data"),
                 "status": "success",
                 "collected_at": dt.isoformat()
             }

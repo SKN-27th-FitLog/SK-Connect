@@ -5,7 +5,7 @@ from datetime import datetime
 from src.pipeline.stages.base_stage import BaseStage
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
-from src.core.policy.resolver import PolicyResolver, policy_resolver
+from src.core.policy.resolver import PolicyResolver, policy_resolver, Action
 from src.core.policy.reason_code import ReasonCode
 
 class Stage5FailClassification(BaseStage):
@@ -34,7 +34,7 @@ class Stage5FailClassification(BaseStage):
                     "entity_ref": res.get("entity_ref"),
                     "reason_code": reason_code.name,
                     "detail": res.get("detail", ""),
-                    "retry_allowed": self.policy_resolver.should_retry(reason_code),
+                    "retry_allowed": self.policy_resolver.resolve(reason_code, stage=self.NAME) == Action.RETRY,
                     "failed_at": res.get("collected_at", now.isoformat())
                 }
                 failures.append(failure_entry)

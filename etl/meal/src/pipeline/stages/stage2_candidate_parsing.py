@@ -38,7 +38,16 @@ class Stage2CandidateParsing(BaseStage):
                 shop_data = self.parser.parse_shop(html)
                 menus = self.parser.parse_menus(html)
                 reviews = self.parser.parse_reviews(html)
-                images = self.parser.parse_images(html)
+                
+                # 컬렉터가 탭별 수집한 photo_data가 있으면 파서에 전달
+                photo_data = record.get("photo_data")
+                if photo_data and hasattr(self.parser, 'parse_images'):
+                    try:
+                        images = self.parser.parse_images(html, photo_data=photo_data)
+                    except TypeError:
+                        images = self.parser.parse_images(html)
+                else:
+                    images = self.parser.parse_images(html)
                 
                 # 2. Candidate 데이터 구성 (설계안 13장 참조)
                 candidate = {
