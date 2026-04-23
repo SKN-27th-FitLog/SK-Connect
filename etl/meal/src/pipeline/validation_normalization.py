@@ -3,10 +3,10 @@ import json
 from typing import Dict, Any, Optional
 from .base_stage import BaseStage
 from ..core.file_manager import logger
-from ..validators.normalization import normalize_name, normalize_address
-from ..models.store_models import NormalizedStore, StoreCandidate
+from ..services.validators.normalization import normalize_name, normalize_address
+from ..db.models.store_models import NormalizedStore, StoreCandidate
 from ..pipeline.dedup_service import DedupService
-from ..storage.hive_path_builder import HivePathBuilder
+from ..core.storage.hive_path_builder import HivePathBuilder
 
 class ValidationNormalization(BaseStage):
     """

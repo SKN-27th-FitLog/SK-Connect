@@ -3,9 +3,9 @@ import json
 from typing import Dict, Any
 from .base_stage import BaseStage
 from ..core.file_manager import logger
-from ..parsers.store_parser import StoreParser
-from ..models.store_models import StoreCandidate
-from ..storage.hive_path_builder import HivePathBuilder
+from ..services.parsers.store_parser import StoreParser
+from ..db.models.store_models import StoreCandidate
+from ..core.storage.hive_path_builder import HivePathBuilder
 
 class CandidateParsing(BaseStage):
     """

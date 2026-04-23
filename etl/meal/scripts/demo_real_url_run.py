@@ -9,16 +9,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 모듈 임포트
 from src.core.settings import settings
-from src.storage.hive_path_builder import HivePathBuilder
+from src.core.storage.hive_path_builder import HivePathBuilder
 from src.pipeline.target_selection import TargetSelection
 from src.pipeline.raw_collection import RawCollection
 from src.pipeline.candidate_parsing import CandidateParsing
 from src.pipeline.validation_normalization import ValidationNormalization
 from src.pipeline.db_sync import DatabaseSync
 from src.pipeline.fail_classification import FailClassification
-from src.collectors.http_collector import HttpCollector
+from src.services.collectors.http_collector import HttpCollector
 from src.pipeline.dedup_service import DedupService
-from src.repositories.store_repository import StoreRepository
+from src.db.repositories.store_repository import StoreRepository
 
 def run_diningcode_demo():
     print("[Real URL Demo] 다이닝코드 수집 테스트 시작...")

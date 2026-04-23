@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from ..repositories.store_repository import StoreRepository
+from ..db.repositories.store_repository import StoreRepository
 from ..core.file_manager import logger
 
 class DedupService:

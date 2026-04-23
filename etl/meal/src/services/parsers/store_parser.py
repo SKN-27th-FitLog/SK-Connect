@@ -3,7 +3,7 @@ import json
 from bs4 import BeautifulSoup
 from typing import Dict, Any, Optional
 from datetime import datetime
-from ..core.file_manager import logger
+from ...core.file_manager import logger
 
 class StoreParser:
     """

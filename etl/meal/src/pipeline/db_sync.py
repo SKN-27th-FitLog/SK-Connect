@@ -2,8 +2,8 @@ import json
 from typing import Dict, Any
 from .base_stage import BaseStage
 from ..core.file_manager import logger
-from ..repositories.store_repository import StoreRepository
-from ..models.store_models import NormalizedStore
+from ..db.repositories.store_repository import StoreRepository
+from ..db.models.store_models import NormalizedStore
 
 class DatabaseSync(BaseStage):
     """

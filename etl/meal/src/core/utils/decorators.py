@@ -1,6 +1,6 @@
 import functools
 import time
-from ..core.file_manager import logger
+from ..file_manager import logger
 
 def trace_stage(stage_name: str):
     """

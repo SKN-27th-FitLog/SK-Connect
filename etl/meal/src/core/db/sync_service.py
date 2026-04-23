@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional, Tuple
 from ..db_client import DBClient
-from ...core.constants.schema_constants import MapsColumns
+from ..constants.schema_constants import MapsColumns
 
 class DBSyncService:
     """

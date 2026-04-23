@@ -1,8 +1,8 @@
 from datetime import datetime
 from ..core.file_manager import logger
 from ..core.fail_resolver import FailResolver
-from ..models.fail_models import FailLedger
-from ..repositories.fail_repository import FailRepository
+from ..db.models.fail_models import FailLedger
+from ..db.repositories.fail_repository import FailRepository
 
 class FailClassification:
     """

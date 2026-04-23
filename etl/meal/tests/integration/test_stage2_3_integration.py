@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 from src.pipeline.validation_normalization import ValidationNormalization
 from src.handlers.validate_normalize_handler import ValidateNormalizeHandler
 from src.pipeline.dedup_service import DedupService
-from src.storage.hive_path_builder import HivePathBuilder
-from src.models.store_models import NormalizedStore
+from src.core.storage.hive_path_builder import HivePathBuilder
+from src.db.models.store_models import NormalizedStore
 
 @pytest.fixture
 def mock_dedup():

@@ -6,11 +6,11 @@ from unittest.mock import MagicMock
 # 프로젝트 루트를 sys.path에 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.storage.hive_path_builder import HivePathBuilder
+from src.core.storage.hive_path_builder import HivePathBuilder
 from src.pipeline.validation_normalization import ValidationNormalization
 from src.pipeline.db_sync import DatabaseSync
 from src.pipeline.dedup_service import DedupService
-from src.repositories.store_repository import StoreRepository
+from src.db.repositories.store_repository import StoreRepository
 
 def run_manual_finish():
     # 1. Candidate 폴더에서 최신 파일 찾기

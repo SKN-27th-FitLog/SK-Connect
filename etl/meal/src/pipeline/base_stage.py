@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from ..core.file_manager import logger
-from ..utils.decorators import trace_stage
+from ..core.utils.decorators import trace_stage
 
 class BaseStage(ABC):
     """

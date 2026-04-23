@@ -2,11 +2,11 @@ from typing import Dict, Any, List
 from ..core.db_client import DBClient
 # from ..core.code_manager.loader import DBCodeLoader
 # from ..core.code_manager.resolver import CodeResolver
-from ..repositories.store_repository import StoreRepository
+from ..db.repositories.store_repository import StoreRepository
 from .target_selection import TargetSelection
 from .load_pipeline import LoadPipeline
-from ..collectors.http_collector import HttpCollector
-from ..parsers.store_parser import StoreParser
+from ..services.collectors.http_collector import HttpCollector
+from ..services.parsers.store_parser import StoreParser
 from .dedup_service import DedupService
 from .fail_classification import FailClassification
 from ..core.file_manager import logger

@@ -2,9 +2,9 @@ import os
 import uuid
 from .base_stage import BaseStage
 from ..core.file_manager import logger
-from ..collectors.http_collector import HttpCollector
-from ..models.raw_models import RawCollectionResult
-from ..storage.hive_path_builder import HivePathBuilder
+from ..services.collectors.http_collector import HttpCollector
+from ..db.models.raw_models import RawCollectionResult
+from ..core.storage.hive_path_builder import HivePathBuilder
 
 class RawCollection(BaseStage):
     """

@@ -29,6 +29,6 @@ class FailRepository(BaseRepository):
             self.execute(INSERT_FAIL_LEDGER, params)
         except Exception as e:
             # 실패 기록 자체가 실패할 경우 로그로만 남김 (무한 루프 방지)
-            from ..core.file_manager import logger
+            from ...core.file_manager import logger
             logger.error(f"!!! [FailRepository] Critical failure while saving ledger: {e}")
             raise

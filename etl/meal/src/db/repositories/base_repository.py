@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from ..core.db_client import DBClient
+from ...core.db_client import DBClient
 
 class BaseRepository:
     """

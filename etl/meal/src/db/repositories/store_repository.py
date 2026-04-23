@@ -1,6 +1,6 @@
 from .base_repository import BaseRepository
 from ..queries.store_queries import INSERT_MAPS, INSERT_SHOP, SELECT_MAP_BY_URL, SELECT_MAP_BY_NAME_ADDR
-from ..utils.decorators import db_transaction
+from ...core.utils.decorators import db_transaction
 
 class StoreRepository(BaseRepository):
     """

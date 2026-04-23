@@ -4,8 +4,8 @@ import pytest
 from unittest.mock import MagicMock
 from src.pipeline.db_sync import DatabaseSync
 from src.handlers.db_sync_handler import DbSyncHandler
-from src.repositories.store_repository import StoreRepository
-from src.storage.hive_path_builder import HivePathBuilder
+from src.db.repositories.store_repository import StoreRepository
+from src.core.storage.hive_path_builder import HivePathBuilder
 
 @pytest.fixture
 def mock_repo():

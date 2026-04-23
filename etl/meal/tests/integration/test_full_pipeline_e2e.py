@@ -17,9 +17,9 @@ from src.handlers.validate_normalize_handler import ValidateNormalizeHandler
 from src.handlers.db_sync_handler import DbSyncHandler
 
 # Core/Storage
-from src.storage.hive_path_builder import HivePathBuilder
+from src.core.storage.hive_path_builder import HivePathBuilder
 from src.pipeline.dedup_service import DedupService
-from src.repositories.store_repository import StoreRepository
+from src.db.repositories.store_repository import StoreRepository
 from src.core.settings import settings
 
 @pytest.fixture

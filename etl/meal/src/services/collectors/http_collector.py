@@ -1,7 +1,7 @@
 import requests
 from typing import Dict, Any, Optional
 from .base_collector import BaseCollector
-from ..core.file_manager import logger
+from ...core.file_manager import logger
 
 class HttpCollector(BaseCollector):
     """

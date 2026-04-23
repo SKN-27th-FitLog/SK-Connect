@@ -1,7 +1,7 @@
 import os
 from datetime import date
 from typing import Optional
-from ..core.settings import settings
+from ..settings import settings
 
 class HivePathBuilder:
     """

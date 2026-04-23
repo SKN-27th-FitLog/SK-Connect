@@ -6,7 +6,7 @@ from datetime import date
 
 from src.pipeline.target_selection import TargetSelection
 from src.handlers.collect_raw_handler import CollectRawHandler
-from src.storage.hive_path_builder import HivePathBuilder
+from src.core.storage.hive_path_builder import HivePathBuilder
 
 @pytest.fixture
 def mock_db():

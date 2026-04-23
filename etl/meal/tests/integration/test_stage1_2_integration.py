@@ -3,8 +3,8 @@ import json
 import pytest
 from src.pipeline.candidate_parsing import CandidateParsing
 from src.handlers.parse_candidate_handler import ParseCandidateHandler
-from src.storage.hive_path_builder import HivePathBuilder
-from src.models.store_models import StoreCandidate
+from src.core.storage.hive_path_builder import HivePathBuilder
+from src.db.models.store_models import StoreCandidate
 
 def test_stage1_to_stage2_integration(tmp_path):
     # 1. 초기 설정 (임시 경로 사용)
