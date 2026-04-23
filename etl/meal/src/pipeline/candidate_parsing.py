@@ -46,34 +46,79 @@ class CandidateParsing(BaseStage):
             logger.error(f"!!! [Stage 2] Model validation failed: {e}")
             return {"status": "fail", "reason_code": "INVALID_CANDIDATE_MODEL", "reason_detail": str(e)}
 
-        # 4. JSONL 저장
-        self._save_candidate_file(candidate)
+        # 4. 서비스(테이블)별 분리 저장
+        platform = parse_res["source_platform"]
+        internal_id = parse_res["source_internal_id"]
+        
+        # shop: 순수 매장 정보만 저장 (메뉴/리뷰/이미지 제외)
+        self._save_candidate_file(candidate, service="shop")
+        
+        # menu: 메뉴 데이터 분리 저장
+        menus = parse_res.get("menus", [])
+        if menus:
+            self._save_service_file("menu", platform, internal_id, menus)
+        
+        # review: 리뷰 데이터 분리 저장
+        reviews = parse_res.get("reviews", [])
+        if reviews:
+            self._save_service_file("review", platform, internal_id, reviews)
+        
+        # image: 이미지 URL 분리 저장
+        images = parse_res.get("images", [])
+        if images:
+            self._save_service_file("image", platform, internal_id, images)
         
         return {
             "status": "success",
             "candidate": candidate.model_dump(),
-            "source_raw_path": raw_file_path
+            "source_raw_path": raw_file_path,
+            "counts": {
+                "menus": len(menus),
+                "reviews": len(reviews),
+                "images": len(images)
+            }
         }
 
-    def _save_candidate_file(self, candidate: StoreCandidate):
+    def _save_candidate_file(self, candidate: StoreCandidate, service: str = "shop"):
         """
-        결과를 Candidate 경로에 JSONL 형태로 저장합니다.
+        Shop Candidate를 서비스별 경로에 JSONL 형태로 저장합니다.
         """
         try:
-            dir_path = self.path_builder.build(stage="candidate", status="success")
+            dir_path = self.path_builder.build(stage="candidate", status="success", service=service)
             
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path, exist_ok=True)
             
-            # 실무적 효율: store별 독립 파일로 저장 (병렬 처리 용이)
             file_name = f"cand_{candidate.source_platform}_{candidate.source_internal_id}.jsonl"
             full_path = f"{dir_path}/{file_name}"
             
             with open(full_path, "w", encoding="utf-8") as f:
-                # JSONL 형식을 위해 한 줄에 기록
                 f.write(candidate.model_dump_json() + "\n")
                 
             logger.info(f"--- [Stage 2] Candidate saved: {full_path}")
             
         except Exception as e:
             logger.error(f"!!! [Stage 2] Failed to save candidate file: {e}")
+
+    def _save_service_file(self, service: str, platform: str, internal_id: str, data_list: list):
+        """
+        메뉴/리뷰/이미지 등 서비스별 데이터를 개별 JSONL로 저장합니다.
+        """
+        try:
+            dir_path = self.path_builder.build(stage="candidate", status="success", service=service)
+            
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
+            
+            file_name = f"cand_{platform}_{internal_id}.jsonl"
+            full_path = f"{dir_path}/{file_name}"
+            
+            with open(full_path, "w", encoding="utf-8") as f:
+                for item in data_list:
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
+                    
+            logger.info(f"--- [Stage 2] {service.upper()} data saved ({len(data_list)}건): {full_path}")
+            
+        except Exception as e:
+            logger.error(f"!!! [Stage 2] Failed to save {service} file: {e}")
+

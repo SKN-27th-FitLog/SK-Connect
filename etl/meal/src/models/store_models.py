@@ -11,6 +11,12 @@ class ReviewCandidate(BaseModel):
     content: str
     rating: Optional[float] = None
     author_id: Optional[str] = None
+    date_published: Optional[str] = None
+    ordered_menu: Optional[str] = None
+    keywords: List[str] = Field(default_factory=list)
+    taste_eval: Optional[str] = None
+    price_eval: Optional[str] = None
+    service_eval: Optional[str] = None
 
 class StoreCandidate(BaseModel):
     """파싱된 가게 데이터 모델"""

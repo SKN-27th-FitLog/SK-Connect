@@ -73,6 +73,9 @@ class ValidationNormalization(BaseStage):
         # 5. 결과 저장
         self._save_normalized_file(normalized)
         
+        # 6. 부가 서비스(menu, review, image) candidate 파일을 normalized로 연계
+        self._forward_auxiliary_services(candidate.source_platform, candidate.source_internal_id)
+        
         return {
             "status": "success",
             "normalized_data": normalized.model_dump()
@@ -98,3 +101,28 @@ class ValidationNormalization(BaseStage):
             
         except Exception as e:
             logger.error(f"!!! [Stage 3] Failed to save normalized file: {e}")
+
+    def _forward_auxiliary_services(self, platform: str, internal_id: str):
+        """
+        메뉴, 리뷰, 이미지 파일이 있으면 그대로 normalized 스테이지로 전달합니다.
+        추후 각 서비스별 별도 정규화 로직이 필요하면 분리할 수 있습니다.
+        """
+        import shutil
+        services = ["menu", "review", "image"]
+        cand_filename = f"cand_{platform}_{internal_id}.jsonl"
+        norm_filename = f"norm_{platform}_{internal_id}.jsonl"
+        
+        for svc in services:
+            cand_dir = self.path_builder.build(stage="candidate", status="success", service=svc)
+            cand_path = os.path.join(cand_dir, cand_filename)
+            
+            if os.path.exists(cand_path):
+                norm_dir = self.path_builder.build(stage="normalized", status="success", service=svc)
+                os.makedirs(norm_dir, exist_ok=True)
+                norm_path = os.path.join(norm_dir, norm_filename)
+                
+                try:
+                    shutil.copy2(cand_path, norm_path)
+                    logger.info(f"--- [Stage 3] {svc.upper()} data forwarded: {norm_path}")
+                except Exception as e:
+                    logger.error(f"!!! [Stage 3] Failed to forward {svc} file: {e}")

@@ -104,6 +104,106 @@ class StoreParser:
             except:
                 pass
 
+            # 8. 메뉴 추출 (JSON-LD hasMenu)
+            menus = []
+            try:
+                if isinstance(ld_data, dict) and "hasMenu" in ld_data:
+                    menu_items = ld_data["hasMenu"].get("hasMenuItem", [])
+                    for item in menu_items:
+                        price_str = item.get("offers", {}).get("price", "0")
+                        # "12,000원" → 12000
+                        price_num = int(re.sub(r"[^\d]", "", str(price_str)) or 0)
+                        menus.append({
+                            "name": item.get("name", ""),
+                            "price": price_num,
+                            "description": None
+                        })
+            except Exception as e:
+                logger.warning(f"--- [Parser] Menu extraction failed: {e}")
+
+            # 9. 리뷰 추출 (HTML 블록 탐색)
+            reviews = []
+            try:
+                # 다이닝코드 최신 리뷰 HTML 구조 (.latter-graph 또는 .near_review)
+                review_blocks = soup.select(".latter-graph, .near_review, .person-review")
+                
+                for rv in review_blocks:
+                    # 1) 작성자
+                    author_tag = rv.select_one(".person-grade strong, .person-grade .btxt, .name")
+                    author_id = author_tag.get_text(strip=True) if author_tag else None
+
+                    # 2) 별점
+                    rating_tag = rv.select_one(".total_score")
+                    rv_rating = None
+                    if rating_tag:
+                        # "5점" -> 5.0
+                        try:
+                            rv_rating = float(rating_tag.get_text(strip=True).replace("점", ""))
+                        except:
+                            pass
+
+                    # 3) 작성일
+                    date_tag = rv.select_one("span.date")
+                    date_published = date_tag.get_text(strip=True) if date_tag else None
+
+                    # 4) 내용
+                    content_tag = rv.select_one(".review_contents")
+                    content = content_tag.get_text(" ", strip=True) if content_tag else ""
+
+                    # 5) 평가 항목 (맛, 가격, 서비스)
+                    taste_eval, price_eval, service_eval = None, None, None
+                    sub_titles = rv.select(".sub_title")
+                    for st in sub_titles:
+                        sub_text = st.get_text(" ", strip=True)
+                        if "맛:" in sub_text:
+                            taste_eval = sub_text.replace("맛:", "").strip()
+                        elif "가격:" in sub_text:
+                            price_eval = sub_text.replace("가격:", "").strip()
+                        elif "응대:" in sub_text or "서비스:" in sub_text:
+                            service_eval = sub_text.replace("응대:", "").replace("서비스:", "").strip()
+
+                    # 6) 주문한 메뉴
+                    ordered_tag = rv.select_one(".ordered_menu_list")
+                    ordered_menu = ordered_tag.get_text(strip=True) if ordered_tag else None
+
+                    # 7) 키워드
+                    keywords = []
+                    keyword_tag = rv.select_one(".new-keyword_list")
+                    if keyword_tag:
+                        keywords = [k.strip() for k in keyword_tag.get_text(strip=True).split(",")]
+                    else:
+                        # 구버전 키워드 셀렉터 대비
+                        old_tags = rv.select(".keyword span")
+                        if old_tags:
+                            keywords = [t.get_text(strip=True) for t in old_tags]
+
+                    reviews.append({
+                        "content": content,
+                        "rating": rv_rating,
+                        "author_id": author_id,
+                        "date_published": date_published,
+                        "ordered_menu": ordered_menu,
+                        "keywords": keywords,
+                        "taste_eval": taste_eval,
+                        "price_eval": price_eval,
+                        "service_eval": service_eval
+                    })
+            except Exception as e:
+                logger.warning(f"--- [Parser] Review extraction failed: {e}")
+
+            # 10. 이미지 URL 추출 (JSON-LD image)
+            images = []
+            try:
+                if isinstance(ld_data, dict) and "image" in ld_data:
+                    ld_images = ld_data["image"]
+                    if isinstance(ld_images, str):
+                        ld_images = [ld_images]
+                    for img_url in ld_images:
+                        if img_url and isinstance(img_url, str):
+                            images.append({"image_url": img_url})
+            except Exception as e:
+                logger.warning(f"--- [Parser] Image extraction failed: {e}")
+
             return {
                 "status": "success",
                 "source_platform": "diningcode",
@@ -113,12 +213,13 @@ class StoreParser:
                 "latitude": lat,
                 "longitude": lng,
                 "rating": rating,
-                "category_cd": "CA01", # TODO: category_str를 코드로 변환하는 Mapper 필요
-                "address_cd": "CA01",  # TODO: address를 코드로 변환하는 Mapper 필요
+                "category_cd": "CA01",
+                "address_cd": "CA01",
                 "canonical_url": url,
                 "extracted_at": datetime.now().isoformat(),
-                "menus": [],
-                "reviews": []
+                "menus": menus,
+                "reviews": reviews,
+                "images": images
             }
             
         except Exception as e:
