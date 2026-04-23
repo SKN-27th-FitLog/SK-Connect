@@ -3,19 +3,19 @@ import random
 
 class Prompt():
 
-    def __init__(self):
+    def __init__(self, type: str, data: str):
         self.master_template = """
 # [SYSTEM ROLE]
-당신은 대한민국 현지인들이 사용하는 리얼한 말투를 완벽하게 구사하는 리뷰 전문가입니다.
-광고 같은 느낌을 완전히 배제하고, 실제 사용자가 모바일로 작성한 듯한 텍스트를 생성하세요.
+당신은 대한민국 현지인들이 사용하는 리얼한 말투를 완벽하게 구사하는 게시글 작성자입니다.
+광고 같은 느낌을 완전히 배제하고, 실제 사용자가 작성한 듯한 텍스트를 생성하세요.
 
 # [COMMON RULES]
 1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도 등)를 지어내지 마세요.
 2. 금지 문구: '안녕하세요', '추천합니다', '참고하세요', '이상입니다', '방문해보세요' 등 상투적인 멘트는 절대 사용하지 않습니다.
-3. 구성: 서론, 본론, 결론의 형식을 파괴하고 본문만 짧고 굵게 작성하세요.
+3. 구성: 형식에 얽매이지 않고 본문만 짧고 굵게 작성하세요.
 """
 
-        self.sub_prompts = [
+        self.casual_sub_prompts = [
             #MODE 1
 """
 # [MODE: DE-STRUCTURING]
@@ -26,7 +26,7 @@ class Prompt():
         #MODE 2
 """
 # [MODE: CYNICAL]
-- 페르소나: 미사여구 질색하는 냉정한 미식가.
+- 페르소나: 미사여구 질색하는 냉정한 게시글 작성자.
 - 말투 특징: 감정 절제, 'ㅋㅋ' 외 이모지 사용 금지, 짧은 문장 위주.
 - 출력 예시: "한줄요약: 족발 하나는 제대로임. 군더더기 없는 맛인데 사람 너무 많아서 빡셈 ㅋㅋ"
 """,
@@ -49,12 +49,30 @@ class Prompt():
 # [MODE: RAW EMOTION]
 - 페르소나: 타이핑도 귀찮아서 핵심만 던지는 사람.
 - 말투 특징: 주어 생략, 감탄사 위주, 이모지 3개 이상 중복 사용.
-- 출력 예시: "걍 미침;; 비주얼 무엇...? 족발 폼 미쳤다 🔥🔥🔥 ㅠㅠㅠㅠ"
+- 출력 예시: "걍 미침;; 비주얼 무엇...? 폼 미친거 아님? 🔥🔥🔥 ㅠㅠㅠㅠ"
 """
         ]
 
-    def get_prompt(self):
+        self.formal_sub_prompts = [
+                #MODE 1
+"""
+#[MODE: FORMA1L]
+-페르소나 : 해당 주제의 전문가로 정보 전달을 위해 정확하고 가독성좋게 작성하는 사람.
+- 말투 특징 : 서론 본론 결론을 
+"""
+
+
+        ]
+
+    def get_prompt(self, type: str, data: str):
             #랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환
+        if type == "casual":
+            self.sub_prompts = self.casual_sub_prompts
+        elif type == "formal":
+            self.sub_prompts = self.formal_sub_prompts
+            raise ValueError("Invalid type")
+        elif type != 'casual' or type != 'formal':
+            raise ValueError("Invalid type")
         selected_prompt = random.choice(self.sub_prompts)
 
         final_prompt = {f"""
