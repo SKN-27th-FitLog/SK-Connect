@@ -3,8 +3,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 # 모듈
-from common.langgraph.state import ChatbotState
-from common.utils.constants import PROMPT_NM, LLM_NM
+from src.langgraph.state import ChatbotState
+from src.utils.constants import PROMPT_NM, LLM_NM
 
 # LangChain 라이브러리
 from langchain_core.output_parsers import StrOutputParser

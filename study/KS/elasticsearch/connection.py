@@ -4,7 +4,7 @@ from langchain_core.vectorstores.base import VectorStore
 from langchain_core.documents import Document
 
 # 모듈 
-from utils.singleton import Singleton
+from src.utils.singleton import Singleton
 
 
 #######################################################

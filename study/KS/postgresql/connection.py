@@ -14,7 +14,7 @@ from psycopg2.extras import Json
 import psycopg2
 
 # 모듈
-from utils.singleton import Singleton
+from src.utils.singleton import Singleton
 
 
 #####################################################################################

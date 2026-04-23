@@ -8,7 +8,7 @@ from langchain_ollama import OllamaEmbeddings
 
 # 모듈
 from connection import CustomPGVector
-from common.loader import load_text_data
+from src.common.loader import load_text_data
 
 def create_custom_pgvector():
     """ PostgreSQL VectorStore 생성 함수 """

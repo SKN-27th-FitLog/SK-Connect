@@ -3,9 +3,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # 모듈
-from common.langgraph.state import ChatbotState
-from common.langgraph.tools import search_weather_info, summarize_news, search_stock_info
-from common.utils.constants import LLM_NM
+from src.langgraph.state import ChatbotState
+from src.langgraph.tools import search_weather_info, summarize_news, search_stock_info
+from src.utils.constants import LLM_NM
 
 # LLM 관련 라이브러리
 from langchain_core.messages import HumanMessage

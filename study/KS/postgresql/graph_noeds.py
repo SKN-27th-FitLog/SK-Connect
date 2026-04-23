@@ -5,8 +5,8 @@ from graph_state import PGVectorStoreState
 from langchain_tavily import TavilySearch
 
 # 모듈
-from pg_vectorstore import create_custom_pgvector
-from utils.constants import LLM_NM, TavilySearchParams
+from src.postgresql.pg_vectorstore import create_custom_pgvector
+from src.utils.constants import LLM_NM, TavilySearchParams
 
 
 

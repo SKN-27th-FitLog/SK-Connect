@@ -2,14 +2,13 @@
 import logging
 logger = logging.getLogger(__name__)
 
-# 모듈 
-from utils.constants import LLM_NM
-
 # LLM 관련 라이브러리 
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
+# 모듈 
+from src.utils.constants import LLM_NM
 
 #################################################
 # LLM 모델 호출 

@@ -2,8 +2,8 @@
 import streamlit as st
 
 # 모듈 
-from common.langgraph.graph import create_chatbot_graph
-from common.utils.constants import LLM_NM
+from src.langgraph.graph import create_chatbot_graph
+from src.utils.constants import LLM_NM
 
 # LangChain 라이브러리
 from langchain_core.messages import HumanMessage
