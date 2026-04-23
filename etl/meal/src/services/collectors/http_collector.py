@@ -2,6 +2,7 @@ import requests
 from typing import Dict, Any, Optional
 from .base_collector import BaseCollector
 from ...core.file_manager import logger
+from ...core.constants.pipeline_constants import LoadStatus
 
 class HttpCollector(BaseCollector):
     """
@@ -25,7 +26,7 @@ class HttpCollector(BaseCollector):
                 response.encoding = response.apparent_encoding or 'utf-8'
             
             return {
-                "status": "success",
+                "status": LoadStatus.SUCCESS.value,
                 "raw_content": response.text,
                 "http_status": response.status_code,
                 "url": url,
@@ -34,7 +35,7 @@ class HttpCollector(BaseCollector):
         except Exception as e:
             logger.error(f"!!! [Collector] Failed to collect from {url}: {e}")
             return {
-                "status": "fail",
+                "status": LoadStatus.FAIL.value,
                 "reason_code": "NETWORK_ERROR",
                 "reason_detail": str(e),
                 "url": url
