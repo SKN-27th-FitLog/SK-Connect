@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 import logging
 from typing import List, Dict, Any
@@ -34,7 +35,10 @@ class Stage1RawCollection(BaseStage):
                 process="raw", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="success", dt=dt
             )
-            filename = HivePathBuilder.build_filename(extension="html", dt=dt)
+            # URL에서 고유 ID 추출하여 파일명에 포함 (덮어쓰기 방지)
+            rid_match = re.search(r'rid=([a-zA-Z0-9\-_]+)', url)
+            unique_suffix = rid_match.group(1) if rid_match else target_id
+            filename = f"{dt.strftime('%y%m%d%H%M%S')}_{unique_suffix}.html"
             os.makedirs(success_path, exist_ok=True)
             full_file_path = os.path.join(success_path, filename)
             

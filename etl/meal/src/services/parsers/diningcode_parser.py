@@ -90,10 +90,25 @@ class DiningCodeParser(BaseParser):
             full_address = ld_data.get('address', {}).get('streetAddress', '')
         full_address = full_address.replace("지도보기", "").strip()
         
-        # 5. 위경도 (JSON-LD 우선)
+        # 5. 위경도 (JSON-LD → hidden input 폴백)
         geo = ld_data.get('geo', {})
         lat = float(geo.get('latitude', 0))
         lng = float(geo.get('longitude', 0))
+        
+        # JSON-LD에 geo가 없으면 hidden input에서 추출
+        if lat == 0 and lng == 0:
+            hdn_lat = soup.find('input', id='hdn_lat')
+            hdn_lng = soup.find('input', id='hdn_lng')
+            if hdn_lat and hdn_lat.get('value'):
+                try:
+                    lat = float(hdn_lat['value'])
+                except (ValueError, TypeError):
+                    pass
+            if hdn_lng and hdn_lng.get('value'):
+                try:
+                    lng = float(hdn_lng['value'])
+                except (ValueError, TypeError):
+                    pass
         
         # 6. 전화번호: li.tel
         tel_tag = soup.select_one('li.tel')

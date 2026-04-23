@@ -60,7 +60,14 @@ class Stage4Load(BaseStage):
                             })
 
                         # 5. Images 적재
-                        for img_url in record.get("images", []):
+                        for img in record.get("images", []):
+                            # 파서가 dict({"url":...}) 또는 문자열을 반환할 수 있음
+                            if isinstance(img, dict):
+                                img_url = img.get("url", "")
+                            else:
+                                img_url = img
+                            if not img_url:
+                                continue
                             session.execute(text(QUERY_INSERT_IMAGE), {
                                 "image_url": img_url,
                                 "table_name": "shop",
