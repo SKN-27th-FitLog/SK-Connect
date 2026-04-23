@@ -1,79 +1,67 @@
 """
 SQL 쿼리 상수 관리 모듈.
 설계안 8.1 및 22.5 준수: SQL은 반드시 상수화하며 코드 테이블 값 하드코딩 금지.
+기존 init.sql 스키마와 100% 동기화.
 """
 
 # ---------------------------------------------------------
 # 1. Code Table Queries (설계안 7장 관련)
 # ---------------------------------------------------------
 
-# 전체 코드 테이블 조회 (캐싱용)
-# 주소(maps), 카테고리(codeT 등) 테이블 구조에 따라 필드명 조정 필요
-QUERY_SELECT_ALL_ADDRESS_CODES = """
-    SELECT address_cd, province, city, district 
-    FROM maps
-"""
-
-QUERY_SELECT_ALL_SHOP_CODES = """
-    SELECT code, name 
-    FROM shop_codes
-"""
-
-QUERY_SELECT_SUCCESSFUL_STORE_IDS = """
-    SELECT source_internal_id 
-    FROM shop 
-    WHERE source_platform = :platform
-"""
-
-QUERY_SELECT_RETRY_TARGETS = """
-    SELECT target_id, url, category_cd, retry_count
-    FROM targets
-    WHERE status = 'RETRY' AND retry_count < :max_retries
-"""
-
-QUERY_SELECT_NEW_TARGETS = """
-    SELECT target_id, url, category_cd
-    FROM targets
-    WHERE status = 'PENDING'
-    LIMIT :limit
-"""
-
+QUERY_SELECT_ALL_CODES = 'SELECT cd, name, cd_info, cd_upper FROM "codeT"'
+QUERY_SELECT_ALL_ADDRESS_CODES = 'SELECT cd as address_cd, name FROM "codeT" WHERE cd_upper = \'LA00\''
+QUERY_SELECT_ALL_SHOP_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'SC00\''
+QUERY_SELECT_PROCESSED_URLS = 'SELECT article_url FROM crawling WHERE article_url IS NOT NULL'
 
 # ---------------------------------------------------------
-# 2. Store / Data Queries (설계안 17, 20장 관련)
+# 2. Store / Data Queries (설계안 17, 20장 - 정규화 적재)
 # ---------------------------------------------------------
 
-QUERY_UPSERT_STORE = """
-    INSERT INTO shop (
-        store_id, shop_cd, name, address_cd, address_detail, 
-        latitude, longitude, canonical_url, source_platform, 
-        source_internal_id, dedup_key, dedup_key_type, updated_at
-    ) 
-    VALUES (
-        :store_id, :shop_cd, :name, :address_cd, :address_detail, 
-        :latitude, :longitude, :canonical_url, :source_platform, 
-        :source_internal_id, :dedup_key, :dedup_key_type, NOW()
-    )
-    ON CONFLICT (dedup_key) DO UPDATE SET
-        name = EXCLUDED.name,
-        address_detail = EXCLUDED.address_detail,
-        latitude = EXCLUDED.latitude,
-        longitude = EXCLUDED.longitude,
-        updated_at = NOW()
+# 2.1 Maps Upsert
+QUERY_UPSERT_MAP = """
+    INSERT INTO maps (name, category_cd, address_cd, address_detail, latitude, longitude)
+    VALUES (:name, :category_cd, :address_cd, :address_detail, :latitude, :longitude)
+    RETURNING map_id
 """
 
-
-# ---------------------------------------------------------
-# 3. Fail Ledger Queries (설계안 14장 관련)
-# ---------------------------------------------------------
-
-QUERY_INSERT_FAIL_LEDGER = """
-    INSERT INTO fail_ledger (
-        batch_id, stage, entity_type, entity_id, 
-        reason_code, action, detail, retry_count, created_at
-    )
-    VALUES (
-        :batch_id, :stage, :entity_type, :entity_id, 
-        :reason_code, :action, :detail, :retry_count, NOW()
-    )
+# 2.2 Shop Upsert
+QUERY_UPSERT_SHOP = """
+    INSERT INTO shop (map_id, shop_cd, rating)
+    VALUES (:map_id, :shop_cd, :rating)
+    RETURNING shop_id
 """
+
+# 2.3 Crawling Insert (확장됨)
+QUERY_INSERT_CRAWLING = """
+    INSERT INTO crawling (title, content, article_url, map_id, category_cd, author, keywords, point, created_at)
+    VALUES (:title, :content, :article_url, :map_id, :category_cd, :author, :keywords, :point, NOW())
+    RETURNING crawling_id
+"""
+
+# 2.4 Menu Insert
+QUERY_INSERT_MENU = """
+    INSERT INTO menu (shop_id, name, price)
+    VALUES (:shop_id, :name, :price)
+"""
+
+# 2.5 Images Insert
+QUERY_INSERT_IMAGE = """
+    INSERT INTO images (image_url, table_name, table_id)
+    VALUES (:image_url, :table_name, :table_id)
+"""
+
+# ---------------------------------------------------------
+# 3. Operational Constants
+# ---------------------------------------------------------
+
+PROCESS_RAW = "raw"
+PROCESS_CANDIDATE = "candidate"
+PROCESS_NORMALIZED = "normalized"
+PROCESS_FAIL_LEDGER = "fail_ledger"
+
+SERVICE_SHOP = "shop"
+SERVICE_MENU = "menu"
+SERVICE_REVIEW = "review"
+
+STATUS_SUCCESS = "success"
+STATUS_FAIL = "fail"

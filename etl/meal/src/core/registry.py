@@ -15,6 +15,14 @@ from src.pipeline.stages.stage3_validation_normalization import Stage3Validation
 from src.pipeline.stages.stage4_load import Stage4Load
 from src.pipeline.stages.stage5_fail_classification import Stage5FailClassification
 
+# 스테이지 명칭 상수화 (각 클래스의 NAME 속성 참조 - 순환 참조 방지)
+STAGE_TARGET_SELECTION = Stage0TargetSelection.NAME
+STAGE_RAW_COLLECTION = Stage1RawCollection.NAME
+STAGE_CANDIDATE_PARSING = Stage2CandidateParsing.NAME
+STAGE_VALIDATION_NORMALIZATION = Stage3ValidationNormalization.NAME
+STAGE_LOAD = Stage4Load.NAME
+STAGE_FAIL_CLASSIFICATION = Stage5FailClassification.NAME
+
 # 1. 수집기 등록소
 COLLECTOR_MAP = {
     "DiningCode": DiningCodeCollector,
@@ -31,14 +39,14 @@ PARSER_MAP = {
     "Kakao": KakaoParser
 }
 
-# 3. 스테이지 등록소 (상수화)
+# 3. 스테이지 등록소
 STAGE_MAP = {
-    "target_selection": Stage0TargetSelection,
-    "raw_collection": Stage1RawCollection,
-    "candidate_parsing": Stage2CandidateParsing,
-    "validation_normalization": Stage3ValidationNormalization,
-    "load": Stage4Load,
-    "fail_classification": Stage5FailClassification
+    STAGE_TARGET_SELECTION: Stage0TargetSelection,
+    STAGE_RAW_COLLECTION: Stage1RawCollection,
+    STAGE_CANDIDATE_PARSING: Stage2CandidateParsing,
+    STAGE_VALIDATION_NORMALIZATION: Stage3ValidationNormalization,
+    STAGE_LOAD: Stage4Load,
+    STAGE_FAIL_CLASSIFICATION: Stage5FailClassification
 }
 
 def get_stage(stage_name: str, **kwargs):

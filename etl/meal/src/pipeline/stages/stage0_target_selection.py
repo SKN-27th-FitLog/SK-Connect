@@ -1,60 +1,50 @@
+import os
+import csv
 from typing import List, Dict, Any
-from sqlalchemy import text
+import logging
+
 from src.pipeline.stages.base_stage import BaseStage
-from src.core.repository.database import db_manager
-from src.core.constants import (
-    QUERY_SELECT_SUCCESSFUL_STORE_IDS,
-    QUERY_SELECT_RETRY_TARGETS,
-    QUERY_SELECT_NEW_TARGETS
-)
+from src.core.repository.code_table_repository import CodeTableRepository, code_repo
 
 class Stage0TargetSelection(BaseStage):
     """
     설계안 6.2 준수 - Daily Target Selection.
-    목표: 성공 적재 100건을 위한 대상 선정.
+    원칙: target.csv의 주소/카테고리 코드를 읽어 수집 시드 생성.
     """
-    def __init__(self, target_count: int = 100):
-        super().__init__("target_selection")
-        self.target_count = target_count
+    NAME = "target_selection"
+
+    def __init__(self, seed_file: str = "target.csv", code_repository: CodeTableRepository = code_repo):
+        super().__init__(self.NAME)
+        self.seed_file = seed_file
+        self.code_repo = code_repository
 
     def execute(self, category_cd: str, platform: str = "DiningCode") -> List[Dict[str, Any]]:
-        """
-        성공한 내역 제외, Retry 우선, 부족분 신규 후보로 충전.
-        """
-        with db_manager.get_session() as session:
-            # 1. 이미 성공한 ID 목록 조회
-            success_rows = session.execute(
-                text(QUERY_SELECT_SUCCESSFUL_STORE_IDS), 
-                {"platform": platform}
-            ).mappings().all()
-            success_ids = {row['source_internal_id'] for row in success_rows}
+        self.code_repo.preload()
+        selected_seeds = []
 
-            # 2. Retry 대상 조회
-            retry_targets = session.execute(
-                text(QUERY_SELECT_RETRY_TARGETS),
-                {"max_retries": 5}
-            ).mappings().all()
-            
-            selected_targets = []
-            for t in retry_targets:
-                if t['url'] not in success_ids: # 실제로는 internal_id 비교가 정확하겠으나 URL로 예시
-                    selected_targets.append(dict(t))
-                    if len(selected_targets) >= self.target_count:
-                        break
-            
-            # 3. 부족분 신규 후보로 보충
-            if len(selected_targets) < self.target_count:
-                limit = self.target_count - len(selected_targets)
-                new_targets = session.execute(
-                    text(QUERY_SELECT_NEW_TARGETS),
-                    {"limit": limit * 2} # 필터링 대비 여유있게 조회
-                ).mappings().all()
+        if not os.path.exists(self.seed_file):
+            self.logger.warning(f"Seed file {self.seed_file} not found.")
+            return []
+
+        with open(self.seed_file, mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                addr_cd = row.get('address_cd')
+                if row.get('category_cd') != category_cd:
+                    continue
                 
-                for t in new_targets:
-                    if t['url'] not in success_ids:
-                        selected_targets.append(dict(t))
-                    if len(selected_targets) >= self.target_count:
-                        break
-            
-            self.logger.info(f"Selected {len(selected_targets)} targets for category {category_cd}")
-            return selected_targets
+                addr_info = self.code_repo.get_address_info(addr_cd)
+                shop_info_name = self.code_repo.get_shop_code_name(category_cd)
+                
+                if addr_info and shop_info_name:
+                    selected_seeds.append({
+                        "address_cd": addr_cd,
+                        "category_cd": category_cd,
+                        "address_name": addr_info['name'],
+                        "category_name": shop_info_name,
+                        "source_platform": platform,
+                        "search_query": f"{addr_info['name']} {shop_info_name}"
+                    })
+
+        self.logger.info(f"Selected {len(selected_seeds)} search seeds for {platform}/{category_cd}")
+        return selected_seeds

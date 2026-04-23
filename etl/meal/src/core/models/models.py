@@ -19,6 +19,7 @@ class StoreModel(BaseEntityModel):
     address_detail: str                 # 상세 주소
     latitude: float = 0.0
     longitude: float = 0.0
+    rating: float = 0.0
     canonical_url: Optional[str] = None
     source_platform: str
     source_internal_id: str

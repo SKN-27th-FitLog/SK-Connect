@@ -1,6 +1,11 @@
 from typing import List, Dict, Any
 from datetime import datetime
-from src.core.registry import get_collector, get_parser, get_stage
+from src.core.registry import (
+    get_collector, get_parser, get_stage,
+    STAGE_TARGET_SELECTION, STAGE_RAW_COLLECTION, 
+    STAGE_CANDIDATE_PARSING, STAGE_VALIDATION_NORMALIZATION,
+    STAGE_LOAD, STAGE_FAIL_CLASSIFICATION
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,13 +20,13 @@ class PipelineOrchestrator:
         self.collector = get_collector(platform)
         self.parser = get_parser(platform)
         
-        # 2. Stage 초기화 (Registry 활용)
-        self.stage0 = get_stage("target_selection")
-        self.stage1 = get_stage("raw_collection", collector=self.collector)
-        self.stage2 = get_stage("candidate_parsing", parser=self.parser)
-        self.stage3 = get_stage("validation_normalization")
-        self.stage4 = get_stage("load")
-        self.stage5 = get_stage("fail_classification")
+        # 2. Stage 초기화 (Registry 활용 및 상수화 준수)
+        self.stage0 = get_stage(STAGE_TARGET_SELECTION)
+        self.stage1 = get_stage(STAGE_RAW_COLLECTION, collector=self.collector, shard_size=1)
+        self.stage2 = get_stage(STAGE_CANDIDATE_PARSING, parser=self.parser)
+        self.stage3 = get_stage(STAGE_VALIDATION_NORMALIZATION)
+        self.stage4 = get_stage(STAGE_LOAD)
+        self.stage5 = get_stage(STAGE_FAIL_CLASSIFICATION)
 
     def _generate_batch_id(self, category_cd: str) -> str:
         """batch_id 생성 규칙"""

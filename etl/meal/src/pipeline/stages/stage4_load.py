@@ -1,88 +1,103 @@
+import logging
 from typing import List, Dict, Any
 from sqlalchemy import text
+
 from src.pipeline.stages.base_stage import BaseStage
 from src.core.repository.database import db_manager
-from src.core.repository.code_table_repository import CodeTableRepository, code_repo
-from src.core.constants import QUERY_UPSERT_STORE
-from datetime import datetime
-import logging
+from src.core.constants import (
+    QUERY_UPSERT_MAP, QUERY_UPSERT_SHOP, QUERY_INSERT_CRAWLING,
+    QUERY_INSERT_MENU, QUERY_INSERT_IMAGE
+)
 
 class Stage4Load(BaseStage):
     """
-    설계안 2.2, 17, 22장 준수 - Load Stage.
-    정규화된 데이터를 DB에 적재하며 원자적 Upsert 제공.
+    설계안 20장 준수 - Load Stage.
+    정규화된 데이터를 DB에 영구 적재.
     """
-    def __init__(self, code_repository: CodeTableRepository = code_repo):
-        super().__init__("load")
-        self.code_repo = code_repository
+    NAME = "load"
 
-    def _verify_integrity(self, store_data: Dict[str, Any]) -> bool:
-        """
-        설계안 220 준수 - 적재 직전 코드 테이블 참조 무결성 재검증.
-        """
-        # 캐싱된 코드 데이터를 다시 확인
-        addr_cd = store_data.get("address_cd")
-        shop_cd = store_data.get("shop_cd")
-        
-        if not self.code_repo.get_address_info(addr_cd):
-            self.logger.error(f"Integrity Check Failed: Invalid address_cd {addr_cd}")
-            return False
-            
-        # shop_cd 검증 로직 등 추가 가능
-        return True
+    def __init__(self, db=db_manager):
+        super().__init__(self.NAME)
+        self.db = db
 
     def execute(self, normalized_data: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:
-        """
-        데이터 적재 수행.
-        설계안 17장: Store/Menu/Review 트랜잭션 분리.
-        """
-        load_results = []
-        now = datetime.now()
-        
-        # 코드 테이블 최신화
-        self.code_repo.preload()
-        
-        for record in normalized_data:
-            store_data = record.get("store", {})
-            entity_id = store_data.get("entity_id")
-            
-            # 1. 무결성 재검증 (설계안 7.5)
-            if not self._verify_integrity(store_data):
-                load_results.append({
-                    "entity_id": entity_id,
-                    "status": "fail",
-                    "reason_code": "INTEGRITY_CHECK_FAILED"
-                })
-                continue
+        loaded_count = 0
+        with self.db.get_session() as session:
+            for record in normalized_data:
+                try:
+                    store = record["store"]
+                    
+                    # 1. Integrity Check
+                    if not store.get("address_cd") or store.get("address_cd") == "UNKNOWN":
+                        self.logger.error(f"Integrity Check Failed: Invalid address_cd {store.get('address_cd')} for {store['name']}")
+                        continue
 
-            try:
-                with db_manager.get_session() as session:
-                    # 2. Store Upsert (설계안 17: 1 트랜잭션)
-                    # pydantic 모델에서 dict로 변환된 값 사용
-                    session.execute(text(QUERY_UPSERT_STORE), store_data)
-                    session.commit()
-                    
-                    # 3. Menu/Review (별도 트랜잭션 - 여기서는 단순 루프 내 처리)
-                    # 실제 운영 환경에서는 독립된 로더나 서비스 호출 권장
-                    menus = record.get("menus", [])
-                    reviews = record.get("reviews", [])
-                    
-                    # (생략) 메뉴/리뷰 적재 로직 - 추후 확장
-                    
-                    load_results.append({
-                        "entity_id": entity_id,
-                        "status": "success",
-                        "store_id": store_data.get("dedup_key") # dedup_key를 store_id 대용으로 사용 가능
+                    # 2. Maps 적재
+                    # maps.category_cd는 하위 업종(SC01)이 아닌 대분류(CA01 - 맛집)를 사용해야 함
+                    map_category = "CA01" 
+                    map_id = session.execute(text(QUERY_UPSERT_MAP), {
+                        "name": store["name"],
+                        "category_cd": map_category,
+                        "address_cd": store["address_cd"],
+                        "address_detail": store["address_detail"],
+                        "latitude": float(store.get("latitude", 0.0)),
+                        "longitude": float(store.get("longitude", 0.0))
+                    }).scalar()
+
+                    # 3. Shop 적재
+                    shop_id = session.execute(text(QUERY_UPSERT_SHOP), {
+                        "map_id": map_id,
+                        "shop_cd": store["shop_cd"],
+                        "rating": float(store.get("rating", 0.0))
+                    }).scalar()
+
+                    # 4. Menu 적재
+                    for menu in record.get("menus", []):
+                        session.execute(text(QUERY_INSERT_MENU), {
+                            "shop_id": shop_id,
+                            "name": menu["name"],
+                            "price": menu["price"]
+                        })
+
+                    # 5. Images 적재
+                    for img_url in record.get("images", []):
+                        session.execute(text(QUERY_INSERT_IMAGE), {
+                            "image_url": img_url,
+                            "table_name": "shop",
+                            "table_id": shop_id
+                        })
+
+                    # 6. Crawling 증거 및 리뷰 적재
+                    # 우선 매장 자체의 증거 적재
+                    session.execute(text(QUERY_INSERT_CRAWLING), {
+                        "title": f"Crawl - {store['name']}",
+                        "content": store.get("description", ""),
+                        "article_url": store["canonical_url"],
+                        "map_id": map_id,
+                        "category_cd": "IC01", # 맛집정보 코드
+                        "author": "System",
+                        "keywords": "",
+                        "point": float(store.get("rating", 0.0))
                     })
-                    
-            except Exception as e:
-                self.logger.error(f"Database Load Failed for {entity_id}: {str(e)}")
-                load_results.append({
-                    "entity_id": entity_id,
-                    "status": "fail",
-                    "reason_code": "DB_LOAD_ERROR",
-                    "detail": str(e)
-                })
 
-        self.logger.info(f"Loaded {len([r for r in load_results if r['status']=='success'])} records to DB.")
-        return load_results
+                    # 리뷰 데이터를 crawling 테이블에 적재 (사용자 요청 반영: author, keyword 포함)
+                    for review in record.get("reviews", []):
+                        session.execute(text(QUERY_INSERT_CRAWLING), {
+                            "title": f"Review - {store['name']}",
+                            "content": review["content"],
+                            "article_url": store["canonical_url"],
+                            "map_id": map_id,
+                            "category_cd": "IC01",
+                            "author": review.get("author", "Anonymous"),
+                            "keywords": ",".join(review.get("keywords", [])),
+                            "point": float(review.get("rating", 0.0))
+                        })
+                    
+                    loaded_count += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to load record {store.get('name')}: {e}")
+            
+            session.commit()
+            
+        self.logger.info(f"Loaded {loaded_count} stores with related data to Normalized DB.")
+        return normalized_data
