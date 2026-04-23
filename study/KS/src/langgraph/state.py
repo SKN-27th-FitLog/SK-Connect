@@ -2,9 +2,6 @@
 from typing_extensions import TypedDict
 from typing import Annotated
 
-# 모듈 
-from common.utils.constants import LLM_NM
-
 # LangGraph 라이브러리 
 from langgraph.graph.message import add_messages
 

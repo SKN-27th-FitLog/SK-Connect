@@ -5,46 +5,20 @@ logger = logging.getLogger(__name__)
 # 패키지
 import os
 import psycopg
+import json 
 import streamlit as st
+from typing import List, Dict, Any, Optional, Tuple
+from langchain_core.vectorstores.base import VectorStore
+from langchain_core.documents import Document
+from psycopg2.extras import Json
+import psycopg2
+
+# 모듈
+from utils.singleton import Singleton
 
 
 #####################################################################################
-
-
-# import sqlite3
-
-# __sqlite_connection = None
-
-# def get_connection() -> object:
-#     '''Database connection 생성 함수'''
-#     global __sqlite_connection
-
-#     # 채팅 메모리 데이터베이스 연결 객체 생성 
-#     if __sqlite_connection is None:
-#         __sqlite_connection = sqlite3.connect(
-#             'chatbot_memory.db',
-#             check_same_thread=False
-#         )
-
-#     return __sqlite_connection
-
-
-
-#####################################################################################
-# 싱글톤 패턴 
-#####################################################################################
-
-class Singleton(type):
-	_instances = {}
-
-	def __call__(cls, *args, **kwargs):
-		if cls not in cls._instances:
-			cls._instances[cls] = super(Singleton, cls)\
-				.__call__(*args, **kwargs)
-		return cls._instances[cls]
-
-#####################################################################################
-# PostgreSQL 연결 싱글톤 패턴 
+# PostgreSQL 연결 
 #####################################################################################
 class PostgreDB(metaclass=Singleton):
     '''
@@ -65,18 +39,6 @@ class PostgreDB(metaclass=Singleton):
     def get_conn(self):
         return self.conn # 커넥션 객체 반환 
 
-#####################################################################################
-# 암호화된 직렬화 객체 생성 함수 
-#####################################################################################
-
-# 캐시 리소스 데코레이터 적용(함수 호출 결과를 캐시에 저장)
-@st.cache_resource 
-def get_encrypted_serde():
-    # LANGGRAPH_AES_KEY는 이 함수 호출 전에 이미 설정되어 있어야 함
-    from langgraph.checkpoint.serde.encrypted import EncryptedSerializer
-    return EncryptedSerializer.from_pycryptodome_aes()
-
-
 def get_db_config_from_env() -> dict:
     return {
         "host": os.getenv("DB_HOST"),
@@ -85,8 +47,6 @@ def get_db_config_from_env() -> dict:
         "user": os.getenv("DB_USER"),
         "password": os.getenv("DB_PASSWORD"),
     }
-
-
 
 @st.cache_resource
 def check_connection():
@@ -119,3 +79,159 @@ def check_connection():
     except Exception as e:
         logger.error(f"PostgreSQL 연결 실패: {e}")
         raise e
+
+
+
+##############################################################
+# pg vectorstore 객체 정의 
+##############################################################
+class CustomPGVector(VectorStore, metaclass=Singleton):
+    def __init__(self, conn_str: str, embedding_fn, table: str = "my_vectors"):
+        self.conn = psycopg2.connect(conn_str)
+        self.embedding_fn = embedding_fn
+        self.table = table
+
+    @classmethod
+    def from_texts(
+        cls,
+        texts: List[str],
+        embedding_fn,
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+        conn_str: str = None,
+        table: str = "my_vectors",
+        **kwargs,
+    ):
+        store = cls(conn_str=conn_str, embedding_fn=embedding_fn, table=table)
+        store.add_texts(texts, metadatas=metadatas)
+        return store
+
+    def add_texts(self, texts: List[str], metadatas: List[Dict[str, Any]] = None):
+        metadatas = metadatas or [{} for _ in texts]
+        embeddings = self.embedding_fn.embed_documents(texts)
+
+        with self.conn.cursor() as cur:
+            for text, emb, meta in zip(texts, embeddings, metadatas):
+                cur.execute(
+                    f"""
+                    INSERT INTO {self.table} (content, embedding, metadata)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (text, emb, Json(meta)),
+                )
+        self.conn.commit()
+
+    def similarity_search(self, query: str, k: int = 4,
+                            filter: Optional[Dict[str, Any]] = None) -> List[Document]:
+        
+        query_emb = self.embedding_fn.embed_query(query)
+        
+        # 쿼리 매개변수 리스트 초기화. 필터 매개변수가 있다면 여기에 먼저 추가됩니다.
+        params = []
+        
+        # SQL 쿼리 기본 구조 설정
+        sql_query_template = f"""
+            SELECT content, metadata
+            FROM {self.table}
+        """
+        
+        # WHERE 절을 위한 리스트
+        where_clauses = []
+        
+        if filter:
+            # 1. 필터 딕셔너리를 JSON 문자열로 변환합니다.
+            filter_json = json.dumps(filter)
+            
+            # 2. WHERE 절에 'metadata @> %s::jsonb' 조건을 추가합니다.
+            where_clauses.append("metadata @> %s::jsonb")
+            
+            # 3. 필터 JSON 문자열을 params 리스트에 먼저 추가합니다.
+            #    이것이 SQL 쿼리에서 가장 먼저 나오는 %s에 바인딩됩니다.
+            params.append(filter_json)
+
+        if where_clauses:
+            sql_query_template += " WHERE 1=1 AND " + " AND ".join(where_clauses)
+        
+        # ORDER BY 및 LIMIT 절 추가
+        # ORDER BY에는 임베딩 비교가 들어가며, 이는 필터가 있든 없든 항상 두 번째 (혹은 첫 번째) %s가 됩니다.
+        sql_query_template += """
+            ORDER BY embedding <-> %s::vector
+            LIMIT %s
+        """
+        
+        # 4. 임베딩 벡터를 params에 추가합니다.
+        #    이는 ORDER BY의 %s에 바인딩됩니다.
+        params.append(query_emb)
+        
+        # 5. LIMIT 값 (k)을 params에 마지막으로 추가합니다.
+        #    이는 LIMIT의 %s에 바인딩됩니다.
+        params.append(k)
+        
+        # 최종 SQL 쿼리: (필터가 있을 경우) WHERE [조건] ORDER BY [임베딩] LIMIT [k]
+        
+        with self.conn.cursor() as cur:
+            # 쿼리와 매개변수를 실행
+            # 매개변수의 순서는 SQL 쿼리에 나타나는 %s의 순서와 정확히 일치해야 합니다.
+            cur.execute(sql_query_template, tuple(params))
+            rows = self.__get_unique_documents(cur.fetchall())
+
+        return [Document(page_content=row[0], metadata=row[1]) for row in rows]
+
+
+    def similarity_search_with_score(
+        self, query: str, k: int = 4
+    ) -> List[Tuple[Document, float]]:
+        """쿼리와 유사도 점수를 함께 반환"""
+        query_emb = self.embedding_fn.embed_query(query)
+
+        with self.conn.cursor() as cur:
+            """
+            (embedding <-> %s::vector)의 의미 
+                - L2 거리(Euclidean distance)
+                - 즉, 값이 작을수록 두 벡터가 더 유사함
+            """
+            cur.execute(
+                f"""
+                SELECT content, metadata, (embedding <-> %s::vector) AS score
+                FROM {self.table}
+                ORDER BY score
+                LIMIT %s
+                """,
+                (query_emb, k),
+            )
+            rows = self.__get_unique_documents(cur.fetchall())
+            
+
+        return [
+            (Document(page_content=row[0], metadata=row[1]), float(row[2]))
+            for row in rows
+        ]
+    
+    def keyword_search(self, keyword: str, k: int = 4) -> List[Document]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT content, metadata
+                FROM {self.table}
+                WHERE 1=1
+                    AND content ILIKE %s
+                LIMIT %s
+                """,
+                (f"%{keyword}%", k),
+            )
+            rows = self.__get_unique_documents(cur.fetchall())
+            
+        return [Document(page_content=row[0], metadata=row[1]) for row in rows]
+    
+    def __get_unique_documents(self, rows):
+        # 중복 제거를 위한 후처리
+        unique_contents = set()
+        unique_documents = []
+        
+        for row in rows:
+            content = row[0]
+            
+            if content not in unique_contents:
+                unique_contents.add(content)
+                unique_documents.append(row) # 중복이 아닐 때 원본 튜플을 저장
+
+        return unique_documents # 중복 제거된 리스트 반환

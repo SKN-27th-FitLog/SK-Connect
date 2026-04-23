@@ -3,7 +3,7 @@ import os
 
 import streamlit as st
 
-from common.utils.constants import LLM_NM
+from src.utils.constants import LLM_NM
 
 
 ###################################################

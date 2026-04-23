@@ -10,7 +10,7 @@ from connection import ElasticsearchVectorStore
 ############################################### 
 # Elasticsearch VectorStore 
 ###############################################
-def create_vectorstore():
+def create_elasticsearch_vectorstore():
     """ 벡터 스토어 생성 함수 """
 
     # embeddings

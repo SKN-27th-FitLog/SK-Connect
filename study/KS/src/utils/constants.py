@@ -31,8 +31,9 @@ class LLM_NM(enum.Enum):
     gpt5    = (enum.auto(), ChatOpenAI(
         model="gpt-5-nano",
         reasoning_effort="high",        # 논리성 강화
-        )
-    )
+    ))
+    gpt5_4nano = (enum.auto(), ChatOpenAI(model="gpt-5.4-nano"))
+    
 
 
 # Prompt Template
@@ -107,3 +108,13 @@ class TavilySearch_NM(enum.Enum):
         exclude_domains=None            # 필요하면 제외 도메인 지정 가능
         )
     )
+
+class TavilySearchParams():
+    BASE_PARAMS =  {
+        "max_results": 1,
+        "include_answer": True,
+        "include_raw_content": False,
+        "include_images": False,
+        "search_depth": "advanced",
+        "include_domains": ["huggingface.co", "github.com"],
+    }

@@ -11,12 +11,13 @@ logger = logging.getLogger(__name__)
 import streamlit as st
 
 # 모듈
-from common.screen.display import print_message
-from common.screen.history import init_history
-from common.components.sidebar import chatbot_sidebar
-from common.langgraph.run import response_from_graph
+from src.screen.display import print_message
+from src.screen.history import init_history
+from src.components.sidebar import chatbot_sidebar
+from src.langgraph.run import response_from_graph
 
-from common.db.connection import check_connection
+# DB 커넥션 
+from src.postgresql.connection import check_connection
 
 
 ##############################################################################################

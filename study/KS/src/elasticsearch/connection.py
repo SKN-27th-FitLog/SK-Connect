@@ -3,25 +3,13 @@ from typing import List, Tuple
 from langchain_core.vectorstores.base import VectorStore
 from langchain_core.documents import Document
 
+# 모듈 
+from utils.singleton import Singleton
 
 
-
-
-###############################################################
-# 싱글톤 패턴
-###############################################################
-# 해당 폴더 단위로 독립 실행할 수 있도록 중복되는 코드라도 한번 더 작성함 
-
-class Singleton(type(VectorStore)):
-    """Singleton 패턴 클래스"""
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
+#######################################################
+# Elasticsearch VectorStore 클래스 (singleton)
+#######################################################
 class ElasticsearchVectorStore(VectorStore, metaclass=Singleton):
     """ ElasticSearch 연결 클래스 , 싱글톤 패턴 적용"""
 
