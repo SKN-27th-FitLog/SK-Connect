@@ -1,53 +1,49 @@
-import os
-import glob
 import logging
 import argparse
-from datetime import datetime
-from src.core.config import settings
-from src.core.registry import get_stage, STAGE_FAIL_CLASSIFICATION
-from src.core.storage.jsonl_writer import JsonlWriter
+from src.projects.failcheck.failcheck_service import FailcheckService
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger("failcheck_project")
 
-def run_failcheck(category_cd: str):
-    logger.info(f"--- Starting FAILCHECK Project ---")
-    dt = datetime.now()
-    stage5 = get_stage(STAGE_FAIL_CLASSIFICATION)
+def lambda_handler(event, context):
+    """
+    AWS Lambda 엔트리 포인트. 핸들러는 단순 입력 파싱 및 Service 호출 역할만 수행.
+    """
+    category_cd = event.get("category_cd")
     
-    # Search for status=fail in all processes across today's executions
-    search_pattern = os.path.join(
-        settings.LAKE_ROOT_PATH,
-        "process=*", "service=shop",
-        f"year={dt.strftime('%Y')}", f"month={dt.strftime('%m')}", f"day={dt.strftime('%d')}",
-        "status=fail", f"category_cd={category_cd}", "stage=*", "batch_id=*"
-    )
+    if not category_cd:
+        return {
+            "statusCode": 400,
+            "body": {"error": "Missing mandatory parameter: category_cd"}
+        }
     
-    fail_batch_dirs = glob.glob(search_pattern)
-    if not fail_batch_dirs:
-        logger.info("No failure directories found for today.")
-        return
-
-    batch_failures = {}
-    for bdir in fail_batch_dirs:
-        batch_id = os.path.basename(bdir).split("=")[-1]
-        if batch_id not in batch_failures:
-            batch_failures[batch_id] = []
-            
-        for fail_file in glob.glob(os.path.join(bdir, "*.jsonl")):
-            batch_failures[batch_id].extend(JsonlWriter.read(fail_file))
-
-    for batch_id, failures in batch_failures.items():
-        if failures:
-            logger.info(f"Resolving {len(failures)} failures for batch {batch_id} (determining subsequent actions)...")
-            # Stage 5 internally uses PolicyResolver to decide final outcome (Action.RETRY, REPROCESS etc.)
-            stage5.execute(failures, batch_id, category_cd)
-
-    logger.info(f"--- FAILCHECK Project Finished ---")
+    logger.info(f"Event received - Category: {category_cd}")
+    
+    try:
+        # Failcheck는 오로지 '파일 이동 및 판단'만 수행하므로 매우 가벼움
+        result = FailcheckService.run_failcheck(category_cd)
+    except Exception as e:
+        logger.error(f"Failcheck project failed with error: {str(e)}", exc_info=True)
+        return {
+            "statusCode": 500,
+            "body": {"error": str(e)}
+        }
+    
+    return {
+        "statusCode": 200,
+        "body": result
+    }
 
 if __name__ == "__main__":
+    # 로컬 실행 지원
     parser = argparse.ArgumentParser()
-    parser.add_argument("--category", type=str, default="SC01")
+    parser.add_argument("--category", type=str, required=True, help="Category Code (e.g., C001)")
     args = parser.parse_args()
     
-    run_failcheck(args.category)
+    result = lambda_handler({"category_cd": args.category}, None)
+    logger.info(f"Local Execution Result: {result}")

@@ -1,3 +1,218 @@
+# ETL Core Architecture Fixes Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Resolve critical high-priority architecture violations (H1, H2, H3, H5, H6) and strictly enforce `Design.md` principles (Domain Exception usage, Enum-based reason codes, Single Responsibility mapping, Partial Failure transactions, Fail Ledger Routing, and Code Table Integrity).
+
+**Architecture:** 
+1. `DatabaseManager` eager loading deferred to property access.
+2. `Stage3ValidationNormalization` encapsulation boundary preserved.
+3. `exceptions.py` and `reason_code.py` updated to support `UndefinedCodeException` and literal `.value` mappings.
+4. `Stage4Load` completely refactored to:
+   - Extract logic into single-responsibility methods.
+   - Use `UndefinedCodeException`, `ReasonCode` explicitly.
+   - Re-verify Code Table Integrity immediately before loading against `CodeTableRepository`.
+   - Separate transaction boundaries for `store` vs `menu/review/images`.
+   - Propagate child failures directly to the `fail` ledger list.
+   - Inject dynamic `category_cd` to remove hardcoding.
+
+**Tech Stack:** Python, SQLAlchemy
+
+---
+
+### Task 1: Fix Database Eager Initialization (H6)
+
+The current `database.py` initializes the `create_engine` eagerly at the module level when imported.
+
+**Files:**
+- Modify: `src/core/repository/database.py`
+
+- [ ] **Step 1: Defere engine creation using properties**
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from contextlib import contextmanager
+from typing import Generator
+from src.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
+class DatabaseManager:
+    """
+    DB 연결 및 세션을 관리하는 클래스.
+    설계안 5-3 (global mutable state 금지) 원칙 준수.
+    """
+    def __init__(self, db_url: str = None):
+        self._db_url = db_url
+        self._engine = None
+        self._SessionLocal = None
+
+    @property
+    def engine(self):
+        if self._engine is None:
+            url = self._db_url or settings.database_url
+            self._engine = create_engine(
+                url,
+                pool_size=5,
+                max_overflow=10,
+                pool_pre_ping=True,
+                echo=False
+            )
+        return self._engine
+
+    @property
+    def SessionLocal(self):
+        if self._SessionLocal is None:
+            self._SessionLocal = sessionmaker(
+                autocommit=False,
+                autoflush=False,
+                bind=self.engine
+            )
+        return self._SessionLocal
+
+    @contextmanager
+    def get_session(self) -> Generator[Session, None, None]:
+        session = self.SessionLocal()
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+db_manager = DatabaseManager()
+```
+
+- [ ] **Step 2: Commit Task 1**
+
+```bash
+git add src/core/repository/database.py
+git commit -m "fix: defer database engine creation until accessed (H6)"
+```
+
+---
+
+### Task 2: Resolve Encapsulation Violation (H5)
+
+`Stage3ValidationNormalization` directly accesses `_address_cache`.
+
+**Files:**
+- Modify: `src/core/repository/code_table_repository.py`
+- Modify: `src/projects/process/stage3_validation_normalization.py`
+
+- [ ] **Step 1: Expose public cache method**
+
+Modify `src/core/repository/code_table_repository.py`. Add this method inside `CodeTableRepository`:
+
+```python
+    def get_all_addresses(self) -> Dict[str, Dict[str, Any]]:
+        """전체 주소 정보 딕셔너리 반환"""
+        if not self._is_loaded:
+            self.preload()
+        return self._address_cache
+```
+
+- [ ] **Step 2: Refactor caller in Stage 3**
+
+Modify `src/projects/process/stage3_validation_normalization.py` lines 29-38:
+
+```python
+        best_match_cd = "UNKNOWN"
+        detail = full_address
+        addresses = self.code_repo.get_all_addresses()
+        sorted_addresses = sorted(addresses.items(), key=lambda x: len(x[0]), reverse=True)
+        for addr_key, info in sorted_addresses:
+            if full_address.replace(" ", "").startswith(addr_key.replace(" ", "")):
+                best_match_cd = info['address_cd']
+                detail = full_address.replace(addr_key, "").strip()
+                break
+                
+        return best_match_cd, detail
+```
+
+- [ ] **Step 3: Commit Task 2**
+
+```bash
+git add src/core/repository/code_table_repository.py src/projects/process/stage3_validation_normalization.py
+git commit -m "fix: expose public address cache access (H5)"
+```
+
+---
+
+### Task 3: Enum Value Updates and Exception Classes
+
+Ensure that `ReasonCode` maps directly to explicit string values instead of generic `auto()` integers for stable `.value` usage, and create `UndefinedCodeException`.
+
+**Files:**
+- Modify: `src/core/policy/reason_code.py`
+- Modify: `src/core/policy/exceptions.py`
+
+- [ ] **Step 1: Convert ReasonCode values to explicit strings**
+
+Modify `src/core/policy/reason_code.py`:
+
+```python
+from enum import Enum
+
+class ReasonCode(Enum):
+    """
+    ETL 파이프라인 전반에서 발생하는 실패의 원인을 정의하는 Enum.
+    """
+    NETWORK_ERROR = "NETWORK_ERROR"
+    PROXY_ERROR = "PROXY_ERROR"
+    TIMEOUT = "TIMEOUT"
+    SELECTOR_MISMATCH = "SELECTOR_MISMATCH"
+    BOT_DETECTED = "BOT_DETECTED"
+    NOT_FOUND = "NOT_FOUND"      
+    INVALID_URL = "INVALID_URL"
+    INVALID_DATA_FORMAT = "INVALID_DATA_FORMAT"
+    MISSING_REQUIRED_FIELD = "MISSING_REQUIRED_FIELD"
+    NOT_RESTAURANT_ENTITY = "NOT_RESTAURANT_ENTITY" 
+    CONFLICTING_DEDUP_SIGNALS = "CONFLICTING_DEDUP_SIGNALS" 
+    DB_CONNECTION_ERROR = "DB_CONNECTION_ERROR"
+    DB_CONSTRAINT_VIOLATION = "DB_CONSTRAINT_VIOLATION"
+    UNDEFINED_CODE_DETECTED = "UNDEFINED_CODE_DETECTED" 
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+    INTERNAL_PIPELINE_ERROR = "INTERNAL_PIPELINE_ERROR"
+
+    def __str__(self):
+        return self.value
+```
+
+- [ ] **Step 2: Add UndefinedCodeException**
+
+Modify `src/core/policy/exceptions.py`. Add the following class:
+
+```python
+class UndefinedCodeException(BasePipelineException):
+    """지정되지 않은 식별 불가 코드(예: UNKNOWN 주소) 또는 참조 무결성 위반 시 예외"""
+    pass
+```
+
+- [ ] **Step 3: Commit Task 3**
+
+```bash
+git add src/core/policy/reason_code.py src/core/policy/exceptions.py
+git commit -m "feat: use string values for ReasonCode and add UndefinedCodeException"
+```
+
+---
+
+### Task 4: Refactor Stage 4 Load Policy, Transactions, and Code Table Integrity
+
+Refactor `Stage4Load` to use explicit Helper methods. Re-verify Code Table references against `CodeTableRepository` to catch undefined states strictly before DB insertion. Route child failures directly to the return array.
+
+**Files:**
+- Modify: `src/projects/save/stage4_load.py`
+
+- [ ] **Step 1: Re-write Stage4Load**
+
+Overwrite `src/projects/save/stage4_load.py`:
+
+```python
 import logging
 from typing import List, Dict, Any
 from sqlalchemy import text
@@ -223,3 +438,11 @@ class Stage4Load(BaseStage):
                     
         self.logger.info(f"Loaded {loaded_count} stores with related data to DB.")
         return results
+```
+
+- [ ] **Step 2: Commit Task 4**
+
+```bash
+git add src/projects/save/stage4_load.py
+git commit -m "refactor: enforce CodeTable integrity pre-validation via CodeTableRepository in load stage as per Design.md sec 17"
+```

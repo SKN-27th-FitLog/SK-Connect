@@ -42,3 +42,7 @@ class LoadException(BasePipelineException):
 class DedupConflictException(BasePipelineException):
     """DEDUP 충돌 발생 시 예외"""
     pass
+
+class UndefinedCodeException(BasePipelineException):
+    """지정되지 않은 식별 불가 코드(예: UNKNOWN 주소) 또는 참조 무결성 위반 시 예외"""
+    pass

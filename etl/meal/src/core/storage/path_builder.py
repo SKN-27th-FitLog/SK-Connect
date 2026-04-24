@@ -12,29 +12,25 @@ class HivePathBuilder:
     def build_path(
         process: str,          # raw, candidate, normalized, fail_ledger, metrics
         service: str,          # shop, menu, review, image
-        category_cd: str,
-        stage: str,
-        batch_id: str,
-        status: str = "success",
-        base_path: str = settings.LAKE_ROOT_PATH,
-        dt: datetime = None
-    ) -> str:
-        if dt is None:
-            dt = datetime.now()
-            
-        path = os.path.join(
-            base_path,
-            f"process={process}",
-            f"service={service}",
-            f"year={dt.strftime('%Y')}",
-            f"month={dt.strftime('%m')}",
-            f"day={dt.strftime('%d')}",
-            f"status={status}",
-            f"category_cd={category_cd}",
-            f"stage={stage}",
-            f"batch_id={batch_id}"
+    def build_path(process: str, service: str, category_cd: str, stage: str, batch_id: str, status: str, dt) -> str:
+        """기존 Hive 스타일 전체 경로 생성"""
+        return os.path.join(
+            settings.LAKE_ROOT_PATH,
+            f"process={process}", f"service={service}",
+            f"year={dt.strftime('%Y')}", f"month={dt.strftime('%m')}", f"day={dt.strftime('%d')}",
+            f"status={status}", f"category_cd={category_cd}",
+            f"stage={stage}", f"batch_id={batch_id}"
         )
-        return path
+
+    @staticmethod
+    def build_stage_base_path(process: str, service: str, category_cd: str, stage: str, status: str, dt) -> str:
+        """batch_id를 제외한 스테이지 레벨까지의 Hive 경로 생성 (glob 검색용)"""
+        return os.path.join(
+            settings.LAKE_ROOT_PATH,
+            f"process={process}", f"service={service}",
+            f"year={dt.strftime('%Y')}", f"month={dt.strftime('%m')}", f"day={dt.strftime('%d')}",
+            f"status={status}", f"category_cd={category_cd}", f"stage={stage}"
+        )
 
     @staticmethod
     def build_filename(extension: str = "jsonl", dt: datetime = None) -> str:

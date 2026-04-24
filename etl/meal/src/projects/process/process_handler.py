@@ -1,53 +1,51 @@
-import os
-import glob
 import logging
 import argparse
-from datetime import datetime
-from src.core.config import settings
-from src.core.registry import get_parser, get_stage, STAGE_CANDIDATE_PARSING, STAGE_VALIDATION_NORMALIZATION
-from src.core.storage.jsonl_writer import JsonlWriter
+from src.projects.process.process_service import ProcessService
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger("process_project")
 
-def run_process(platform: str, category_cd: str):
-    logger.info(f"--- Starting PROCESS Project ---")
-    dt = datetime.now()
+def lambda_handler(event, context):
+    """
+    AWS Lambda 엔트리 포인트. 핸들러는 단순 입력 파싱 및 Service 호출 역할만 수행.
+    """
+    platform = event.get("platform")
+    category_cd = event.get("category_cd")
     
-    base_path = os.path.join(
-        settings.LAKE_ROOT_PATH,
-        "process=raw", "service=shop",
-        f"year={dt.strftime('%Y')}", f"month={dt.strftime('%m')}", f"day={dt.strftime('%d')}",
-        "status=success", f"category_cd={category_cd}", "stage=raw_collection"
-    )
+    if not platform or not category_cd:
+        return {
+            "statusCode": 400,
+            "body": {"error": "Missing mandatory parameters: platform, category_cd"}
+        }
     
-    batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*"))
-    if not batch_dirs:
-        logger.info("No crawl success data found for today. Terminating process.")
-        return
-
-    parser = get_parser(platform)
-    stage2 = get_stage(STAGE_CANDIDATE_PARSING, parser=parser)
-    stage3 = get_stage(STAGE_VALIDATION_NORMALIZATION)
-
-    for bdir in batch_dirs:
-        batch_id = os.path.basename(bdir).split("=")[-1]
-        raw_successes = []
-        for file in glob.glob(os.path.join(bdir, "*.jsonl")):
-            raw_successes.extend(JsonlWriter.read(file))
-            
-        if not raw_successes: continue
-        
-        candidates = stage2.execute(raw_successes, batch_id, category_cd)
-        if candidates:
-            stage3.execute(candidates, batch_id, category_cd)
-
-    logger.info(f"--- PROCESS Project Finished ---")
+    logger.info(f"Event received - Platform: {platform}, Category: {category_cd}")
+    
+    try:
+        # Process는 동기 스테이지들로 구성되므로 loop 불필요 (필요 시 Crawl 방식과 동일하게 asyncio loop 사용 가능)
+        result = ProcessService.run_process(platform, category_cd)
+    except Exception as e:
+        logger.error(f"Process project failed with error: {str(e)}", exc_info=True)
+        return {
+            "statusCode": 500,
+            "body": {"error": str(e)}
+        }
+    
+    return {
+        "statusCode": 200,
+        "body": result
+    }
 
 if __name__ == "__main__":
+    # 로컬 실행 지원
     parser = argparse.ArgumentParser()
-    parser.add_argument("--platform", type=str, default="DiningCode")
-    parser.add_argument("--category", type=str, default="SC01")
+    parser.add_argument("--platform", type=str, required=True, help="Target Platform (Naver, DiningCode, etc)")
+    parser.add_argument("--category", type=str, required=True, help="Category Code (e.g., C001)")
     args = parser.parse_args()
     
-    run_process(args.platform, args.category)
+    result = lambda_handler({"platform": args.platform, "category_cd": args.category}, None)
+    logger.info(f"Local Execution Result: {result}")

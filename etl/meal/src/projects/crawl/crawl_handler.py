@@ -1,34 +1,56 @@
 import asyncio
 import logging
 import argparse
-from datetime import datetime
-from src.core.registry import get_collector, get_stage, STAGE_TARGET_SELECTION, STAGE_RAW_COLLECTION
+from src.projects.crawl.crawl_service import CrawlService
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger("crawl_project")
 
-async def run_crawl(platform: str, category_cd: str):
-    now = datetime.now()
-    batch_id = f"{now.strftime('%Y%m%d')}_{category_cd}_{now.strftime('%H%M%S')}"
-    logger.info(f"--- Starting CRAWL Project: {platform}/{category_cd} [Batch: {batch_id}] ---")
+def lambda_handler(event, context):
+    """
+    AWS Lambda 엔트리 포인트. 핸들러는 단순 입력 파싱 및 Service 호출 역할만 수행.
+    """
+    platform = event.get("platform")
+    category_cd = event.get("category_cd")
     
-    stage0 = get_stage(STAGE_TARGET_SELECTION)
-    targets = stage0.execute(category_cd, platform)
+    if not platform or not category_cd:
+        return {
+            "statusCode": 400,
+            "body": {"error": "Missing mandatory parameters: platform, category_cd"}
+        }
     
-    if not targets:
-        logger.info("No targets found in Stage 0. Terminating crawl.")
-        return
-        
-    collector = get_collector(platform)
-    stage1 = get_stage(STAGE_RAW_COLLECTION, collector=collector, shard_size=1)
+    logger.info(f"Event received - Platform: {platform}, Category: {category_cd}")
     
-    await stage1.execute(targets, batch_id, category_cd)
-    logger.info(f"--- CRAWL Project Finished ---")
+    # Lambda 환경에서는 이미 loop가 돌고 있을 수 있으므로 안전하게 새 루프 생성 및 제어
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        result = loop.run_until_complete(CrawlService.run_crawl(platform, category_cd))
+    except Exception as e:
+        logger.error(f"Crawl project failed with error: {str(e)}", exc_info=True)
+        return {
+            "statusCode": 500,
+            "body": {"error": str(e)}
+        }
+    finally:
+        loop.close()
+    
+    return {
+        "statusCode": 200,
+        "body": result
+    }
 
 if __name__ == "__main__":
+    # 로컬 실행 지원
     parser = argparse.ArgumentParser()
-    parser.add_argument("--platform", type=str, default="DiningCode")
-    parser.add_argument("--category", type=str, default="SC01")
+    parser.add_argument("--platform", type=str, required=True, help="Target Platform (Naver, DiningCode, etc)")
+    parser.add_argument("--category", type=str, required=True, help="Category Code (e.g., C001)")
     args = parser.parse_args()
     
-    asyncio.run(run_crawl(args.platform, args.category))
+    result = lambda_handler({"platform": args.platform, "category_cd": args.category}, None)
+    logger.info(f"Local Execution Result: {result}")

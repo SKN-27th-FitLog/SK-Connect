@@ -56,6 +56,12 @@ class CodeTableRepository:
             self.preload()
         return self._address_cache.get(key)
 
+    def get_all_addresses(self) -> Dict[str, Dict[str, Any]]:
+        """전체 주소 정보 딕셔너리 반환"""
+        if not self._is_loaded:
+            self.preload()
+        return self._address_cache
+
     def get_shop_code(self, key: str) -> Optional[str]:
         """명칭 또는 코드로 업종 코드 조회"""
         if not self._is_loaded:

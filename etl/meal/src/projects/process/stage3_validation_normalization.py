@@ -28,7 +28,8 @@ class Stage3ValidationNormalization(BaseStage):
         
         best_match_cd = "UNKNOWN"
         detail = full_address
-        sorted_addresses = sorted(self.code_repo._address_cache.items(), key=lambda x: len(x[0]), reverse=True)
+        addresses = self.code_repo.get_all_addresses()
+        sorted_addresses = sorted(addresses.items(), key=lambda x: len(x[0]), reverse=True)
         for addr_key, info in sorted_addresses:
             if full_address.replace(" ", "").startswith(addr_key.replace(" ", "")):
                 best_match_cd = info['address_cd']
