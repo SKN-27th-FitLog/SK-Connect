@@ -3,13 +3,13 @@ import csv
 from typing import List, Dict, Any
 import logging
 
-from src.pipeline.stages.base_stage import BaseStage
+from src.core.base_stage import BaseStage
 from src.core.repository.code_table_repository import CodeTableRepository, code_repo
 
 class Stage0TargetSelection(BaseStage):
     """
-    설계안 6.2 준수 - Daily Target Selection.
-    원칙: target.csv의 주소/카테고리 코드를 읽어 수집 시드 생성.
+    [요구사항 6.2 일치] - Daily Target Selection.
+    원칙: target.csv에서 주소/카테고리 코드를 읽어 수집 시드 생성.
     """
     NAME = "target_selection"
 

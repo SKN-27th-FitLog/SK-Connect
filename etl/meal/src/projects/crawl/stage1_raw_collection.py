@@ -5,7 +5,7 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime
 
-from src.pipeline.stages.base_stage import BaseStage
+from src.core.base_stage import BaseStage
 from src.collectors.base_collector import BaseCollector
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
@@ -13,7 +13,7 @@ from src.core.policy.reason_code import ReasonCode
 
 class Stage1RawCollection(BaseStage):
     """
-    설계안 11, 12, 18장 준수 - Raw 데이터 수집 Stage.
+    [설계안 11, 12, 18번 일치] - Raw 데이터 수집 Stage.
     Discovery(검색)와 Collection(수집)을 통합 처리.
     """
     NAME = "raw_collection"
@@ -27,7 +27,7 @@ class Stage1RawCollection(BaseStage):
         return [targets[i:i + self.shard_size] for i in range(0, len(targets), self.shard_size)]
 
     async def _collect_single_url(self, url: str, target_id: str, batch_id: str, category_cd: str, shard_id: str, dt: datetime) -> Dict[str, Any]:
-        """단일 URL 수집 및 저장"""
+        """ Single URL Collection """
         try:
             raw_data = await self.collector.collect(url)
             
@@ -88,12 +88,24 @@ class Stage1RawCollection(BaseStage):
                 )
                 results.append(res)
 
-        metadata_path = HivePathBuilder.build_path(
-            process="raw", service="shop", category_cd=category_cd,
-            stage=self.stage_name, batch_id=batch_id, status="metadata", dt=now
-        )
-        metadata_filename = f"shard_{shard_id}.jsonl"
-        JsonlWriter.write(metadata_path, metadata_filename, results)
+        successes = [r for r in results if r["status"] == "success"]
+        failures = [r for r in results if r["status"] == "fail"]
+        filename = f"shard_{shard_id}.jsonl"
+
+        if successes:
+            succ_path = HivePathBuilder.build_path(
+                process="raw", service="shop", category_cd=category_cd,
+                stage=self.stage_name, batch_id=batch_id, status="success", dt=now
+            )
+            JsonlWriter.write(succ_path, filename, successes)
+            
+        if failures:
+            fail_path = HivePathBuilder.build_path(
+                process="raw", service="shop", category_cd=category_cd,
+                stage=self.stage_name, batch_id=batch_id, status="fail", dt=now
+            )
+            JsonlWriter.write(fail_path, filename, failures)
+
         return results
 
     async def execute(self, targets: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:

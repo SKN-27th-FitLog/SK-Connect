@@ -2,7 +2,7 @@ import logging
 from typing import List, Dict, Any
 from sqlalchemy import text
 
-from src.pipeline.stages.base_stage import BaseStage
+from src.core.base_stage import BaseStage
 from src.core.repository.database import db_manager
 from src.core.constants import (
     QUERY_UPSERT_MAP, QUERY_UPSERT_SHOP, QUERY_INSERT_CRAWLING,
@@ -11,7 +11,7 @@ from src.core.constants import (
 
 class Stage4Load(BaseStage):
     """
-    설계안 20장 준수 - Load Stage.
+    [설계안 20 일치] - Load Stage.
     정규화된 데이터를 DB에 영구 적재.
     """
     NAME = "load"
@@ -27,7 +27,7 @@ class Stage4Load(BaseStage):
             for record in normalized_data:
                 store = record.get("store", {})
                 try:
-                    # 설계안 20장 준수 - 개별 레코드 트랜잭션 격리 (Savepoint 활용)
+                    # 개별 레코드 트랜잭션 격리 (Savepoint 적용)
                     with session.begin_nested():
                         # 1. Integrity Check
                         if not store.get("address_cd") or store.get("address_cd") == "UNKNOWN":
@@ -74,7 +74,7 @@ class Stage4Load(BaseStage):
                                 "table_id": shop_id
                             })
 
-                        # 6. Crawling 증거 및 리뷰 적재
+                        # 6. Crawling 기록 및 리뷰 적재
                         session.execute(text(QUERY_INSERT_CRAWLING), {
                             "title": f"Crawl - {store['name']}",
                             "content": store.get("description", ""),

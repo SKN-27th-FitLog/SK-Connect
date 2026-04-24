@@ -42,11 +42,17 @@
 - 운영 기준은 status가 아니라 reason_code/action 기준으로 해석한다.
 
 ==================================================
-2. 전체 파이프라인 구조
+2. 전체 파이프라인 구조 (수정)
 ==================================================
 
-전체 흐름은 아래와 같다.
+전체 시스템은 4개의 독립 프로젝트로 구성된다.
 
+1. crawl project
+2. process project
+3. save project
+4. failcheck project
+
+기존 Stage 구조:
 Stage 0: Daily Target Selection
 Stage 1: Raw Collection
 Stage 2: Candidate Parsing
@@ -54,37 +60,102 @@ Stage 3: Validation & Normalization
 Stage 4: Load
 Stage 5: Fail Classification / Retry Scheduling
 
-각 Stage는 독립 실행 가능해야 하며, 상태 간 전달은 file/S3 path + 명시적 payload 방식으로 수행한다.
+변경:
+- Stage 개념은 유지한다.
+- Stage의 책임을 프로젝트 단위로 재배치한다.
+
+매핑:
+Stage 1 → crawl project  
+Stage 2,3 → process project  
+Stage 4 → save project  
+Stage 5 → failcheck project  
 
 ==================================================
-3. 공통 책임 분리
+2.1 프로젝트 기반 실행 구조 (신규)
+==================================================
+
+crawl project
+→ process project
+→ save project
+
+failcheck project
+→ crawl/process/save fail 데이터를 기반으로 후속 판단 수행
+
+각 프로젝트는 독립 실행되며 직접 호출되지 않는다.
+
+==================================================
+2.2 프로젝트 간 연결 방식 (신규)
+==================================================
+
+연결 기준:
+- 날짜 기반 폴더
+- success / fail 디렉토리
+- JSONL 파일
+- metadata
+
+흐름:
+
+crawl success → process 입력  
+process success → save 입력  
+crawl/process/save fail → failcheck 입력  
+
+==================================================
+2.3 날짜 기준 실행 원칙 (신규)
+==================================================
+
+process:
+- crawl success 없으면 실행하지 않음
+
+save:
+- process success 없으면 실행하지 않음
+
+중요:
+- 실행 대상 없음은 fail이 아니다
+- fail 기록 금지
+
+==================================================
+3. 공통 책임 분리 (보완)
 ==================================================
 
 3.1 Stage
-- 입력을 받아 처리하고 출력 구조를 만든다.
-- 정책 판단을 직접 수행하지 않는다.
-- 실패 발생 시 Exception class를 발생시키거나 구조화된 결과를 반환한다.
+- 데이터 처리만 수행
+- 정책 판단 금지
 
 3.2 Exception
-- 실패 의미만 정의한다.
-- reason_code, stage, entity_type, detail을 가진다.
-- action, retry_count, severity를 직접 가지지 않는다.
+- 실패 의미만 표현
 
 3.3 Resolver
-- reason_code + stage + entity_type + retry_count 등의 정보를 기준으로 action을 결정한다.
-- 실제 정책 판단의 source of truth이다.
-- include_in_next_batch 여부, severity, retry 종착 action도 판단한다.
+- action 결정
 
 3.4 Fail Ledger
-- 운영 기록 저장소이다.
-- 실패를 JSONL 형태로 기록한다.
-- logger와 분리한다.
+- 실패 기록
 
 3.5 Logger
-- 실행 로그를 남긴다.
-- 개발 단계: info + warning + error
-- 운영 단계: error + 핵심 warning만 기록
-- fail ledger를 대체하지 않는다.
+- 실행 로그
+
+3.6 Project 책임 (신규)
+
+crawl:
+- 수집 + raw 저장
+
+process:
+- parsing + normalization
+
+save:
+- DB 적재
+
+failcheck:
+- 실패 기반 후속 판단
+
+3.7 프로젝트 정책 제한 (신규)
+다음 금지:
+
+- crawl에서 retry 판단 금지
+- process에서 retry/reprocess 판단 금지
+- save에서 retry/reprocess 판단 금지
+- crawl/process/save에서 alert 발송 금지
+
+정책 판단은 failcheck + Resolver만 수행
 
 ==================================================
 4. 저장 구조 원칙
@@ -366,6 +437,13 @@ Stage 1 Raw Collection은 Fan-out 가능 구조로 설계한다.
 14. 실패 처리 구조
 ==================================================
 
+실패 흐름:
+
+crawl/process/save
+→ fail JSONL 저장
+→ failcheck project 전달
+→ Resolver 판단
+
 14.1 핵심 분리
 
 - Exception = 실패 의미
@@ -397,6 +475,41 @@ Stage 1 Raw Collection은 Fan-out 가능 구조로 설계한다.
 - reason_code 추가 승인 주체는 운영진
 - 신규 reason_code 추가 시 Resolver 룰도 함께 정의해야 한다.
 - Resolver 룰 변경은 별도 배포 프로세스를 따른다.
+
+14.5 failcheck 중심 구조 (신규)
+
+failcheck project 역할:
+
+- fail 데이터 수집
+- reason_code 분석
+- retry_count 확인
+- Resolver 호출
+- action 결정
+
+가능 action:
+
+- retry
+- reprocess
+- alert
+- drop
+- warning 종료
+- manual_check
+
+중요:
+
+failcheck는 후속 판단만 수행한다.
+
+직접 수행 금지:
+
+- 크롤링 금지
+- 데이터 전처리 금지
+- DB 적재 금지
+
+재처리 방식:
+
+- crawl 실패 → crawl project 재전달
+- process 실패 → process project 재전달
+- save 실패 → save project 재전달
 
 ==================================================
 15. Resolver 룰 변경 배포 프로세스
@@ -622,3 +735,28 @@ Logger는 fail ledger와 별개이다.
 - AWS 비용을 고려한 효율적 구현 원칙
 
 이 문서는 구현 시 다른 방향으로 가지 않기 위한 최종 설계 약속 문서로 사용한다.
+
+==================================================
+25. 최종 결론 (수정)
+==================================================
+
+기존:
+- Stage 기반 단일 파이프라인
+
+변경:
+
+crawl project
+→ process project
+→ save project
+
+failcheck project
+→ fail 데이터 기반 후속 판단
+
+핵심:
+
+- crawl/process/save = 처리
+- failcheck = 판단
+- Resolver = 정책 기준
+
+기존 설계 원칙은 유지하고
+실행 구조만 프로젝트 단위로 분리한다.

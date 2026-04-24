@@ -2,7 +2,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from src.pipeline.stages.base_stage import BaseStage
+from src.core.base_stage import BaseStage
 from src.core.repository.code_table_repository import CodeTableRepository, code_repo
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
@@ -10,7 +10,7 @@ from src.core.models.models import StoreModel
 
 class Stage3ValidationNormalization(BaseStage):
     """
-    설계안 2.2, 7.2, 10장 준수 - Validation & Normalization Stage.
+    [요구사항 2.2, 7.2, 10 일치] - Validation & Normalization Stage.
     데이터 정규화, 주소 코드 분리, Dedup Key 생성 수행.
     """
     NAME = "validation_normalization"
@@ -53,6 +53,7 @@ class Stage3ValidationNormalization(BaseStage):
 
     def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:
         normalized_data = []
+        failures = []
         now = datetime.now()
         self.code_repo.preload()
         
@@ -93,13 +94,30 @@ class Stage3ValidationNormalization(BaseStage):
                 
             except Exception as e:
                 self.logger.error(f"Normalization failed for {cand.get('entity_id')}: {str(e)}")
+                failures.append({
+                    "entity_id": cand.get("entity_id", "unknown"),
+                    "entity_ref": cand.get("entity_ref", {}),
+                    "status": "fail",
+                    "reason_code": "INVALID_DATA_FORMAT",
+                    "detail": str(e),
+                    "failed_at": now.isoformat()
+                })
         
-        normalized_path = HivePathBuilder.build_path(
-            process="normalized", service="shop", category_cd=category_cd,
-            stage=self.stage_name, batch_id=batch_id, status="success", dt=now
-        )
-        filename = HivePathBuilder.build_filename(extension="jsonl", dt=now)
-        JsonlWriter.write(normalized_path, filename, normalized_data)
+        if normalized_data:
+            normalized_path = HivePathBuilder.build_path(
+                process="normalized", service="shop", category_cd=category_cd,
+                stage=self.stage_name, batch_id=batch_id, status="success", dt=now
+            )
+            filename = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            JsonlWriter.write(normalized_path, filename, normalized_data)
+            self.logger.info(f"Normalized {len(normalized_data)} records for batch {batch_id}")
+
+        if failures:
+            fail_path = HivePathBuilder.build_path(
+                process="normalized", service="shop", category_cd=category_cd,
+                stage=self.stage_name, batch_id=batch_id, status="fail", dt=now
+            )
+            filename_fail = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            JsonlWriter.write(fail_path, filename_fail, failures)
         
-        self.logger.info(f"Normalized {len(normalized_data)} records for batch {batch_id}")
         return normalized_data

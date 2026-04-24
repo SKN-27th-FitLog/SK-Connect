@@ -3,14 +3,14 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime
 
-from src.pipeline.stages.base_stage import BaseStage
+from src.core.base_stage import BaseStage
 from src.services.parsers.base_parser import BaseParser
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
 
 class Stage2CandidateParsing(BaseStage):
     """
-    설계안 2.2 준수 - Candidate Parsing Stage.
+    [요구사항 2.2 일치] - Candidate Parsing Stage.
     Raw HTML을 읽어 구조화된 Candidate JSONL을 생성.
     """
     NAME = "candidate_parsing"
@@ -21,6 +21,7 @@ class Stage2CandidateParsing(BaseStage):
 
     def execute(self, raw_metadata: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:
         candidates = []
+        failures = []
         now = datetime.now()
         
         for record in raw_metadata:
@@ -39,7 +40,7 @@ class Stage2CandidateParsing(BaseStage):
                 menus = self.parser.parse_menus(html)
                 reviews = self.parser.parse_reviews(html)
                 
-                # 컬렉터가 탭별 수집한 photo_data가 있으면 파서에 전달
+                # 컬렉터가 함께 수집한 photo_data가 있으면 파서에 전달
                 photo_data = record.get("photo_data")
                 if photo_data and hasattr(self.parser, 'parse_images'):
                     try:
@@ -49,7 +50,7 @@ class Stage2CandidateParsing(BaseStage):
                 else:
                     images = self.parser.parse_images(html)
                 
-                # 2. Candidate 데이터 구성 (설계안 13장 참조)
+                # 2. Candidate 데이터 구성 (설계안 13번 참조)
                 candidate = {
                     "entity_id": record.get("entity_id"),
                     "entity_ref": record.get("entity_ref", {}),
@@ -63,13 +64,30 @@ class Stage2CandidateParsing(BaseStage):
                 
             except Exception as e:
                 self.logger.error(f"Failed to parse {file_path}: {str(e)}")
+                failures.append({
+                    "entity_id": record.get("entity_id", "unknown"),
+                    "entity_ref": record.get("entity_ref", {}),
+                    "status": "fail",
+                    "reason_code": "INVALID_DATA_FORMAT",
+                    "detail": str(e),
+                    "failed_at": now.isoformat()
+                })
         
-        candidate_path = HivePathBuilder.build_path(
-            process="candidate", service="shop", category_cd=category_cd,
-            stage=self.stage_name, batch_id=batch_id, status="success", dt=now
-        )
-        filename = HivePathBuilder.build_filename(extension="jsonl", dt=now)
-        JsonlWriter.write(candidate_path, filename, candidates)
+        if candidates:
+            candidate_path = HivePathBuilder.build_path(
+                process="candidate", service="shop", category_cd=category_cd,
+                stage=self.stage_name, batch_id=batch_id, status="success", dt=now
+            )
+            filename = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            JsonlWriter.write(candidate_path, filename, candidates)
+            self.logger.info(f"Parsed {len(candidates)} candidates for batch {batch_id}")
+
+        if failures:
+            fail_path = HivePathBuilder.build_path(
+                process="candidate", service="shop", category_cd=category_cd,
+                stage=self.stage_name, batch_id=batch_id, status="fail", dt=now
+            )
+            filename_fail = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            JsonlWriter.write(fail_path, filename_fail, failures)
         
-        self.logger.info(f"Parsed {len(candidates)} candidates for batch {batch_id}")
         return candidates

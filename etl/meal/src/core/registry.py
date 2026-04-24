@@ -8,12 +8,12 @@ from src.services.parsers.naver_parser import NaverParser
 from src.services.parsers.google_parser import GoogleParser
 from src.services.parsers.kakao_parser import KakaoParser
 
-from src.pipeline.stages.stage0_target_selection import Stage0TargetSelection
-from src.pipeline.stages.stage1_raw_collection import Stage1RawCollection
-from src.pipeline.stages.stage2_candidate_parsing import Stage2CandidateParsing
-from src.pipeline.stages.stage3_validation_normalization import Stage3ValidationNormalization
-from src.pipeline.stages.stage4_load import Stage4Load
-from src.pipeline.stages.stage5_fail_classification import Stage5FailClassification
+from src.projects.crawl.stage0_target_selection import Stage0TargetSelection
+from src.projects.crawl.stage1_raw_collection import Stage1RawCollection
+from src.projects.process.stage2_candidate_parsing import Stage2CandidateParsing
+from src.projects.process.stage3_validation_normalization import Stage3ValidationNormalization
+from src.projects.save.stage4_load import Stage4Load
+from src.projects.failcheck.stage5_fail_classification import Stage5FailClassification
 
 # 스테이지 명칭 상수화 (각 클래스의 NAME 속성 참조 - 순환 참조 방지)
 STAGE_TARGET_SELECTION = Stage0TargetSelection.NAME

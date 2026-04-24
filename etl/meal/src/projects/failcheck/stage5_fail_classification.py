@@ -2,7 +2,7 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime
 
-from src.pipeline.stages.base_stage import BaseStage
+from src.core.base_stage import BaseStage
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
 from src.core.policy.resolver import PolicyResolver, policy_resolver, Action
@@ -10,9 +10,9 @@ from src.core.policy.reason_code import ReasonCode
 
 class Stage5FailClassification(BaseStage):
     """
-    설계안 19장 준수 - Fail Classification Stage.
+    [설계안 19 일치] - Fail Classification Stage.
     실패 사유를 분류하고 Fail Ledger(JSONL)에 기록.
-    원칙: Fail Ledger는 DB가 아닌 JSONL 파일로 관리.
+    원칙: Fail Ledger는 DB가 아닌 JSONL 파일로 관리
     """
     NAME = "fail_classification"
 
