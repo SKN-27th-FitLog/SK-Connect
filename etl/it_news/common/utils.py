@@ -9,7 +9,9 @@ from datetime import datetime, timedelta
 # 모듈
 from common.constant import PathConst, Stage, Status
 
-
+###############################################################
+# 데이터 파일 저장 관련 
+###############################################################
 def save_csv(df: pd.DataFrame, path: Path) -> Path:
     """CSV 파일 저장"""
 
@@ -45,6 +47,9 @@ def build_csv_path(
     ) / file_name
 
 
+###############################################################
+# 시간 관련 
+###############################################################
 def get_run_time() -> datetime:
     """실행 기준 시간을 생성"""
     return datetime.now()
@@ -80,3 +85,10 @@ def korean_relative_time(text: str, now: Optional[datetime] = None) -> Optional[
         return now
 
     return None
+
+
+###############################################################
+# DB 관련 
+###############################################################
+def get_last_modified_crawling() -> datetime:
+    pass
