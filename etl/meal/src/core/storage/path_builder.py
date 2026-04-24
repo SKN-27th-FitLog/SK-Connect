@@ -12,7 +12,12 @@ class HivePathBuilder:
     def build_path(
         process: str,          # raw, candidate, normalized, fail_ledger, metrics
         service: str,          # shop, menu, review, image
-    def build_path(process: str, service: str, category_cd: str, stage: str, batch_id: str, status: str, dt) -> str:
+        category_cd: str,      # C001, C002, ...
+        stage: str,            # raw_collection, candidate_parsing, validation_normalization, ...
+        batch_id: str,         # YYYYMMDDHHMM
+        status: str,           # success, fail, pending
+        dt: datetime           # Execution Date (for year/month/day partitioning)
+    ) -> str:
         """기존 Hive 스타일 전체 경로 생성"""
         return os.path.join(
             settings.LAKE_ROOT_PATH,
