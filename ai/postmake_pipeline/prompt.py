@@ -1,6 +1,9 @@
 
 import random
 
+from logging_config import set_logging
+logger = set_logging()
+
 class Prompt():
 
     def __init__(self, type: str, data: str):
@@ -23,28 +26,28 @@ class Prompt():
 - 말투 특징: 'ㄹㅇ', '맛도리', '~함', '~네' 혼용. 맞춤법보다 속도감 중시.
 - 출력 예시: "와 미쳤네? 성수동 족발 ㄹㅇ 맛도리임;; 껍데기 쫀득함이 장난 아님 ㅠㅠ"
 """,
-        #MODE 2
+            #MODE 2
 """
 # [MODE: CYNICAL]
 - 페르소나: 미사여구 질색하는 냉정한 게시글 작성자.
 - 말투 특징: 감정 절제, 'ㅋㅋ' 외 이모지 사용 금지, 짧은 문장 위주.
 - 출력 예시: "한줄요약: 족발 하나는 제대로임. 군더더기 없는 맛인데 사람 너무 많아서 빡셈 ㅋㅋ"
 """,
-        #MODE 3
+            #MODE 3
 """
 # [MODE: HYPER-EMOTION]
 - 페르소나: 리액션이 크고 진심을 다해 표현하는 사람.
 - 말투 특징: 느낌표(!!!) 남발, '진심', '진짜루' 반복, 여운 남기기(...).
 - 출력 예시: "미친 거 아냐??? 여기 족발 진심 미쳤음!!! 사장님 적게 일하고 많이 버세요... 입맛 저격 탕탕ㅠㅠㅠ"
 """,
-        #MODE 4
+            #MODE 4
 """
 # [MODE: MONOLOGUE]
 - 페르소나: 남 신경 안 쓰고 혼자 중얼거리는 사람.
 - 말투 특징: 혼잣말(~함, ~임), 갑작스러운 의식의 흐름(딴소리 섞기).
 - 출력 예시: "오늘 족발 먹었는데 개쫀득함. 근데 아까 비 올 뻔해서 그런지 사람 왤케 많음? 담엔 포장해야지."
 """,
-        #MODE 5
+            #MODE 5
 """
 # [MODE: RAW EMOTION]
 - 페르소나: 타이핑도 귀찮아서 핵심만 던지는 사람.
@@ -54,69 +57,69 @@ class Prompt():
         ]
 
         self.formal_sub_prompts = [
-                #MODE 1
+            #MODE 1
 """
 # [MODE: TECH-LOG]
 - 페르소나: 담백하게 핵심 기술 정보를 기록하는 엔지니어.
 - 말투 특징: '~다'로 끝나는 건조한 문어체. 수식어는 최대한 배제하고 '구조', '성능' 등 팩트 중심 서술.
 - 출력 예시: "이번 패치로 렌더링 성능이 눈에 띄게 개선됐다. 특히 메모리 점유율을 낮춘 점이 고무적이다. 실무 환경에서의 최적화 효율이 좋을 것으로 보인다."
-"""
-
-# Mode 2
+""",
+            #MODE 2
 """
 # [MODE: BRIEF-EXPERT]
 - 페르소나: 바쁜 동료들에게 정보를 간결히 공유하는 전문가.
 - 말투 특징: 문장을 짧게 끊어 치는 스타일. 명료하게 결론부터 전달하는 톤.
 - 출력 예시: "인터페이스가 훨씬 직관적으로 변했습니다. 복잡한 설정 없이도 즉시 도입 가능한 수준입니다. 보안성 측면에서도 충분히 합격점입니다."
-"""
-
-
-# Mode 3
+""",
+            #MODE 3
 """
 # [MODE: INSIGHT-CURATOR]
 - 페르소나: 기술 트렌드를 읽기 쉽게 정리해주는 큐레이터.
 - 말투 특징: '~입니다' 체를 쓰되, '~인 듯합니다'나 '~로 읽힙니다'처럼 정중하면서도 유연한 표현 사용.
 - 출력 예시: "단순한 기능 개선보다는 사용자 편의성에 집중한 모습입니다. 기존의 번거로운 절차를 대폭 간소화한 점이 이번 업데이트의 핵심으로 보입니다."
-"""
-#Mode 4
+""",
+            #MODE 4
 """
 # [MODE: PRACTICAL-REVIEW]
 - 페르소나: 실무 활용도를 냉정하게 평가하는 실무자.
 - 말투 특징: 장단점을 명확히 구분. '현실적으로', '실제로' 같은 부사 활용.
 - 출력 예시: "현실적으로 도입했을 때 리소스 절감 효과가 확실합니다. 다만 초기 학습 비용이 발생할 수 있다는 점은 사전에 고려할 필요가 있습니다."
-"""
-
-#Mode 5
+""",
+            #MODE 5
 """
 # [MODE: MODERN-FORMAL]
 - 페르소나: 군더더기 없는 세련된 문장을 선호하는 지식 전달자.
-- 말투 특징: 종결 어미를 '~네요', '~군요' 대신 정갈한 '~다' 또는 '~습니다'로 통일. 
+- 말투 특징: 종결 어미를 '~네요', '~군요' 대신 정갈한 '~다' 또는 '~습니다'로 통일.
 - 출력 예시: "기술적 완성도가 상당히 높습니다. 특히 아키텍처의 확장성이 좋아 향후 다양한 프로젝트에 유연하게 대응할 수 있을 것으로 판단합니다."
 """
         ]
 
-    def get_prompt(self, type: str, data: str):
-            #랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환
-        if type == "casual":
-            self.sub_prompts = self.casual_sub_prompts
-        elif type == "formal":
-            self.sub_prompts = self.formal_sub_prompts
-            raise ValueError("Invalid type")
-        elif type != 'casual' or type != 'formal':
-            raise ValueError("Invalid type")
-        selected_prompt = random.choice(self.sub_prompts)
+    def get_prompt(self, type: str, data:dict)->str:
+        """랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환"""
+        try:
+            if type == "casual":
+                self.sub_prompts = self.casual_sub_prompts
+            elif type == "formal":
+                self.sub_prompts = self.formal_sub_prompts
+            elif type != "casual" or type != "formal":
+                raise ValueError(f"Invalid type: {type}")
+            selected_prompt = random.choice(self.sub_prompts)
 
-        final_prompt = {f"""
-{self.master_template}
+            final_prompt = {f"""
+    {self.master_template}
 
-{selected_prompt}
----
+    {selected_prompt}
+    ---
 
-# [DATA]
-{data}
+    # [DATA]
+    {data}
 
-# [INSTRUCTION]
-위 데이터를 바탕으로 선택된 모드의 페르소나에 빙의하여 리뷰 본문만 작성해줘. 
-검색봇이 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
+    # [INSTRUCTION]
+    위 데이터를 바탕으로 선택된 모드의 페르소나에 빙의하여 리뷰 본문만 작성해줘.
+    검색봇이 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
             """}
+        except Exception as e:
+            print(f"Error: {e}")
+            logger.error(f"Error={e} | data={data}")
+            return None, None
         return final_prompt

@@ -1,18 +1,30 @@
-from from_crawling import get_info_crawling_data, get_shop_crawling_data
-from prompt import Prompt
-from chain import chain
-import logging
+from from_crawling import route_crawling_data
+from prompt import get_prompt
+from llm import graph
 
 import time
 
-logger = logging.getLogger(__name__)
+CATEGORY_CD = {
+    "IC02": "casual",
+    "IC01": "formal",
+}
+
 
 def run_batch():
-    batch_count = 0
     while True:
+        states:list[dict] = []
+        data:list[dict] = route_crawling_data()
+        for row in data:
+            type = CATEGORY_CD.get(row["category_cd"])
+            prompt:str = get_prompt(type, row)
+            
+            states.append({
+                "data": row,
+                "prompt": prompt
+            })
+            graph.invoke(states)
 
-                response = chain(data=row['content'], type=prompt)
+            time.sleep(1)
 
-                #push
 
                 

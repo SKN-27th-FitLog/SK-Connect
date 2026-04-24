@@ -102,4 +102,23 @@ CREATE TABLE "comments"(
     status_cd VARCHAR(6) NOT NULL --댓글 상태(정상/삭제)--
 );
 
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE "post_vector"(
+    embedding vector(768),
+    post_id BIGSERIAL PRIMARY KEY, --게시글 고유 번호--
+    title varchar(100) NOT NULL, --게시글 제목--
+    content TEXT NOT NULL, --게시글 내용--
+    created_at TIMESTAMP NOT NULL, --게시글 생성일--
+    modify_at TIMESTAMP NOT NULL, --게시글 수정일--
+    status_cd VARCHAR(6) NOT NULL, --게시글 상태(정상/삭제)--
+    post_cd VARCHAR(6) NOT NULL, --post_cd를 통해 게시글과 커뮤니티, 댓글을 구분한다)--
+    category_cd VARCHAR(6), --카테고리 코드--
+    user_id BIGINT REFERENCES users(user_id),
+    map_id BIGINT REFERENCES maps(map_id) ON DELETE SET NULL, --만약 커뮤니티나 맛집에 대한 내용이라면 map_id 작성--
+    shop_id BIGINT REFERENCES shop(shop_id) ON DELETE SET NULL, --만약 맛집에 대한 내용이라면 shop_id 작성--
+    crawling_id BIGINT REFERENCES crawling(crawling_id) ON DELETE SET NULL, --크롤링 고유 번호-- (FK는 아래에서 추가)
+    tag VARCHAR(100) --게시글 태그--
+)
+
+
 COPY "codeT" (cd, name, cd_info, cd_upper) FROM '/docker-entrypoint-initdb.d/data/codeT.csv' DELIMITER ',' CSV HEADER;
