@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 # 모듈
 from common.constant import PathConst, Stage, Status
+from common.postgresql.connection import PostgreDB
 
 ###############################################################
 # 데이터 파일 저장 관련 
@@ -90,5 +91,9 @@ def korean_relative_time(text: str, now: Optional[datetime] = None) -> Optional[
 ###############################################################
 # DB 관련 
 ###############################################################
-def get_last_modified_crawling() -> datetime:
-    pass
+def get_success_date() -> datetime:
+    """DB에서 성공한 날짜 확인 후 리턴"""
+    conn = PostgreDB()
+    max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
+    raw = max_rows[0][0] if max_rows else None
+    return raw
