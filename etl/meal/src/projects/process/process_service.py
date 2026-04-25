@@ -32,7 +32,7 @@ class ProcessService:
             return {"message": "No raw data found"}
 
         parser = get_parser(platform)
-        stage2 = get_stage(STAGE_CANDIDATE_PARSING)
+        stage2 = get_stage(STAGE_CANDIDATE_PARSING, parser=parser)
         stage3 = get_stage(STAGE_VALIDATION_NORMALIZATION)
 
         processed_batches = []
@@ -53,7 +53,7 @@ class ProcessService:
             filename = HivePathBuilder.build_filename(extension="jsonl", dt=dt)
             
             # --- 3. Stage 2: 후보 파싱 실행 ---
-            candidates = stage2.execute(raw_data, batch_id, category_cd, run_attempt=run_attempt, parser=parser)
+            candidates = stage2.execute(raw_data, batch_id, category_cd, run_attempt=run_attempt)
             
             s2_successes, s2_failures = [], []
             for r in candidates:
