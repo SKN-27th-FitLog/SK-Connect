@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+logs/
+diningcode_real_lake/
+scratch/
+.DS_Store
