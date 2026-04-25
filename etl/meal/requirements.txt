@@ -1,0 +1,10 @@
+sqlalchemy
+psycopg2-binary
+pydantic
+python-dotenv
+playwright
+pytest
+pytest-asyncio
+requests
+pydantic-settings
+beautifulsoup4
