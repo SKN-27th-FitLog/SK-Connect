@@ -34,6 +34,7 @@ from common.constant import PageURL as P_URL
 from common.constant import Stage, Status, CodeTable
 from common.utils import build_csv_path, get_run_time, save_csv
 from common.postgresql.connection import PostgreDB
+from common.utils import get_last_success_date
 
 
 
@@ -233,9 +234,8 @@ def crawling_thread_pytorch(
 ##############################################
 if __name__ == "__main__":
     conn = PostgreDB()
-    max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
-    raw = max_rows[0][0] if max_rows else None
+    last_success_date = get_last_success_date()
 
-    df_ok, df_bad = crawling_thread_pytorch(last_created_at=raw)
+    df_ok, df_bad = crawling_thread_pytorch(last_created_at=last_success_date)
     print(f"success: {len(df_ok)} rows, fail: {len(df_bad)} rows")
 

@@ -11,16 +11,7 @@ from common.postgresql.connection import PostgreDB
 
 
 
-##############################################
-# DB에서 성공한 날짜 확인 후 리턴 
-##############################################
 
-def get_success_date() -> datetime:
-    """DB에서 성공한 날짜 확인 후 리턴"""
-    conn = PostgreDB()
-    max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
-    raw = max_rows[0][0] if max_rows else None
-    return raw
 
 
 
