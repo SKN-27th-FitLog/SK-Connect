@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import google_login
+from .views import social_login
 
 urlpatterns = [
-    path("google/login/", google_login),
+    path("auth/login/", social_login),  # 구글/네이버/카카오 통합 로그인 엔드포인트
 ]

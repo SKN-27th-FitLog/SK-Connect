@@ -9,7 +9,6 @@ class Users(models.Model):
     email         = models.CharField(unique=True, null=False, max_length=255)
     nickname      = models.CharField(max_length=100, blank=True, null=True)
     profile_image = models.CharField(max_length=255, blank=True, null=True)
-    google_id     = models.CharField(unique=True, null=True, max_length=255)  # Day 2에서 제거, 지금은 null=True로만 변경
     role          = models.CharField(max_length=10, choices=ROLE_CHOICES, default="user")  # 추가
     created_at    = models.DateTimeField(auto_now_add=True)
     status_cd     = models.ForeignKey('common.Codet', on_delete=models.DO_NOTHING, null=False, db_column='status_cd')
@@ -26,7 +25,7 @@ class SocialAccount(models.Model):
     provider = models.CharField(max_length=20)
     # 각 플랫폼에서 발급한 고유 사용자 ID
     provider_user_id = models.CharField(max_length=100)
-    create_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
     class Meta:
