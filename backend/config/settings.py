@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -162,4 +164,3 @@ SPECTACULAR_SETTINGS = {
 }     
 
 
-    
