@@ -19,7 +19,7 @@ class Stage2CandidateParsing(BaseStage):
         super().__init__(self.NAME)
         self.parser = parser
 
-    def execute(self, raw_metadata: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:
+    def execute(self, raw_metadata: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
         candidates = []
         failures = []
         now = datetime.now()
@@ -78,7 +78,7 @@ class Stage2CandidateParsing(BaseStage):
                 process="candidate", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="success", dt=now
             )
-            filename = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            filename = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}.jsonl"
             JsonlWriter.write(candidate_path, filename, candidates)
             self.logger.info(f"Parsed {len(candidates)} candidates for batch {batch_id}")
 
@@ -87,7 +87,7 @@ class Stage2CandidateParsing(BaseStage):
                 process="candidate", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="fail", dt=now
             )
-            filename_fail = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            filename_fail = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}_fail.jsonl"
             JsonlWriter.write(fail_path, filename_fail, failures)
         
         return candidates

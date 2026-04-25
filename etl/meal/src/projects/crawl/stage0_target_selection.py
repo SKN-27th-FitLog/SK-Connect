@@ -18,7 +18,7 @@ class Stage0TargetSelection(BaseStage):
         self.seed_file = seed_file
         self.code_repo = code_repository
 
-    def execute(self, category_cd: str, platform: str = "DiningCode") -> List[Dict[str, Any]]:
+    def execute(self, category_cd: str, platform: str = "DiningCode") -> tuple[List[Dict[str, Any]], str]:
         self.code_repo.preload()
         selected_seeds = []
 
@@ -47,4 +47,4 @@ class Stage0TargetSelection(BaseStage):
                     })
 
         self.logger.info(f"Selected {len(selected_seeds)} search seeds for {platform}/{category_cd}")
-        return selected_seeds
+        return selected_seeds, self.seed_file
