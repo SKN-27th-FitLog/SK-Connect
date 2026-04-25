@@ -79,14 +79,16 @@ class SaveService:
                     process="load", service="shop", category_cd=category_cd,
                     stage="load", batch_id=batch_id, status="success", dt=dt
                 )
-                JsonlWriter.write(succ_path, filename, load_successes)
+                filename_succ = f"{dt.strftime('%y%m%d%H%M%S')}_att{run_attempt}.jsonl"
+                JsonlWriter.write(succ_path, filename_succ, load_successes)
                 
             if failures:
                 fail_path = HivePathBuilder.build_path(
                     process="load", service="shop", category_cd=category_cd,
                     stage="load", batch_id=batch_id, status="fail", dt=dt
                 )
-                JsonlWriter.write(fail_path, filename, failures)
+                filename_fail = f"{dt.strftime('%y%m%d%H%M%S')}_att{run_attempt}_fail.jsonl"
+                JsonlWriter.write(fail_path, filename_fail, failures)
             
             processed_batches.append(batch_id)
                 

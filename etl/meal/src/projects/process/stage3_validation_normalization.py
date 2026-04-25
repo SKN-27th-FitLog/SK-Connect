@@ -52,7 +52,7 @@ class Stage3ValidationNormalization(BaseStage):
         pid = shop_data.get("source_internal_id", "")
         return f"{platform}|{pid}", "platform_id"
 
-    def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:
+    def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
         normalized_data = []
         failures = []
         now = datetime.now()
@@ -109,7 +109,7 @@ class Stage3ValidationNormalization(BaseStage):
                 process="normalized", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="success", dt=now
             )
-            filename = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            filename = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}.jsonl"
             JsonlWriter.write(normalized_path, filename, normalized_data)
             self.logger.info(f"Normalized {len(normalized_data)} records for batch {batch_id}")
 
@@ -118,7 +118,7 @@ class Stage3ValidationNormalization(BaseStage):
                 process="normalized", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="fail", dt=now
             )
-            filename_fail = HivePathBuilder.build_filename(extension="jsonl", dt=now)
+            filename_fail = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}_fail.jsonl"
             JsonlWriter.write(fail_path, filename_fail, failures)
         
         return normalized_data

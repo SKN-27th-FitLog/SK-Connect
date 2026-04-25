@@ -119,7 +119,7 @@ class Stage4Load(BaseStage):
                 "point": float(review.get("rating", 0.0))
             })
 
-    def execute(self, normalized_data: List[Dict[str, Any]], batch_id: str, category_cd: str) -> List[Dict[str, Any]]:
+    def execute(self, normalized_data: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
         results = []
         loaded_count = 0
         with self.db.get_session() as session:

@@ -77,10 +77,41 @@ class CodeTableRepository:
         # 단순화된 codeT 구조에서는 cd, name이 1:1 매칭되므로 preload 시 name_cache도 구축
         return self._shop_name_cache.get(code)
 
+    def validate_references(self, record: Dict[str, Any]) -> bool:
+        """
+        데이터 레코드의 코드 참조 무결성을 검증합니다.
+        (사용자 피드백 반영: 정규화 필드 우선, 누락 시 실패 처리)
+        """
+        store = record.get("store", {})
+        
+        # 1. 대상 코드 추출 (정규화 필드 우선순위 적용)
+        addr_cd = store.get("normalized_address_cd") or store.get("address_cd")
+        shop_cd = store.get("normalized_shop_cd") or store.get("shop_cd") or store.get("normalized_category_cd")
+        
+        # 2. 필수 값 누락 검증 (None 또는 빈 문자열인 경우 실패)
+        if not addr_cd or not shop_cd:
+            logger.warning(f"Reference Validation Failed: Missing code (addr_cd={addr_cd}, shop_cd={shop_cd})")
+            return False
+            
+        # 3. 주소 코드 검증: UNKNOWN이 아닌 경우에만 캐시 존재 여부 확인
+        if addr_cd != "UNKNOWN":
+            if not self.get_address_info(addr_cd):
+                logger.warning(f"Invalid address_cd detected: {addr_cd}")
+                return False
+                
+        # 4. 업종 코드 검증: UNKNOWN이 아닌 경우에만 캐시 존재 여부 확인
+        if shop_cd != "UNKNOWN":
+            if not self.get_shop_code(shop_cd):
+                logger.warning(f"Invalid shop_cd detected: {shop_cd}")
+                return False
+                
+        return True
+
     def clear_cache(self):
         """실행 종료 시 폐기 (설계안 7.5)"""
         self._address_cache.clear()
         self._shop_code_cache.clear()
+        self._shop_name_cache.clear()
         self._is_loaded = False
 
 code_repo = CodeTableRepository()
