@@ -3,7 +3,7 @@ from enum import Enum
 
 class Stage(Enum):
     '''작업 단계 표시 '''
-    CRAWLILNG   = "crawling"
+    CRAWLING   = "crawling"
     CLEANING    = "cleaning"
     SAVE        = "save"
 

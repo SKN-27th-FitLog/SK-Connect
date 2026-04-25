@@ -16,7 +16,7 @@ pytorch 크롤링 작업 순서
 # 패키지
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urljoin, urlparse
@@ -26,10 +26,6 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
-# 디버그/직접 실행 시 PYTHONPATH 없이도 etl/it_news 의 common 패키지를 찾도록 함
-_IT_NEWS_ROOT = Path(__file__).resolve().parents[1]
-if str(_IT_NEWS_ROOT) not in sys.path:
-    sys.path.insert(0, str(_IT_NEWS_ROOT))
 
 # 모듈 
 from common.constant import CrawlingConstant as C_Constant
@@ -37,6 +33,7 @@ from common.constant import PageURL as P_URL
 
 from common.constant import Stage, Status, CodeTable
 from common.utils import build_csv_path, get_run_time, save_csv
+from common.postgresql.connection import PostgreDB
 
 
 
@@ -180,10 +177,23 @@ def slicing_author(topic_data: dict) -> str:
 #########################################################################
 # 전체 실행함수 
 #########################################################################
-def crawling_thread_pytorch(run_time: Optional[datetime] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def _threshold_from_last_collected(last_created_at: Optional[object]) -> datetime:
+    """DB 등에서 온 last 값이 없거나 날짜로 쓸 수 없으면 90일 전을 기준으로 삼는다."""
+    ts = pd.to_datetime(last_created_at, errors="coerce")
+    if pd.notna(ts):
+        return ts.to_pydatetime()
+    return datetime.now() - timedelta(days=90)
+
+
+def crawling_thread_pytorch(
+    run_time: Optional[datetime] = None,
+    last_created_at: Optional[object] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
     if run_time is None:
         run_time = get_run_time()
+
+    threshold = _threshold_from_last_collected(last_created_at)
 
     article_urls = get_article_list()
     success_rows: list[dict] = []
@@ -199,12 +209,18 @@ def crawling_thread_pytorch(run_time: Optional[datetime] = None) -> Tuple[pd.Dat
     df_success = pd.DataFrame(success_rows)
     df_fail = pd.DataFrame(fail_rows)
 
+    # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링
+    if success_rows:
+        t = pd.Timestamp(threshold)
+        df_success = df_success[df_success["created_at"] > t].copy()
+
+    # 저장할 데이터들이 있을 때만 파일 저장 실행
     if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLILNG, P_URL.PYTORCH.service, Status.SUCCESS, run_time)
+        path_success = build_csv_path(Stage.CRAWLING, P_URL.PYTORCH.service, Status.SUCCESS, run_time)
         save_csv(df_success, path_success)
 
     if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLILNG, P_URL.PYTORCH.service, Status.FAIL, run_time)
+        path_fail = build_csv_path(Stage.CRAWLING, P_URL.PYTORCH.service, Status.FAIL, run_time)
         save_csv(df_fail, path_fail)
 
     return df_success, df_fail
@@ -216,6 +232,10 @@ def crawling_thread_pytorch(run_time: Optional[datetime] = None) -> Tuple[pd.Dat
 # 내부 직접 실행 
 ##############################################
 if __name__ == "__main__":
-    df_ok, df_bad = crawling_thread_pytorch()
+    conn = PostgreDB()
+    max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
+    raw = max_rows[0][0] if max_rows else None
+
+    df_ok, df_bad = crawling_thread_pytorch(last_created_at=raw)
     print(f"success: {len(df_ok)} rows, fail: {len(df_bad)} rows")
 
