@@ -1,7 +1,7 @@
 import json
 import random
 
-from logging_config import set_logging
+from src.logging_config import set_logging
 logger = set_logging()
 
 class Prompt():
@@ -94,6 +94,7 @@ class Prompt():
 """
         ]
 
+    @staticmethod
     def get_prompt(self, type: str, d:dict)->str:
         """랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환"""
         try:

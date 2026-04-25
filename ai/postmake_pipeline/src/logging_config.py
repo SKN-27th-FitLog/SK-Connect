@@ -2,6 +2,7 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
+#singleton?
 def set_logging():
     os.makedirs("logs", exist_ok=True)
 

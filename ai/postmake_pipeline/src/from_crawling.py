@@ -3,12 +3,18 @@ from django.db import connection
 from run import CATEGORY_CD
 import time
 
-from logging_config import set_logging
+from src.logging_config import set_logging
+
 logger = set_logging()
 
-class get_crawling_data():
+
+class GetCrawlingData():
     def __init__(self):
         self.BATCH_SIZE = 100
+        self.CATEGORY_CD = {
+            "IC01": "casual", #food
+            "IC02": "formal", #IT
+        }
 
     def merge_data(self, row:dict, another_data:list[dict]) -> list[dict]:
         """각 4개의 테이블에서 가져온 데이터들을 crawling_id를 기준으로 하나의 데이터로 합친다"""
@@ -41,6 +47,7 @@ class get_crawling_data():
             logger.error(f"Error={e} | crawling_id={rows['crawling_id']}") #crawling_id를 함께 로깅
             return None
 
+    @staticmethod
     def route_crawling_data(self):
         """category_cd에 따라 분기, 데이터를 반환"""
         while True:
@@ -89,6 +96,7 @@ class get_crawling_data():
                 FROM posts p
             )
             AND c.crawling_id IS NOT NULL
+            AND c.content IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1
                 FROM posts p

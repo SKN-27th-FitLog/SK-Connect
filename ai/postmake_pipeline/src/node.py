@@ -2,7 +2,7 @@ from langchain_ollama import ChatOllama
 from langchain_huggingface import HuggingFaceEmbeddings
 from typing import TypedDict, List
 from langgraph.graph import StateGraph, START, END
-from from_crawling import cursor_excute
+from src.from_crawling import cursor_excute
 import os
 
 def get_llm():
@@ -53,7 +53,6 @@ def graph():
     graph = StateGraph(State)
     graph.add_node("embedding", embedding_node)
     graph.add_node("similarity_search", similarity_search_node)
-    graph.add_node("mk_post", mk_post_node)
     graph.add_edge(START, "embedding")
     graph.add_edge("embedding", "similarity_search")
     graph.add_edge("similarity_search", "mk_post")
