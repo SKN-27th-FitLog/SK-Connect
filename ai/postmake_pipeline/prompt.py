@@ -1,4 +1,4 @@
-
+import json
 import random
 
 from logging_config import set_logging
@@ -13,12 +13,12 @@ class Prompt():
 광고 같은 느낌을 완전히 배제하고, 실제 사용자가 작성한 듯한 텍스트를 생성하세요.
 
 # [COMMON RULES]
-1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도 등)를 지어내지 마세요.
+1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도, 이벤트, 신기능, 패치소식, 오류개선 등)를 지어내지 마세요.
 2. 금지 문구: '안녕하세요', '추천합니다', '참고하세요', '이상입니다', '방문해보세요' 등 상투적인 멘트는 절대 사용하지 않습니다.
 3. 구성: 형식에 얽매이지 않고 본문만 짧고 굵게 작성하세요.
 """
 
-        self.casual_sub_prompts = [
+        self.casual_sub_prompts:list[str] = [
             #MODE 1
 """
 # [MODE: DE-STRUCTURING]
@@ -56,7 +56,7 @@ class Prompt():
 """
         ]
 
-        self.formal_sub_prompts = [
+        self.formal_sub_prompts:list[str] = [
             #MODE 1
 """
 # [MODE: TECH-LOG]
@@ -94,9 +94,10 @@ class Prompt():
 """
         ]
 
-    def get_prompt(self, type: str, data:dict)->str:
+    def get_prompt(self, type: str, d:dict)->str:
         """랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환"""
         try:
+            data = json.dumps(d, ensure_ascii=False, indent=4) #data를 json 형식으로 변환
             if type == "casual":
                 self.sub_prompts = self.casual_sub_prompts
             elif type == "formal":
@@ -106,20 +107,20 @@ class Prompt():
             selected_prompt = random.choice(self.sub_prompts)
 
             final_prompt = {f"""
-    {self.master_template}
+{self.master_template}
 
-    {selected_prompt}
-    ---
+{selected_prompt}
+---
 
-    # [DATA]
-    {data}
+# [DATA]
+{data}
 
-    # [INSTRUCTION]
-    위 데이터를 바탕으로 선택된 모드의 페르소나에 빙의하여 리뷰 본문만 작성해줘.
-    검색봇이 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
+# [INSTRUCTION]
+위 데이터를 바탕으로 선택된 모드의 페르소나에 빙의하여 리뷰 본문만 작성해줘.
+ai가 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
             """}
         except Exception as e:
             print(f"Error: {e}")
-            logger.error(f"Error={e} | data={data}")
+            logger.error(f"Error={e} | crawling_id={data['crawling_id']}")
             return None, None
         return final_prompt
