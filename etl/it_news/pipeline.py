@@ -1,15 +1,17 @@
-# 패키지 
+# 패키지
+import logging
 import pandas as pd
 
-# 모듈 
+# 모듈
 from common.constant import Stage, Status
-from common.utils import build_csv_path, save_csv, get_run_time
+from common.utils import build_csv_path, get_run_time, save_csv
 
-
+logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
-    # 실행 시간을 가져옴 
+    # 실행 시간을 가져옴
     run_time = get_run_time()
 
     # 테스트 용으로 빈 df를 생성 (생성을 하던 불러오던 어떤 식으로든 df를 정의하면 됨)
@@ -31,7 +33,7 @@ if __name__ == "__main__":
     save_csv(df, save_path1)
     save_csv(df, save_path2)
 
-    print("저장 완료")
+    logger.info("저장 완료")
 
     # save의 경우는 여기서 업로드 하는 과정이 하나 더 들어감 (이외에는 차이 없음 )
 

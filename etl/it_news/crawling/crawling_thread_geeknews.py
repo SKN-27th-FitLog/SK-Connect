@@ -14,9 +14,10 @@ geeknews 크롤링 작업 순서
 '''
 
 # 패키지
+import logging
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
@@ -29,13 +30,18 @@ from bs4 import BeautifulSoup
 # 모듈
 from common.constant import CrawlingConstant as C_Constant
 from common.constant import PageURL as P_URL
-from common.utils import korean_relative_time
-    
 from common.constant import Stage, Status, CodeTable
-from common.utils import build_csv_path, get_run_time, save_csv
-
 from common.postgresql.connection import PostgreDB
-from common.utils import get_last_success_date
+from common.utils import (
+    build_csv_path,
+    coalesce_last_created_at,
+    get_last_success_date,
+    get_run_time,
+    korean_relative_time,
+    save_csv,
+)
+
+logger = logging.getLogger(__name__)
 
 #########################################################################
 # 게시글 전체 목록 주회 
@@ -63,10 +69,11 @@ def get_article_list() -> list[str]:
 
             if not articles:
                 break
-            for a in articles:
+            for a in tqdm(articles, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
                 href = a.get("href")
                 if href:
                     article_urls.append(urljoin(site_base, href))
+            pbar.update(1)
             if page_num >= C_Constant.PAGE_COUNT:
                 break
             time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
@@ -180,14 +187,6 @@ def slicing_author(soup: BeautifulSoup) -> str:
 #########################################################################
 # 전체 실행함수 
 #########################################################################
-def _threshold_from_last_collected(last_created_at: Optional[object]) -> datetime:
-    """DB 등에서 온 last 값이 없거나 날짜로 쓸 수 없으면 90일 전을 기준으로 삼는다."""
-    ts = pd.to_datetime(last_created_at, errors="coerce")
-    if pd.notna(ts):
-        return ts.to_pydatetime()
-    return datetime.now() - timedelta(days=90)
-
-
 def crawling_thread_geeknews(
     run_time: Optional[datetime] = None,
     last_created_at: Optional[object] = None,
@@ -196,7 +195,7 @@ def crawling_thread_geeknews(
     if run_time is None:
         run_time = get_run_time()
 
-    threshold = _threshold_from_last_collected(last_created_at)
+    threshold = coalesce_last_created_at(last_created_at)
 
     article_urls = get_article_list()
     success_rows: list[dict] = []
@@ -235,12 +234,17 @@ def crawling_thread_geeknews(
 # 내부 직접 실행 
 ##############################################
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     # DB 연결
     conn = PostgreDB()
     last_success_date = get_last_success_date()
 
     df_ok, df_bad = crawling_thread_geeknews(last_created_at=last_success_date)
-    print(f"success: {len(df_ok)} rows, fail: {len(df_bad)} rows")
+    logger.info(
+        "crawling done: success=%s rows, fail=%s rows",
+        len(df_ok),
+        len(df_bad),
+    )
 
 
 
