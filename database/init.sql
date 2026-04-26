@@ -135,22 +135,33 @@ CREATE TABLE "comments"(
 );
 
 CREATE EXTENSION IF NOT EXISTS vector;
-CREATE TABLE "post_vector"(
+-- LangChain PGVector 전용 테이블
+-- 주의: langchain_postgres.PGVector를 사용하는 경우 아래 테이블명은 라이브러리 내부에서 고정으로 사용된다.
+--       (langchain_pg_collection, langchain_pg_embedding)
+--       따라서 테이블명을 임의 변경하면 add_documents/similarity_search 동작이 깨질 수 있다.
+--       커스텀 이름을 원하면 라이브러리 코드를 포크/수정하거나 별도 직접 SQL 저장 로직을 사용해야 한다.
+CREATE TABLE "langchain_pg_collection"(
+    uuid UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    cmetadata JSON
+);
+
+CREATE TABLE "langchain_pg_embedding"(
+    id VARCHAR(255) PRIMARY KEY,
+    collection_id UUID REFERENCES langchain_pg_collection(uuid) ON DELETE CASCADE,
     embedding vector(768),
-    post_id BIGSERIAL PRIMARY KEY, --게시글 고유 번호--
-    title varchar(100) NOT NULL, --게시글 제목--
-    content TEXT NOT NULL, --게시글 내용--
-    created_at TIMESTAMP NOT NULL, --게시글 생성일--
-    modify_at TIMESTAMP NOT NULL, --게시글 수정일--
-    status_cd VARCHAR(6) NOT NULL, --게시글 상태(정상/삭제)--
-    post_cd VARCHAR(6) NOT NULL, --post_cd를 통해 게시글과 커뮤니티, 댓글을 구분한다)--
-    category_cd VARCHAR(6), --카테고리 코드--
-    user_id BIGINT REFERENCES users(user_id),
-    map_id BIGINT REFERENCES maps(map_id) ON DELETE SET NULL, --만약 커뮤니티나 맛집에 대한 내용이라면 map_id 작성--
-    shop_id BIGINT REFERENCES shop(shop_id) ON DELETE SET NULL, --만약 맛집에 대한 내용이라면 shop_id 작성--
-    crawling_id BIGINT REFERENCES crawling(crawling_id) ON DELETE SET NULL, --크롤링 고유 번호-- (FK는 아래에서 추가)
-    tag VARCHAR(100) --게시글 태그--
-)
+    document TEXT,
+    cmetadata JSONB
+);
+
+CREATE INDEX "ix_cmetadata_gin"
+ON "langchain_pg_embedding"
+USING gin (cmetadata jsonb_path_ops);
+
+-- 참고:
+-- 1) 일반 게시글 원본 데이터는 posts 테이블에 저장
+-- 2) 벡터 검색용 데이터는 langchain_pg_embedding.document/cmetadata/embedding에 저장
+--    (document = page_content, cmetadata = metadata)
 
 
 COPY "codeT" (cd, name, cd_info, cd_upper) FROM '/docker-entrypoint-initdb.d/data/codeT.csv' DELIMITER ',' CSV HEADER;

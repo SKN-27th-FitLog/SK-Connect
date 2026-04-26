@@ -2,12 +2,12 @@ import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
 
-#singleton?
-def set_logging():
+
+def set_logging() -> logging.Logger:
     os.makedirs("logs", exist_ok=True)
 
     #로그 생성
-    logger = logging.getLogger(__name__) #로그 이름 설정
+    logger = logging.getLogger("post_mk_pipe_logger") #로그 이름 설정
     logger.setLevel(logging.INFO) #로그 레벨 설정
     logger.propagate = False #로그 전파 방지
 

@@ -8,3 +8,4 @@ langchain_postgres
 psycopg2-binary
 
 konlpy
+textrankr
