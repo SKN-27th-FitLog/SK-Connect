@@ -54,3 +54,13 @@ class BatchUtil:
         """현재 배치 ID의 실행 회차를 조회"""
         meta_repo = get_repository("batch_metadata")
         return meta_repo.get_run_attempt(batch_id, category_cd, dt)
+
+    @staticmethod
+    def split_targets_into_shards(targets: list, shard_size: int) -> list[list]:
+        """설계안 12장 준수 - 타겟 리스트를 shard_size 단위로 분할"""
+        return [targets[i:i + shard_size] for i in range(0, len(targets), shard_size)]
+
+    @staticmethod
+    def generate_shard_id(batch_id: str, shard_index: int) -> str:
+        """설계안 12장 준수 - 동일 batch 내 유일한 shard_id 생성 (예: 20260423_CA01_001_SH001)"""
+        return f"{batch_id}_SH{shard_index:03d}"
