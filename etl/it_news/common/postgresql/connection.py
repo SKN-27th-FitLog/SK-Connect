@@ -37,6 +37,12 @@ class PostgreDB(metaclass=Singleton):
             cursor.execute(query, params)
             return cursor.fetchall()
 
+    def run_query_params(self, query: str, args: tuple | list | None = None) -> list:
+        """`%(name)s`가 아닌 `%%s` 자리(튜플·리스트)용. 예: `WHERE x = ANY(%%s)`."""
+        with self.conn.cursor() as cursor:
+            cursor.execute(query, args or ())
+            return cursor.fetchall()
+
     def test_conn(self)-> str:
         """ 연결 확인용 쿼리 실행 """
         try:

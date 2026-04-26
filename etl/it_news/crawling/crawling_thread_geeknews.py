@@ -31,11 +31,10 @@ from bs4 import BeautifulSoup
 from common.constant import CrawlingConstant as C_Constant
 from common.constant import PageURL as P_URL
 from common.constant import Stage, Status, CodeTable
-from common.postgresql.connection import PostgreDB
 from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
-    get_last_success_date,
+    get_last_success_date_by_thread_prefix,
     get_run_time,
     korean_relative_time,
     save_csv,
@@ -235,9 +234,7 @@ def crawling_thread_geeknews(
 ##############################################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    # DB 연결
-    conn = PostgreDB()
-    last_success_date = get_last_success_date()
+    last_success_date = get_last_success_date_by_thread_prefix("geeknews_")
 
     df_ok, df_bad = crawling_thread_geeknews(last_created_at=last_success_date)
     logger.info(
