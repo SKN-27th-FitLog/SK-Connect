@@ -113,7 +113,7 @@ def parse_article(url:str) -> dict:
         "comment_count" : slicing_comment_count(soup),
         "point"         : 0,                                # 해당 게시글에는 점수 없음 
         "author"        : slicing_author(topic_data),
-        "map_id"        : 0,                                # 해당 게시글은 위치정보 없음 
+        "map_id"        : None,                             # 위치정보 없음 → DB NULL(FK, 0은 maps에 없음) 
         "category_cd"   : CodeTable.IT_NEWS.value,
     }
 
