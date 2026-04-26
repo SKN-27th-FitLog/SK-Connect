@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from common.constant import CrawlingConstant, PathConst, Stage, Status, Service
+from common.constant import CrawlingColumn, PathConst, Service, Stage, Status, ThreadPrefix
 from common.utils import build_csv_path, get_last_success_date_by_thread_prefix, get_run_time, save_csv
 from common.preprocess import (
     cleaning_data_in_df,
@@ -33,8 +33,8 @@ def cleaning_threads(
     ##############################
     # 성공 데이터 조회 (raw=crawling, 소스별 1회씩 + concat 후 필터)
     ##############################
-    th_geek = get_last_success_date_by_thread_prefix("geeknews_")
-    th_pt = get_last_success_date_by_thread_prefix("pytorch_")
+    th_geek = get_last_success_date_by_thread_prefix(ThreadPrefix.GEEKNEWS)
+    th_pt = get_last_success_date_by_thread_prefix(ThreadPrefix.PYTORCH)
     df_g = get_success_threads(Stage.CRAWLING, Service.GEEKNEWS)
     df_p = get_success_threads(Stage.CRAWLING, Service.PYTORCH)
     if df_g.empty and df_p.empty:
@@ -42,7 +42,10 @@ def cleaning_threads(
         return pd.DataFrame(), pd.DataFrame()
     _parts = [d for d in (df_g, df_p) if not d.empty]
     df = pd.concat(_parts, ignore_index=True) if _parts else pd.DataFrame()
-    if "created_at" not in df.columns or "thread" not in df.columns:
+    if (
+        CrawlingColumn.CREATED_AT.value not in df.columns
+        or CrawlingColumn.THREAD.value not in df.columns
+    ):
         logger.warning("클리닝: created_at/thread 컬럼 없음 — 중단")
         return pd.DataFrame(), pd.DataFrame()
     df = _filter_crawl_rows_for_cleaning(df, th_geek=th_geek, th_pt=th_pt)

@@ -28,9 +28,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 # 모듈
-from common.constant import CrawlingConstant as C_Constant
-from common.constant import Service
-from common.constant import Stage, Status, CodeTable
+from common.constant import CodeTable
+from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status, ThreadPrefix
 from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
@@ -41,6 +40,9 @@ from common.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+def _user_agent_headers() -> dict[str, str]:
+    return {C_Constant.USER_AGENT_HEADER: C_Constant.USER_AGENT}
 
 #########################################################################
 # 게시글 전체 목록 주회 
@@ -59,7 +61,7 @@ def get_article_list() -> list[str]:
         # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
         while True:
             url = Service.GEEKNEWS.url + f"?page={page_num}"
-            response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
+            response = requests.get(url, headers=_user_agent_headers())
             soup = BeautifulSoup(response.text, "html.parser")
 
             # 긱뉴스(하다) 목록: 각 행의 GN 토픽 링크는 div.topicdesc 내 a[href^='topic?id=']
@@ -90,22 +92,22 @@ def parse_article(url:str) -> dict:
     '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
 
     # 게시글 1개 soup 
-    response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
+    response = requests.get(url, headers=_user_agent_headers())
     soup = BeautifulSoup(response.text, "html.parser")
 
-    # 각 컬럼별 슬라이싱 
+    c = CrawlingColumn
     article_dict = {
-        "title": slicing_title(soup),
-        "content": slicing_content(soup),
-        "thread": slicing_thread(url),
-        "article_url": url,                                 # 입력받은 URL 주소 그대로 반환
-        "created_at": slicing_created_at(soup),
-        "view_count": 0,                                    # 해당 게시글에는 글 조회수 없음 
-        "comment_count": slicing_comment_count(soup),
-        "point": slicing_point(soup),
-        "author": slicing_author(soup),
-        "map_id": None,                                    # 위치정보 없음 → DB NULL(FK, 0은 maps에 없음)
-        "category_cd": CodeTable.IT_NEWS.value,           # 코드테이블에서 가져오거나 상수로 고정해야 함 
+        c.TITLE.value: slicing_title(soup),
+        c.CONTENT.value: slicing_content(soup),
+        c.THREAD.value: slicing_thread(url),
+        c.ARTICLE_URL.value: url,
+        c.CREATED_AT.value: slicing_created_at(soup),
+        c.VIEW_COUNT.value: C_Constant.DEFAULT_INT,  # 해당 사이트에 조회수 없음
+        c.COMMENT_COUNT.value: slicing_comment_count(soup),
+        c.POINT.value: slicing_point(soup),
+        c.AUTHOR.value: slicing_author(soup),
+        c.MAP_ID.value: None,
+        c.CATEGORY_CD.value: CodeTable.IT_NEWS.value,
     }
 
     return article_dict
@@ -139,7 +141,7 @@ def slicing_content(soup: BeautifulSoup) -> str:
 def slicing_thread(article_url: str) -> str:
     """URL 의 topic?id= 값에 geeknews_ 접두사. id 없으면 예외로 실패."""
     # geeknews_1234 형식으로 고유 id 값을 가지도록 처리함 
-    return f"geeknews_{parse_qs(urlparse(article_url).query)['id'][0]}"
+    return f"{ThreadPrefix.GEEKNEWS.value}{parse_qs(urlparse(article_url).query)['id'][0]}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
@@ -164,14 +166,14 @@ def slicing_comment_count(soup: BeautifulSoup) -> int:
     try:
         return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
     except (TypeError, KeyError, ValueError):
-        return 0 # 종류에 관계 없이 에러 발생시 0 
+        return C_Constant.DEFAULT_INT
 
 
 # 점수/좋아요 수 슬라이싱
 def slicing_point(soup: BeautifulSoup) -> int:
     """topicinfo 안 '… P by …' 구조에서 P 앞 숫자(예: id=tp12345 span 텍스트)."""
     t = soup.select_one("div.topicinfo span[id^='tp']").get_text(strip=True)
-    return int(t) if t.isdigit() else 0 # t가 숫자면 반환, 아니면 0 으로 처리 
+    return int(t) if t.isdigit() else C_Constant.DEFAULT_INT
 
 
 # 작성자 슬라이싱
@@ -204,7 +206,10 @@ def crawling_thread_geeknews(
         try:
             success_rows.append(parse_article(url))
         except Exception as e:
-            fail_rows.append({"article_url": url, "error": str(e)})
+            c = CrawlingColumn
+            fail_rows.append(
+                {c.ARTICLE_URL.value: url, c.ERROR.value: str(e)}
+            )
         time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
 
     df_success = pd.DataFrame(success_rows)
@@ -213,7 +218,8 @@ def crawling_thread_geeknews(
     # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링 
     if success_rows:
         t = pd.Timestamp(threshold)
-        df_success = df_success[df_success["created_at"] > t].copy()
+        ca = CrawlingColumn.CREATED_AT.value
+        df_success = df_success[df_success[ca] > t].copy()
 
     # 저장할 데이터들이 있을 때만 파일 저장 실행 
     if not df_success.empty:
@@ -234,7 +240,7 @@ def crawling_thread_geeknews(
 ##############################################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    last_success_date = get_last_success_date_by_thread_prefix("geeknews_")
+    last_success_date = get_last_success_date_by_thread_prefix(ThreadPrefix.GEEKNEWS)
 
     df_ok, df_bad = crawling_thread_geeknews(last_created_at=last_success_date)
     logger.info(

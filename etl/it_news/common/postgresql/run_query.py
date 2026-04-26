@@ -3,23 +3,25 @@ from __future__ import annotations
 
 import pandas as pd
 
+from common.constant import CrawlingColumn
 from common.postgresql.connection import PostgreDB
 
 # crawling_id 제외(시퀀스). df는 이 열 순서·이름으로 맞춰진 상태로 넘긴다.
-CRAWLING_INSERT_COLS: tuple[str, ...] = (
-    "title",
-    "content",
-    "thread",
-    "article_url",
-    "created_at",
-    "view_count",
-    "comment_count",
-    "point",
-    "author",
-    "map_id",
-    "category_cd",
-    "keywords",
+_CRAWLING_INSERT_ORDER: tuple[CrawlingColumn, ...] = (
+    CrawlingColumn.TITLE,
+    CrawlingColumn.CONTENT,
+    CrawlingColumn.THREAD,
+    CrawlingColumn.ARTICLE_URL,
+    CrawlingColumn.CREATED_AT,
+    CrawlingColumn.VIEW_COUNT,
+    CrawlingColumn.COMMENT_COUNT,
+    CrawlingColumn.POINT,
+    CrawlingColumn.AUTHOR,
+    CrawlingColumn.MAP_ID,
+    CrawlingColumn.CATEGORY_CD,
+    CrawlingColumn.KEYWORDS,
 )
+CRAWLING_INSERT_COLS: tuple[str, ...] = tuple(c.value for c in _CRAWLING_INSERT_ORDER)
 
 INSERT_CRAWLING_UNNEST_SQL = """
 INSERT INTO crawling (title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, keywords)
@@ -47,7 +49,7 @@ def _list_for_col(df: pd.DataFrame, col: str, n: int) -> list:
     """INSERT 컬럼 한 열에 대응하는 값 list. `map_id=0`은 `maps` FK에 없으므로 NULL(크롤 기본값)."""
     if col not in df.columns:
         return [None] * n
-    if col != "map_id":
+    if col != CrawlingColumn.MAP_ID.value:
         return df[col].tolist()
     out: list = []
     for v in df[col].tolist():

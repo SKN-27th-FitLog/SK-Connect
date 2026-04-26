@@ -28,9 +28,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 # 모듈
-from common.constant import CrawlingConstant as C_Constant
-from common.constant import Service
-from common.constant import Stage, Status, CodeTable
+from common.constant import CodeTable
+from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status, ThreadPrefix
 from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
@@ -42,7 +41,8 @@ from common.utils import (
 logger = logging.getLogger(__name__)
 
 
-
+def _user_agent_headers() -> dict[str, str]:
+    return {C_Constant.USER_AGENT_HEADER: C_Constant.USER_AGENT}
 
 
 
@@ -63,7 +63,7 @@ def get_article_list() -> list[str]:
         # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
         while True:
             url = Service.PYTORCH.url + f"?page={page_num}"
-            response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
+            response = requests.get(url, headers=_user_agent_headers())
             soup = BeautifulSoup(response.text, "html.parser")
 
             # Discourse 토픽 목록: tr.topic-list-item 내 td.main-link 안의 a.title 링크
@@ -94,27 +94,29 @@ def parse_article(url:str) -> dict:
     '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 '''
 
     # HTML 파싱
-    response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
+    response = requests.get(url, headers=_user_agent_headers())
     soup = BeautifulSoup(response.text, "html.parser")
 
     # JSON API: SSR HTML에 없는 조회수·작성자를 한 번의 요청으로 처리
-    json_resp = requests.get(url + ".json", headers={"User-Agent": C_Constant.USER_AGENT})
+    json_resp = requests.get(
+        url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX, headers=_user_agent_headers()
+    )
     json_resp.raise_for_status()
     topic_data = json_resp.json()
 
-    # 각 컬럼별 슬라이싱 
+    c = CrawlingColumn
     article_dict = {
-        "title"         : slicing_title(soup),
-        "content"       : slicing_content(soup),
-        "thread"        : slicing_thread(url),
-        "article_url"   : url,                              # 입력받은 URL 주소 그대로 반환
-        "created_at"    : slicing_created_at(soup),
-        "view_count"    : slicing_view_count(topic_data),
-        "comment_count" : slicing_comment_count(soup),
-        "point"         : 0,                                # 해당 게시글에는 점수 없음 
-        "author"        : slicing_author(topic_data),
-        "map_id"        : None,                             # 위치정보 없음 → DB NULL(FK, 0은 maps에 없음) 
-        "category_cd"   : CodeTable.IT_NEWS.value,
+        c.TITLE.value: slicing_title(soup),
+        c.CONTENT.value: slicing_content(soup),
+        c.THREAD.value: slicing_thread(url),
+        c.ARTICLE_URL.value: url,
+        c.CREATED_AT.value: slicing_created_at(soup),
+        c.VIEW_COUNT.value: slicing_view_count(topic_data),
+        c.COMMENT_COUNT.value: slicing_comment_count(soup),
+        c.POINT.value: C_Constant.DEFAULT_INT,
+        c.AUTHOR.value: slicing_author(topic_data),
+        c.MAP_ID.value: None,
+        c.CATEGORY_CD.value: CodeTable.IT_NEWS.value,
     }
 
     return article_dict
@@ -144,7 +146,7 @@ def slicing_content(soup: BeautifulSoup) -> str:
 def slicing_thread(article_url: str) -> str:
     """URL 경로 /t/slug/{id} 의 마지막 세그먼트에 pytorch_ 접두사."""
     topic_id = urlparse(article_url).path.split('/')[-1]
-    return f"pytorch_{topic_id}"
+    return f"{ThreadPrefix.PYTORCH.value}{topic_id}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
@@ -155,7 +157,7 @@ def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
 # 조회수 슬라이싱
 def slicing_view_count(topic_data: dict) -> int:
     """JSON API 응답의 views 값을 반환. 없으면 0."""
-    return int(topic_data.get("views", 0))
+    return int(topic_data.get("views", C_Constant.DEFAULT_INT))
 
 # 댓글 수 슬라이싱
 def slicing_comment_count(soup: BeautifulSoup) -> int:
@@ -163,7 +165,7 @@ def slicing_comment_count(soup: BeautifulSoup) -> int:
     try:
         return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
     except (TypeError, KeyError, ValueError):
-        return 0 # 종류에 관계 없이 에러 발생시 0 
+        return C_Constant.DEFAULT_INT
 
 
 # # 점수/좋아요 수 슬라이싱
@@ -202,7 +204,8 @@ def crawling_thread_pytorch(
         try:
             success_rows.append(parse_article(url))
         except Exception as e:
-            fail_rows.append({"article_url": url, "error": str(e)})
+            c = CrawlingColumn
+            fail_rows.append({c.ARTICLE_URL.value: url, c.ERROR.value: str(e)})
         time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
 
     df_success = pd.DataFrame(success_rows)
@@ -211,7 +214,8 @@ def crawling_thread_pytorch(
     # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링
     if success_rows:
         t = pd.Timestamp(threshold)
-        df_success = df_success[df_success["created_at"] > t].copy()
+        ca = CrawlingColumn.CREATED_AT.value
+        df_success = df_success[df_success[ca] > t].copy()
 
     # 저장할 데이터들이 있을 때만 파일 저장 실행
     if not df_success.empty:
@@ -232,7 +236,7 @@ def crawling_thread_pytorch(
 ##############################################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    last_success_date = get_last_success_date_by_thread_prefix("pytorch_")
+    last_success_date = get_last_success_date_by_thread_prefix(ThreadPrefix.PYTORCH)
 
     df_ok, df_bad = crawling_thread_pytorch(last_created_at=last_success_date)
     logger.info(

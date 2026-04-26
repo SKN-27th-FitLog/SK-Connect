@@ -3,7 +3,7 @@ import logging
 
 import pandas as pd
 
-from common.constant import Stage, Service, Status
+from common.constant import CrawlingColumn, Service, Stage, Status
 from common.postgresql.run_query import insert_crawling_batch
 from common.preprocess import get_success_threads
 from common.utils import get_last_success_date, get_run_time, build_csv_path, save_csv
@@ -37,7 +37,7 @@ def save_threads(
         logger.info("save: 저장 생략(입력 0행)")
         return pd.DataFrame(), pd.DataFrame()
 
-    df = df.drop_duplicates(subset=["thread"], keep="last")
+    df = df.drop_duplicates(subset=[CrawlingColumn.THREAD.value], keep="last")
 
 
     ##############################

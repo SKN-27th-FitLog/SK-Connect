@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 # 모듈
-from common.constant import CrawlingConstant, PathConst, Stage, Status
+from common.constant import CrawlingColumn, CrawlingConstant, PathConst, Stage, Status, ThreadPrefix
 from common.postgresql.connection import PostgreDB
 
 ###############################################################
@@ -17,7 +17,7 @@ def save_csv(df: pd.DataFrame, path: Path) -> Path:
     """CSV 파일 저장"""
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(path, index=False, encoding="utf-8")
+    df.to_csv(path, index=False, encoding=CrawlingConstant.CSV_ENCODING)
 
     return path
 
@@ -143,11 +143,11 @@ def collect_crawling_success_datas(
         path, service_list, min_run_folder_date
     ):
         try:
-            tdf = pd.read_csv(csv_file, encoding="utf-8")
+            tdf = pd.read_csv(csv_file, encoding=CrawlingConstant.CSV_ENCODING)
         except (OSError, ValueError, UnicodeDecodeError, pd.errors.EmptyDataError):
             continue
         tdf = tdf.copy()
-        tdf["_page_service"] = service
+        tdf[CrawlingColumn.PAGE_SERVICE.value] = service
         rows_by_service[service] += len(tdf)
         thread_lst.append(tdf)
     return thread_lst, rows_by_service
@@ -231,20 +231,17 @@ def get_last_success_date() -> datetime:
     return raw
 
 
-def get_last_success_date_by_thread_prefix(thread_prefix: str) -> datetime:
+def get_last_success_date_by_thread_prefix(thread_prefix: ThreadPrefix) -> datetime:
     """`crawling`에 이미 있는 글 중 `thread`가 해당 접두(소스)로 시작하는 행의 `MAX(created_at)`.
 
     geeknews / pytorch 는 `MAX(created_at)`를 **각각** 두어, 한 쪽만 DB에 쌓여도 다른 쪽 `created_at`이
     더 이른 글이 “이미 반영됨”으로 잘못 제외되지 않게 한다. 해당 접두의 행이 없으면
     `default_last_collected_at()`(최초 90일 워터마크)과 동일하게 동작.
     """
-    # 고정 2종만: SQL에 그대로 넣을 수 있게 하드코딩(다른 prefix는 run_query·이스케이프 확장 이후)
-    _queries = {
-        "geeknews_": "SELECT MAX(created_at) FROM crawling WHERE thread ~ '^geeknews_'",
-        "pytorch_": "SELECT MAX(created_at) FROM crawling WHERE thread ~ '^pytorch_'",
+    _queries: dict[ThreadPrefix, str] = {
+        ThreadPrefix.GEEKNEWS: "SELECT MAX(created_at) FROM crawling WHERE thread ~ '^geeknews_'",
+        ThreadPrefix.PYTORCH: "SELECT MAX(created_at) FROM crawling WHERE thread ~ '^pytorch_'",
     }
-    if thread_prefix not in _queries:
-        raise ValueError("thread_prefix must be 'geeknews_' or 'pytorch_'")
     conn = PostgreDB()
     max_rows = conn.run_query(_queries[thread_prefix])
     raw = max_rows[0][0] if max_rows else None

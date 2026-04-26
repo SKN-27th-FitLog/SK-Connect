@@ -7,7 +7,15 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # 모듈
-from common.constant import CrawlingConstant, PathConst, Stage, Status, Service
+from common.constant import (
+    CrawlingColumn,
+    CrawlingConstant,
+    PathConst,
+    Service,
+    Stage,
+    Status,
+    ThreadPrefix,
+)
 from common.utils import (
     collect_crawling_success_datas,
     default_last_collected_at,
@@ -23,15 +31,14 @@ logger = logging.getLogger(__name__)
 # 처리 성공 / 실패 데이터 분할 
 ##############################################################
 def separate_success_and_fail(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """ 성공 실패 데이터를 State에 따라 분리하고 실제 데이터가 아닌 State 컬럼은 제거 """
+    """성공/실패 데이터를 `Status`와 동일한 값(`state` 컬럼)으로 분리하고 `state`는 제거."""
 
-    # 성공 데이터 
-    df_success = df[df["state"] == "success"]
-    df_success = df_success.drop(columns=["state"])
-    
-    # 실패 데이터 
-    df_fail = df[df["state"] == "fail"]
-    df_fail = df_fail.drop(columns=["state"])
+    c_state = CrawlingColumn.STATE.value
+    df_success = df[df[c_state] == Status.SUCCESS.value]
+    df_success = df_success.drop(columns=[c_state])
+
+    df_fail = df[df[c_state] == Status.FAIL.value]
+    df_fail = df_fail.drop(columns=[c_state])
 
     return df_success, df_fail
 
@@ -51,7 +58,7 @@ def _clean_special_cell(v: object) -> object:
     return t.replace("\u00a0", " ")
 
 def cleaning_special_characters(df: pd.DataFrame) -> pd.DataFrame:
-    text_cols = ("title", "content")
+    text_cols = (CrawlingColumn.TITLE.value, CrawlingColumn.CONTENT.value)
     cols = [c for c in text_cols if c in df.columns]
     if not cols:
         return df
@@ -70,7 +77,7 @@ def _collapse_newlines_cell(v: object) -> object:
     return re.sub(r"\n+", "\n", str(v))
 
 def cleaning_continuous_newlines(df: pd.DataFrame) -> pd.DataFrame:
-    text_cols = ("title", "content")
+    text_cols = (CrawlingColumn.TITLE.value, CrawlingColumn.CONTENT.value)
     cols = [c for c in text_cols if c in df.columns]
     if not cols:
         return df
@@ -88,7 +95,7 @@ def _collapse_spaces_cell(v: object) -> object:
     return re.sub(r"[ \t]+", " ", str(v))
 
 def cleaning_continuous_spaces(df: pd.DataFrame) -> pd.DataFrame:
-    text_cols = ("title", "content")
+    text_cols = (CrawlingColumn.TITLE.value, CrawlingColumn.CONTENT.value)
     cols = [c for c in text_cols if c in df.columns]
     if not cols:
         return df
@@ -109,26 +116,34 @@ def cleaning_data_in_df(df: pd.DataFrame) -> pd.DataFrame:
     ##############################
     # 읽어온 데이터 처리 
     ##############################
-    df = df.copy() # 데이터 복사 
-    df["state"] = "success" # 상태 컬럼 추가 
-    df = df.drop_duplicates(subset=["thread"], keep="last") # 중복 데이터 제거 
+    c_state = CrawlingColumn.STATE.value
+    df = df.copy()
+    df[c_state] = Status.SUCCESS.value
+    df = df.drop_duplicates(subset=[CrawlingColumn.THREAD.value], keep="last")
 
     #############################################
-    # 필수 컬럼에 결측치 있으면 bad -> Fail 처리 
+    # 필수 컬럼에 결측치 있으면 bad -> Fail 처리
     #############################################
-    required = ("title", "content", "article_url", "created_at", "thread", "category_cd")
+    required = (
+        CrawlingColumn.TITLE,
+        CrawlingColumn.CONTENT,
+        CrawlingColumn.ARTICLE_URL,
+        CrawlingColumn.CREATED_AT,
+        CrawlingColumn.THREAD,
+        CrawlingColumn.CATEGORY_CD,
+    )
     for col in required:
-        if col == "created_at":
-            bad = _coerce_created_at(df[col]).isna()
+        name = col.value
+        if col is CrawlingColumn.CREATED_AT:
+            bad = _coerce_created_at(df[name]).isna()
         else:
-            bad = df[col].isna()
-        df.loc[bad, "state"] = "fail"
-
+            bad = df[name].isna()
+        df.loc[bad, c_state] = Status.FAIL.value
 
     #############################################
-    # 특수문자, 연속 공백, 연속 줄바꿈 제거 
+    # 특수문자, 연속 공백, 연속 줄바꿈 제거
     #############################################
-    ok = df["state"] == "success"
+    ok = df[c_state] == Status.SUCCESS.value
     if ok.any():
         try:
             part = cleaning_special_characters(df.loc[ok].copy())
@@ -136,10 +151,10 @@ def cleaning_data_in_df(df: pd.DataFrame) -> pd.DataFrame:
             part = cleaning_continuous_newlines(part)
             df.loc[ok, part.columns] = part
         except (OSError, ValueError, TypeError, re.error):
-            df.loc[ok, "state"] = "fail"
+            df.loc[ok, c_state] = Status.FAIL.value
 
-    n_ok = int((df["state"] == "success").sum())
-    n_fail = int((df["state"] == "fail").sum())
+    n_ok = int((df[c_state] == Status.SUCCESS.value).sum())
+    n_fail = int((df[c_state] == Status.FAIL.value).sum())
     logger.info("클리닝: 전처리 완료 success=%d fail=%d", n_ok, n_fail)
 
     return df
@@ -169,13 +184,18 @@ def _filter_crawl_rows_for_cleaning(
     th_pt: datetime,
 ) -> pd.DataFrame:
     """diagram 2단계: DB 소스별 워터마크 + 미적재 thread는 90일 이내면 포함."""
-    c = _coerce_created_at(df["created_at"])
+    c = _coerce_created_at(df[CrawlingColumn.CREATED_AT.value])
     t_g, t_p = pd.Timestamp(th_geek), pd.Timestamp(th_pt)
-    is_pt = df["thread"].fillna("").astype(str).str.startswith("pytorch_")
+    is_pt = (
+        df[CrawlingColumn.THREAD.value]
+        .fillna("")
+        .astype(str)
+        .str.startswith(ThreadPrefix.PYTORCH.value)
+    )
     th_series = pd.Series(t_g, index=df.index).where(~is_pt, t_p)
 
     d0 = pd.Timestamp(default_last_collected_at())
-    thread_str = df["thread"].fillna("").astype(str)
+    thread_str = df[CrawlingColumn.THREAD.value].fillna("").astype(str)
     uids = thread_str[thread_str.str.len() > 0].unique().tolist()
     in_db = get_existing_crawling_threads(uids)
     not_in_db = ~thread_str.isin(in_db) & thread_str.str.len().gt(0)
@@ -200,7 +220,7 @@ def get_success_threads(
         if service not in (Service.GEEKNEWS, Service.PYTORCH):
             raise ValueError("Stage.CRAWLING 은 Service.GEEKNEWS 또는 Service.PYTORCH 만 지원")
         th = get_last_success_date_by_thread_prefix(
-            "geeknews_" if service is Service.GEEKNEWS else "pytorch_"
+            ThreadPrefix.for_crawl_source(service)
         )
         min_run_folder_date = min(
             pd.Timestamp(th).date(),
@@ -236,7 +256,10 @@ def get_success_threads(
 
     df = pd.concat(thread_lst, ignore_index=True)
 
-    if "created_at" not in df.columns or "thread" not in df.columns:
+    if (
+        CrawlingColumn.CREATED_AT.value not in df.columns
+        or CrawlingColumn.THREAD.value not in df.columns
+    ):
         logger.warning("get_success_threads: created_at/thread 컬럼 없음 — 중단")
         return pd.DataFrame()
 
