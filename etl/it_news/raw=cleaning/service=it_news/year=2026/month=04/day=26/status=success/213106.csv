@@ -1,0 +1,68 @@
+title,content,thread,article_url,created_at,view_count,comment_count,point,author,map_id,category_cd,_page_service
+mini-swe-agent - 100줄짜리 AI 에이전트로 GitHub 이슈 해결 및 커맨드라인 지원,"SWE-bench와 SWE-agent를 만든 Princeton·Stanford 팀이 개발한
+최소주의 AI 코딩 에이전트
+약 100줄의 Python 코드
+로 구성된 초경량 AI 소프트웨어 엔지니어링 에이전트로, 거대한 설정 파일이나 모노레포 없이 동작
+bash만 도구로 사용
+하며 LLM의 tool-calling 인터페이스 없이도 어떤 모델과든 호환 가능
+SWE-bench verified 벤치마크에서 74% 이상
+달성, Gemini 3 Pro 기준으로도 동일 수준 기록
+subprocess.run
+으로 각 액션을
+독립 실행
+해 상태 유지 쉘 세션이 불필요하고, Docker 전환 시
+docker exec
+로 교체하는 수준의 단순함
+완전 선형 히스토리 구조
+로 트래젝토리와 LLM에 전달되는 메시지가 동일해 디버깅·파인튜닝에 최적
+로컬,
+Docker/Podman, Singularity/Apptainer, Bubblewrap, Contree
+등 다양한 샌드박스 환경 배포 지원
+litellm, openrouter, portkey
+등을 통해 모든 모델 지원,
+/completion
+및
+/response
+엔드포인트와 interleaved thinking 호환
+Meta, NVIDIA, IBM, Essential AI, Nebius, Anyscale,
+Princeton·Stanford
+등에서 채택
+Claude Code 대비
+시작 속도가 훨씬 빠르며
+, 에이전트 스캐폴드 과적합 없이 LLM 자체 성능을 평가하는 베이스라인으로 활용 가능
+CLI(
+mini
+), 배치 추론,
+트래젝토리 브라우저
+, Python 바인딩(
+DefaultAgent
+,
+LitellmModel
+,
+LocalEnvironment
+) 제공
+MIT 라이선스",geeknews_28891,https://news.hada.io/topic?id=28891,2026-04-26 09:25:20.958690,0,1,8,xguru,,CA07,geeknews
+[GN⁺] Palantir 직원들이 자신들이 나쁜 편인지 고민하기 시작함,"글 소개
+이민 집행용 소프트웨어와 군사 지원 업무가 겹치면서, 내부에서는 시민적 자유를 지킨다는 기존 정체성보다 남용을 가능하게 하는 위치에 더 가까운지 되묻게 됨
+회사는 다양한 신념과 치열한 내부 토론을 강조했지만, 지난 1년 동안 많은 피드백이 철학적 독백과 논점 전환으로 돌아오면서 무엇이 실제로 바뀌는지 알기 어려운 무력감이 커짐
+Alex Pretti 사망 뒤 Slack에서는 ICE와의 관계와 회사 관여 범위를 묻는 질문이 크게 늘었고, 내부 뉴스 채널 대화가 7일 뒤 삭제되기 시작하면서 유출 대응과 내부 토론 축소가 함께 드러남
+ICE 관련 AMA에서는 악의적인 고객을 사전에 사실상 막기 어렵고, 계약 위반 뒤 감사와 법적 조치로만 통제할 수 있다는 답이 나왔으며, Karp가 해당 업무 확대를 강하게 원한다는 인식도 내부에 퍼져 있었음
+Iran 공습의 Maven 시스템 연루 가능성, AI와 정치에 대한 Karp 발언, 회사 선언문까지 이어지면서 직원들의 수치심과 불확실성이 반복적으로 커졌고, 회사가 내부 이탈을 감수하는 방향으로 더 분명히 기울어짐
+내부 동요와 문제의식
+Palantir 내부에서는 Trump 2기 몇 달 만에 회사의 시민적 자유 약속을 다시 따지기 시작했으며, 지난가을 회사가 DHS를 대신해 이민자를 식별/추적/추방하는 소프트웨어를 제공하면서 이민 집행의 기술 기반처럼 보이기 시작한 뒤 경고가 커짐
+서로 다시 연락한 전직 직원 2명은 통화 시작부터 Palantir의 파시즘으로의 추락을 묻는 말로 대화를 시작했으며, 단순히 인기 없고 어려운 일이 아니라 “이건 잘못됐다”는 감각이 내부에 퍼져 있었음
+9/11 이후의 국가적 분위기 속에서 CIA의 초기 벤처 투자로 출발한 Palantir는 데이터 집계 및 분석 도구를 판매해 민간 기업부터 미군 표적 시스템까지 지원해 왔지만, Trump 2기 1년이 지난 시점에는 국내 혼란을 일으킨다고 직원들이 두려워하는 행정부와 관계를 더 깊게 맺으면서 회사 안에서 역할 재평가가 본격화됨
+직원들은&hellip;",pytorch_9888,https://discuss.pytorch.kr/t/gn-palantir/9888,2026-04-26 09:30:07,16,0,0,9bow,,CA07,pytorch
+"FlashKDA: MoonshotAI가 공개한, Kimi Delta Attention을 위한 고성능 CUDA 커널 라이브러리","FlashKDA 소개
+대규모 언어 모델의 추론 효율을 높이기 위한 선형 어텐션(Linear Attention) 연구가 빠르게 발전하고 있습니다. Transformer의 표준 소프트맥스 어텐션은 시퀀스 길이 T 에 대해 O(T^2) 의 연산 복잡도를 가지기 때문에, 긴 컨텍스트 처리 시 메모리와 연산 비용이 크게 증가합니다. 이를 해결하기 위해 Mamba, RWKV, RetNet 등 선형 복잡도 아키텍처들이 등장했으며, 최근에는 이런 모델들의 핵심 연산을 CUDA 수준에서 하드웨어에 최적화하는 작업이 중요해졌습니다. 특히 Triton으로 작성된 선형 어텐션 커널은 구현이 유연하지만, CUTLASS 기반의 고도로 최적화된 CUDA 커널에 비해 성능 차이가 존재합니다. 
+FlashKDA(Flash Kimi Delta Attention)는 MoonshotAI(Kimi 개발사)가 공개한, Kimi 모델에서 사용하는 Delta Attention(KDA, Kimi Delta Attention) 연산을 위한 고성능 CUDA 커널 라이브러리입니다. NVIDIA CUTLASS를 기반으로 구축되었으며, Hopper(H100) 및 그 이상의 GPU 아키텍처(SM90+)를 대상으로 최적화되었습니다. Flash Attention이 소프트맥스 어텐션을 하드웨어 수준에서 최적화한 것처럼, FlashKDA는 KDA 연산을 동일한 방식으로 가속화합니다. 2026년 4월 22일에는 FlashKDA v1의 설계 결정 사항을 상세히 설명하는 딥다이브 블로그 포스트도 공개되었습니다. 
+FlashKDA는 flash-linear-attention 라이브러리와 통합되어, chunk_kda 함수 호출 시 자동으로 FlashKDA 커널로 디스패치됩니다. 기존 Triton 구현 경로를 대체하여 H100 등 최신 GPU에서 더 높은 성능을 제공합니다. FLA_FLASH_KDA=0 환경 변수를 설정하면 언제든지 Triton 경로로 되돌릴 수 있어, 디버깅이나 하위 호환성이 필요한 경우에 유용합니다. 
+Fla&hellip;",pytorch_9881,https://discuss.pytorch.kr/t/flashkda-moonshotai-kimi-delta-attention-cuda/9881,2026-04-26 03:30:05,26,0,0,9bow,,CA07,pytorch
+"DeepSeek, 100만 토큰 컨텍스트를 효율적으로 지원하는 MoE 모델 DeepSeek-V4-Pro 및 DeepSeek-V4-Flash 공개","오픈소스 LLM의 새 이정표: DeepSeek-V4 시리즈
+DeepSeek이 새로운 혼합 전문가(Mixture-of-Experts, MoE) 언어 모델 시리즈인 DeepSeek-V4 를 공개했습니다. 이번 발표는 단순한 성능 개선을 넘어, 기존 LLM이 갖고 있던 구조적 한계인 초장문 컨텍스트 처리의 비효율성을 정면으로 해결하는 아키텍처 혁신에 초점을 맞추고 있습니다. 
+추론 모델(reasoning model)의 등장 이후, 테스트-타임 스케일링(test-time scaling) 패러다임은 LLM 성능 향상의 핵심 축으로 자리 잡았습니다. 그러나 이 스케일링 방식은 Attention 메커니즘의 이차적(quadratic) 계산 복잡도라는 근본적 병목에 막혀 있었습니다. 긴 추론 과정을 생성하거나 수백만 토큰을 처리해야 하는 작업에서, 기존 아키텍처는 KV 캐시가 급격히 커지고 추론 비용이 폭발적으로 증가하는 문제를 겪어왔습니다. DeepSeek-V4 시리즈는 이 병목을 직접 타깃으로 하여, 압축 어텐션 기법과 정교한 인프라 최적화를 통해 100만 토큰 컨텍스트를 실용적으로 처리 가능하게 만들었습니다. 
+ 
+DeepSeek-V4 시리즈는 두 모델로 구성됩니다. DeepSeek-V4-Pro 는 총 1.6T 파라미터(활성화 파라미터 49B)를 갖추고, DeepSeek-V4-Flash 는 총 284B 파라미터(활성화 파라미터 13B)로 설계되어 있습니다. 두 모델 모두 100만 토큰의 컨텍스트를 지원합니다. DeepSeek-V4-Pro의 최대 추론 모드인 DeepSeek-V4-Pro-Max 는 오픈소스 모델 중 최강의 성능을 달성하여, Codeforces 경쟁 프로그래밍 Rating 3206점, LiveCodeBench 93.5%, SWE-Verified 80.6%를 기록했습니다. 
+기존의 벽을 허문 아키텍처: 하이브리드 압축 어텐션
+ 
+DeepSeek-V4의 가장 중요한 기술적 기여는 하이브리드 어텐션 아키텍처 입니다. 기존 어텐션 방식은 컨텍스트가 길어질수&hellip;",pytorch_9890,https://discuss.pytorch.kr/t/deepseek-100-moe-deepseek-v4-pro-deepseek-v4-flash/9890,2026-04-25 09:30:46,97,0,0,9bow,,CA07,pytorch

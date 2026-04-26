@@ -1,0 +1,44 @@
+title,content,thread,article_url,created_at,view_count,comment_count,point,author,map_id,category_cd
+mini-swe-agent - 100줄짜리 AI 에이전트로 GitHub 이슈 해결 및 커맨드라인 지원,"SWE-bench와 SWE-agent를 만든 Princeton·Stanford 팀이 개발한
+최소주의 AI 코딩 에이전트
+약 100줄의 Python 코드
+로 구성된 초경량 AI 소프트웨어 엔지니어링 에이전트로, 거대한 설정 파일이나 모노레포 없이 동작
+bash만 도구로 사용
+하며 LLM의 tool-calling 인터페이스 없이도 어떤 모델과든 호환 가능
+SWE-bench verified 벤치마크에서 74% 이상
+달성, Gemini 3 Pro 기준으로도 동일 수준 기록
+subprocess.run
+으로 각 액션을
+독립 실행
+해 상태 유지 쉘 세션이 불필요하고, Docker 전환 시
+docker exec
+로 교체하는 수준의 단순함
+완전 선형 히스토리 구조
+로 트래젝토리와 LLM에 전달되는 메시지가 동일해 디버깅·파인튜닝에 최적
+로컬,
+Docker/Podman, Singularity/Apptainer, Bubblewrap, Contree
+등 다양한 샌드박스 환경 배포 지원
+litellm, openrouter, portkey
+등을 통해 모든 모델 지원,
+/completion
+및
+/response
+엔드포인트와 interleaved thinking 호환
+Meta, NVIDIA, IBM, Essential AI, Nebius, Anyscale,
+Princeton·Stanford
+등에서 채택
+Claude Code 대비
+시작 속도가 훨씬 빠르며
+, 에이전트 스캐폴드 과적합 없이 LLM 자체 성능을 평가하는 베이스라인으로 활용 가능
+CLI(
+mini
+), 배치 추론,
+트래젝토리 브라우저
+, Python 바인딩(
+DefaultAgent
+,
+LitellmModel
+,
+LocalEnvironment
+) 제공
+MIT 라이선스",geeknews_28891,https://news.hada.io/topic?id=28891,2026-04-26 09:25:20.958690,0,1,8,xguru,,CA07

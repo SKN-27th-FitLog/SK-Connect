@@ -97,7 +97,7 @@ def _iter_service_success_csv_paths(
     service_list: list[str],
     min_run_folder_date: date,
 ) -> Iterator[tuple[str, Path]]:
-    """`(PageURL.service, csv_path)` — run 폴더 날짜가 `min_run_folder_date` 이상인 성공 CSV만."""
+    """`(Service.service, csv_path)` — run 폴더 날짜가 `min_run_folder_date` 이상인 성공 CSV만."""
     for service in service_list:
         service_dir = path / f"{PathConst.SERVICE_KEY}={service}"
         if not service_dir.is_dir():
@@ -131,7 +131,7 @@ def collect_crawling_success_datas(
     *,
     min_run_folder_date: date,
 ) -> tuple[list[pd.DataFrame], dict[str, int]]:
-    """`PageURL`과 동일한 `service_list` 순서로 raw 성공 CSV를 읽는다.
+    """`Service` 열거와 동일한 `service_list` 순서로 raw 성공 CSV를 읽는다.
 
     각 DataFrame에 `_page_service`(크롤 저장 서비스명)를 붙인다. 반환:
     - 로드된 프레임 목록(concat 용)
