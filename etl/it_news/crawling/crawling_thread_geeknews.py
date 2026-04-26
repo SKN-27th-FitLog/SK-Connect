@@ -29,7 +29,7 @@ from bs4 import BeautifulSoup
 
 # 모듈
 from common.constant import CrawlingConstant as C_Constant
-from common.constant import PageURL as P_URL
+from common.constant import Service
 from common.constant import Stage, Status, CodeTable
 from common.utils import (
     build_csv_path,
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 def get_article_list() -> list[str]:
     '''기준 페이지에서 수집해야 할 게시글의 절대 URL 목록을 구하는 함수'''
     article_urls = []
-    list_origin = urlparse(P_URL.GEEKNEWS.url)
+    list_origin = urlparse(Service.GEEKNEWS.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
 
     # news.hada.io 목록은 ?page=1 이 첫 페이지
@@ -58,7 +58,7 @@ def get_article_list() -> list[str]:
     with tqdm(desc="geeknews 게시글 목록 URL 수집", unit="page") as pbar:
         # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
         while True:
-            url = P_URL.GEEKNEWS.url + f"?page={page_num}"
+            url = Service.GEEKNEWS.url + f"?page={page_num}"
             response = requests.get(url, headers={"User-Agent": C_Constant.USER_AGENT})
             soup = BeautifulSoup(response.text, "html.parser")
 
@@ -217,11 +217,11 @@ def crawling_thread_geeknews(
 
     # 저장할 데이터들이 있을 때만 파일 저장 실행 
     if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLING, P_URL.GEEKNEWS.service, Status.SUCCESS, run_time)
+        path_success = build_csv_path(Stage.CRAWLING, Service.GEEKNEWS.service, Status.SUCCESS, run_time)
         save_csv(df_success, path_success)
 
     if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLING, P_URL.GEEKNEWS.service, Status.FAIL, run_time)
+        path_fail = build_csv_path(Stage.CRAWLING, Service.GEEKNEWS.service, Status.FAIL, run_time)
         save_csv(df_fail, path_fail)
 
     return df_success, df_fail

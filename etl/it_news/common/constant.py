@@ -37,10 +37,12 @@ class CrawlingConstant():
 
 
 
-class PageURL(Enum):
+class Service(Enum):
     '''크롤링 대상 페이지 URL 주소를 정의하는 클래스'''
     GEEKNEWS = ("https://news.hada.io/new", "geeknews")
     PYTORCH = ("https://discuss.pytorch.kr/c/news/14/l/latest", "pytorch")
+    IT_NEWS = ("", "it_news") # 클린징, 세이브에서 사용하는 범용 값 
+
 
     @property # 속성 처럼 호출 
     def url(self) -> str:
