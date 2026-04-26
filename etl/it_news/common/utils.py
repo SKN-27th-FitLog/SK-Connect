@@ -6,8 +6,6 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Optional
 
-from tqdm import tqdm
-
 # 모듈
 from common.constant import CrawlingConstant, PathConst, Stage, Status
 from common.postgresql.connection import PostgreDB
@@ -94,17 +92,12 @@ def _iter_success_csv_files_in_dir(success_dir: Path) -> list[Path]:
     return sorted(out, key=lambda x: x.name)
 
 
-def _iter_success_csv_paths(
+def _iter_service_success_csv_paths(
     path: Path,
     service_list: list[str],
     min_run_folder_date: date,
-) -> Iterator[Path]:
-    """`status=success` 아래 `*.csv` 경로를 yield.
-
-    - 경로의 `year=…/month=…/day=…`는 `build_csv_path(run_time)`에 쓰인 **크롤 실행일(로컬 날짜)** 이지, DB `created_at`과 같지 않을 수 있음.
-    - **DB 기준 “이번에 처리할지”**는 호출 측에서 DataFrame `created_at`으로 거른다. 여기서는 `min_run_folder_date`보다 **오래된 run 폴더만** 잘라 스캔 범위를 제한한다.
-    - 파일명(`HHmmss.csv`)은 구분에 쓰지 않으며, `*.csv` 전부 읽는다.
-    """
+) -> Iterator[tuple[str, Path]]:
+    """`(PageURL.service, csv_path)` — run 폴더 날짜가 `min_run_folder_date` 이상인 성공 CSV만."""
     for service in service_list:
         service_dir = path / f"{PathConst.SERVICE_KEY}={service}"
         if not service_dir.is_dir():
@@ -129,7 +122,7 @@ def _iter_success_csv_paths(
                     if not success_dir.is_dir():
                         continue
                     for csv_file in _iter_success_csv_files_in_dir(success_dir):
-                        yield csv_file
+                        yield service, csv_file
 
 
 def collect_crawling_success_datas(
@@ -137,20 +130,27 @@ def collect_crawling_success_datas(
     service_list: list[str],
     *,
     min_run_folder_date: date,
-) -> list[pd.DataFrame]:
-    """스테이지 루트(`.../raw=.../`)에서 성공 CSV를 읽는다.
+) -> tuple[list[pd.DataFrame], dict[str, int]]:
+    """`PageURL`과 동일한 `service_list` 순서로 raw 성공 CSV를 읽는다.
 
-    `min_run_folder_date`는 **run 폴더 날짜**가 이보다 이전이면 건너뛴다(과거 run 전체를 무한 스캔하지 않기 위함). 행 단위 기준은 `get_success_threads`의 `created_at` 필터.
+    각 DataFrame에 `_page_service`(크롤 저장 서비스명)를 붙인다. 반환:
+    - 로드된 프레임 목록(concat 용)
+    - `service`별 **로드 직후** 행 수(필터 전)
     """
-    paths = list(_iter_success_csv_paths(path, service_list, min_run_folder_date))
+    rows_by_service: dict[str, int] = dict.fromkeys(service_list, 0)
     thread_lst: list[pd.DataFrame] = []
-    for csv_file in tqdm(paths, desc="크롤링 성공 CSV 로드", unit="파일"):
+    for service, csv_file in _iter_service_success_csv_paths(
+        path, service_list, min_run_folder_date
+    ):
         try:
             tdf = pd.read_csv(csv_file, encoding="utf-8")
-            thread_lst.append(tdf)
         except (OSError, ValueError, UnicodeDecodeError, pd.errors.EmptyDataError):
             continue
-    return thread_lst
+        tdf = tdf.copy()
+        tdf["_page_service"] = service
+        rows_by_service[service] += len(tdf)
+        thread_lst.append(tdf)
+    return thread_lst, rows_by_service
 
 
 ###############################################################

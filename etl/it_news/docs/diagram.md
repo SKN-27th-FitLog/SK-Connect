@@ -40,7 +40,7 @@ sequenceDiagram
 
 ## 2. 클리닝
 
-같은 기준일로 크롤링 성공 CSV를 합친 뒤 전처리하고, `State`로 성공·실패를 구분해 다시 CSV로 씁니다.
+`PageURL`에 정의된 **모든** `service`(예: geeknews, pytorch)에 대해 `raw=crawling/service=<이름>/…/status=success/*.csv`를 같은 기준(run 폴더 하한·DB 소스별 워터마크)으로 읽어 합친 뒤, 전처리하고 `State`로 성공·실패를 구분해 다시 CSV로 씁니다. 로드·필터 단계에서 `service`별 행 수는 로그로 남깁니다.
 
 ```mermaid
 sequenceDiagram
@@ -50,14 +50,14 @@ sequenceDiagram
     participant 로컬
     participant DB
 
-    alt 마지막 수집일 조회
-        클리닝->>DB: crawling.created_at MAX 조회
-        DB-->>클리닝: 마지막 수집일
+    alt 소스별 마지막 수집일 조회
+        클리닝->>DB: crawling thread 접두별 created_at MAX
+        DB-->>클리닝: geeknews_ / pytorch_ 각각 마지막 시각
     end
 
     alt 대상 데이터 로드
-        클리닝->>데이터로드: 기준일 이후 크롤링 성공 CSV
-        데이터로드-->>클리닝: DataFrame concat
+        클리닝->>데이터로드: PageURL 전 service, 기준일 이후 성공 CSV
+        데이터로드-->>클리닝: DataFrame concat (service별 건수 로그)
     end
 
     alt 전처리
