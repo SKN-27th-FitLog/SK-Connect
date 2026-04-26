@@ -11,6 +11,7 @@ logger = set_logging()
 def run_pipeline():
     batch_count = 0
     failed_list = []
+    attempted_crawling_ids: set[int] = set()
     crawling = GetCrawlingData()
     data_pre = DataPreprocessing()
     graph_compile = graph()
@@ -21,10 +22,21 @@ def run_pipeline():
             logger.info("데이터가 없습니다.")
             break #데이터가 없으면 종료
 
+        # 이번 실행에서 이미 시도한 데이터는 재처리하지 않음(무한 배치 반복 방지)
+        new_data = [row for row in data if row.get("crawling_id") not in attempted_crawling_ids]
+        if not new_data:
+            logger.info("새로 처리할 데이터가 없습니다. 파이프라인을 종료합니다.")
+            break
+        data = new_data
+        # merge 전에 원본 crawling_id를 모두 시도 처리해 중복 배치 반복 방지
+        for row in data:
+            if row.get("crawling_id") is not None:
+                attempted_crawling_ids.add(row["crawling_id"])
+
         processed_data:list[dict] = data_pre.execute(data) #데이터 전처리
 
         for row in processed_data: #data를 하나씩 가져오면서 프롬프트를 생성
-            type = crawling.CATEGORY_CD.get(row["category_cd"])
+            type = crawling.CATEGORY_CD.get(row.get("category_cd"), "casual")
             prompt:str = Prompt.get_prompt(type, row) #프롬프트를 생성
             state = {
                 "data": row,
@@ -45,7 +57,6 @@ def run_pipeline():
                 post_id = to_post(result["data"])
                 if post_id is not None:
                     to_post_vector(result["data"], post_id)
-                    print(f"게시글 생성 및 저장 완료: {row['crawling_id']}") #게시글 생성 완료
             elif not is_pass: #평가 pass가 아닌 경우
                 if result.get("failed_crawling_id") is not None:
                     failed_list.append(result["failed_crawling_id"])

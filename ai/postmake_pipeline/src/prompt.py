@@ -94,21 +94,23 @@ class Prompt():
 """
         ]
 
-    @staticmethod
-    def get_prompt(self, type: str, d:dict)->str:
+    @classmethod
+    def get_prompt(cls, type: str, d:dict)->str:
         """랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환"""
         try:
-            data = json.dumps(d, ensure_ascii=False, indent=4) #data를 json 형식으로 변환
-            if type == "casual":
-                self.sub_prompts = self.casual_sub_prompts
-            elif type == "formal":
-                self.sub_prompts = self.formal_sub_prompts
-            elif type != "casual" or type != "formal":
-                raise ValueError(f"Invalid type: {type}")
-            selected_prompt = random.choice(self.sub_prompts)
+            data = json.dumps(d, ensure_ascii=False, indent=4, default=str) #datetime 등 직렬화 대응
+            prompt_instance = cls(type, data)
 
-            final_prompt = {f"""
-{self.master_template}
+            if type == "casual":
+                sub_prompts = prompt_instance.casual_sub_prompts
+            elif type == "formal":
+                sub_prompts = prompt_instance.formal_sub_prompts
+            else:
+                raise ValueError(f"Invalid type: {type}")
+            selected_prompt = random.choice(sub_prompts)
+
+            final_prompt = f"""
+{prompt_instance.master_template}
 
 {selected_prompt}
 ---
@@ -119,9 +121,9 @@ class Prompt():
 # [INSTRUCTION]
 위 데이터를 바탕으로 선택된 모드의 페르소나에 빙의하여 리뷰 본문만 작성해줘.
 ai가 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
-            """}
+            """
         except Exception as e:
             print(f"Error: {e}")
-            logger.error(f"Error={e} | crawling_id={data['crawling_id']}")
-            return None, None
+            logger.error(f"Error={e} | crawling_id={d.get('crawling_id')}")
+            return None
         return final_prompt

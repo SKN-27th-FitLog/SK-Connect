@@ -7,8 +7,8 @@ from src.logging_config import set_logging
 from src.merge_utils import apply_merge_rules
 
 logger = set_logging()
-env_path = Path(__file__).parent.parent.parent / "database" / ".env"
-load_dotenv(env_path)
+env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
+load_dotenv(env_path, override=True)
 
 
 class _Connection:
@@ -39,8 +39,9 @@ class GetCrawlingData():
         """각 4개의 테이블에서 가져온 데이터들을 crawling_id를 기준으로 하나의 데이터로 합친다"""
         try:
             is_matched = False
-            concat_keys = ['content', 'metadata', 'keywords']
-            fill_if_none_keys = ['article_url', 'author', 'view_count', 'comment_count', 'category_cd', 'map_id', 'shop_name', 'menu_name', 'menu_price']
+            # crawling 본문(content)은 조인으로 중복되므로 concat에서 제외
+            concat_keys = ['metadata', 'keywords', 'menu_name', 'menu_price']
+            fill_if_none_keys = ['content', 'article_url', 'author', 'view_count', 'comment_count', 'category_cd', 'map_id', 'shop_name']
 
             for r in another_data:
                 if r['crawling_id'] != row['crawling_id']:
@@ -59,7 +60,8 @@ class GetCrawlingData():
                     row["map_id"] = row.get("crawling_map_id")
                 return row
 
-            raise ValueError("crawling_id is not match")
+            # 조인 데이터가 없어도 crawling 원본은 처리 대상이므로 그대로 반환
+            return row
         #예외 발생시 크롤링 id 로그 기록
         except Exception as e:
             logger.error(f"Error={e} | crawling_id={row['crawling_id']}")
@@ -78,49 +80,50 @@ class GetCrawlingData():
         except Exception as e:
             print(f"Error: {e}")
             logger.error(f"Error={e}") #crawling_id를 함께 로깅
+            _Connection.get_connection().rollback()
             return None
 
     def route_crawling_data(self):
         """category_cd에 따라 분기, 데이터를 반환"""
-        while True:
-            try:
-                #crawling테이블에서 데이터를 가져옴 + 해당 데이터의 type을 확인
-                data:list[dict] = self.get_crawling_data()
-                if not data:
-                    return []
-                type = data[0]['category_cd']
+        try:
+            #crawling테이블에서 데이터를 가져옴 + 해당 데이터의 type을 확인
+            data:list[dict] = self.get_crawling_data()
+            if not data:
+                return []
+            type = data[0]['category_cd']
 
-                if type not in self.CATEGORY_CD: #카테고리 코드가 올바르지 않은 경우
-                    raise ValueError("Invalid category_cd")
+            if type not in self.CATEGORY_CD:
+                logger.error(f"Error=Invalid category_cd({type})")
+                return []
 
-                elif type == 'IC01': #데이터가 crawling테이블과 map + shop + menu 테이블에 존재하는 경우
-                    result:list[dict] = []
-                    another_data = self.get_shop_crawling_data()
+            if type == 'IC02': #crawling테이블에서만 데이터를 가져오는 경우
+                return data
 
-                    #another_data가 없는 경우
-                    if another_data is None:
-                        raise ValueError("another_data is None")
+            # IC01: 식당성 데이터는 map/shop/menu 조인 후 merge
+            result:list[dict] = []
+            another_data = self.get_shop_crawling_data(type)
 
-                    #data를 하나씩 가져오면서 another_data와 합침
-                    for row in data:
-                        merged_data = self.merge_data(row, another_data)  
+            #another_data가 없는 경우
+            if another_data is None:
+                raise ValueError("another_data is None")
 
-                        if merged_data is not None:
-                            result.append(merged_data)
-                        elif merged_data is None:
-                            continue
-                    return result
+            #data를 하나씩 가져오면서 another_data와 합침
+            for row in data:
+                merged_data = self.merge_data(row, another_data)
 
-                elif type == 'IC02': #crawling테이블에서만 데이터를 가져오는 경우
-                    return data
+                if merged_data is not None:
+                    result.append(merged_data)
+                elif merged_data is None:
+                    continue
+            return result
 
-            except Exception as e:
-                print(f"Error: {e}")
-                if data:
-                    logger.error(f"Error={e} | crawling_id={data[0]['crawling_id']} ~ {data[-1]['crawling_id']}")
-                else:
-                    logger.error(f"Error={e}")
-                continue
+        except Exception as e:
+            print(f"Error: {e}")
+            if 'data' in locals() and data:
+                logger.error(f"Error={e} | crawling_id={data[0]['crawling_id']} ~ {data[-1]['crawling_id']}")
+            else:
+                logger.error(f"Error={e}")
+            return []
 
     def get_crawling_data(self):
         """crawling 테이블에서 데이터를 조회
@@ -128,12 +131,10 @@ class GetCrawlingData():
         query = """
             SELECT c.*
             FROM crawling c
-            WHERE c.created_at >= (
-                SELECT MAX(p.created_at)
-                FROM posts p
-            )
-            AND c.crawling_id IS NOT NULL
+            WHERE c.crawling_id IS NOT NULL
             AND c.content IS NOT NULL
+            AND NULLIF(TRIM(c.content), '') IS NOT NULL
+            AND (c.title IS NULL OR c.title NOT ILIKE 'crawl%%')
             AND NOT EXISTS (
                 SELECT 1
                 FROM posts p
@@ -150,14 +151,14 @@ class GetCrawlingData():
         return rows
 
 
-    def get_shop_crawling_data(self):
+    def get_shop_crawling_data(self, category_cd: str):
         """4개의 테이블에서 crawling_id를 기준으로 하나의 데이터로 합친다."""
         query = """
         SELECT
             c.*,
             c.map_id as crawling_map_id,
             m.map_id as maps_map_id,
-            s.name as shop_name,
+            m.name as shop_name,
             menu.name as menu_name,
             menu.price as menu_price
         FROM crawling c
@@ -170,7 +171,7 @@ class GetCrawlingData():
         LIMIT %s
         """
         try:
-            another_data = self.cursor_excute(query, params = ['IC01', self.BATCH_SIZE])
+            another_data = self.cursor_excute(query, params = [category_cd, self.BATCH_SIZE])
             return another_data
 
         except Exception as e:

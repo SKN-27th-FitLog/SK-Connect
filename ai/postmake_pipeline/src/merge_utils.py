@@ -13,6 +13,11 @@ def apply_merge_rules(
             continue
         if value is None:
             continue
+        if isinstance(existing, str) and existing.strip() == "":
+            target[k] = value
+            continue
+        if isinstance(value, str) and value.strip() == "":
+            continue
         target[k] = str(existing) + ', ' + str(value)
 
     for k in fill_if_none_keys:

@@ -22,8 +22,13 @@ class DataPreprocessing:
         fill_if_none_keys = ['article_url', 'author', 'view_count', 'comment_count', 'category_cd', 'map_id', 'shop_name', 'menu_name', 'menu_price']
 
         for row in self.data:
-            map_id = str(row.get('map_id') or '')
-            merge_key = (str(row.get('title') or ''), map_id)
+            title = str(row.get('title') or '')
+            map_id = row.get('map_id')
+            # map_id가 없으면 row 단위(crawling_id)로 유지해 과도 merge 방지
+            if map_id is None:
+                merge_key = (title, f"crawling:{row.get('crawling_id')}")
+            else:
+                merge_key = (title, str(map_id))
 
             if merge_key not in merged_data: #title+map_id가 없으면 추가
                 merged_data[merge_key] = row.copy() #row를 복사하여 merged_data에 추가
@@ -44,16 +49,21 @@ class DataPreprocessing:
     def summarize_content(self):
         """content 요약"""
         for row in self.data:
-            row['summary'] = self.textrank.summarize(row['content'], num_sentences=5, verbose=False) #content 요약
+            content = (row.get('content') or '').strip()
+            if not content:
+                row['summary'] = []
+                continue
+            row['summary'] = self.textrank.summarize(content, num_sentences=5, verbose=False) #content 요약
         return self.data
 
 
     def extract_keywords(self):
         """키워드 추출"""
         for row in self.data:
-            content = row['content']
+            content = row.get('content') or ''
             tokens = self.okt.nouns(content)
-            row['keywords'] += ' ' + " ".join(tokens)
+            base_keywords = row.get('keywords') or ''
+            row['keywords'] = (base_keywords + ' ' + " ".join(tokens)).strip()
 
     def remove_duplicate_keywords(self):
         """키워드 중복 제거"""

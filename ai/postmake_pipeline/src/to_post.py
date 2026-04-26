@@ -4,12 +4,13 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 from langchain_postgres.vectorstores import PGVector
+from langchain_huggingface import HuggingFaceEmbeddings
 from psycopg2 import connect
 from src.logging_config import set_logging
 logger = set_logging()
 
-env_path = Path(__file__).parent.parent.parent / "database" / ".env"
-load_dotenv(env_path)
+env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
+load_dotenv(env_path, override=True)
 
 
 class Singleton(type):
@@ -36,10 +37,25 @@ class Connection(metaclass=Singleton):
 class PGVectorStore(metaclass=Singleton):
     """vectorstore를 반환"""
     def __init__(self):
-        self.vectorstore = PGVector(
-            connection_string=os.getenv("POSTGRES_URL"),
-            collection_name="post_vector"
+        model_kwargs = {}
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            model_kwargs["token"] = hf_token
+
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-mpnet-base-v2",
+            model_kwargs=model_kwargs,
         )
+        self.vectorstore = PGVector(
+            embeddings=embeddings,
+            connection=os.getenv("POSTGRES_URL"),
+            collection_name="post_vector",
+            embedding_length=768,
+        )
+        # 컬렉션/테이블 초기화 보장 (없으면 생성)
+        self.vectorstore.create_vector_extension()
+        self.vectorstore.create_tables_if_not_exists()
+        self.vectorstore.create_collection()
     def get_vectorstore(self):
         return self.vectorstore
 
@@ -52,6 +68,16 @@ def get_connection():
 def to_post(result:dict):
     """결과를 게시글로 저장"""
     try:
+        title = (result.get("title") or "").strip()
+        keywords = (result.get("keywords") or "").strip()
+        map_id = result.get("map_id")
+
+        # DB 스키마(varchar(100))에 맞춰 길이를 보정
+        if len(title) > 100:
+            title = title[:100]
+        if len(keywords) > 100:
+            keywords = keywords[:100]
+
         query = """
         INSERT INTO posts (
             title,
@@ -64,8 +90,17 @@ def to_post(result:dict):
             map_id,
             crawling_id,
             tag
-        ) VALUES (
+        )
+        SELECT
             %s, %s, NOW(), NOW(), %s, %s, %s, %s, %s, %s
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM posts p
+            WHERE p.title = %s
+            AND (
+                p.map_id = %s
+                OR (p.map_id IS NULL AND %s IS NULL)
+            )
         )
         RETURNING post_id
         """
@@ -73,14 +108,17 @@ def to_post(result:dict):
         cursor.execute(
             query,
             (
-                result.get("title"),
+                title,
                 result.get("content"),
                 "ST01",
                 "PT01",
                 result.get("category_cd"),
-                result.get("map_id"),
+                map_id,
                 result.get("crawling_id"),
-                result.get("keywords"),
+                keywords,
+                title,
+                map_id,
+                map_id,
             ),
         )
         row = cursor.fetchone()
