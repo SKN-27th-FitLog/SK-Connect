@@ -7,6 +7,13 @@ from src.core.repository.code_table_repository import CodeTableRepository, code_
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
 from src.core.models.models import StoreModel
+from src.core.repository.store_repository import StoreRepository, store_repo
+from src.core.utils.content_hash import (
+    HASH_FIELDS_VERSION,
+    HASH_VERSION,
+    build_content_hash,
+    pick_fields,
+)
 
 class Stage3ValidationNormalization(BaseStage):
     """
@@ -15,9 +22,14 @@ class Stage3ValidationNormalization(BaseStage):
     """
     NAME = "validation_normalization"
 
-    def __init__(self, code_repository: CodeTableRepository = code_repo):
+    def __init__(
+        self,
+        code_repository: CodeTableRepository = code_repo,
+        snapshot_repository: StoreRepository = store_repo,
+    ):
         super().__init__(self.NAME)
         self.code_repo = code_repository
+        self.snapshot_repo = snapshot_repository
 
     def _normalize_address(self, full_address: str, entity_id: Optional[str] = None) -> tuple[str, str]:
         if entity_id and entity_id.startswith("LA") and len(entity_id) >= 4:
@@ -52,6 +64,71 @@ class Stage3ValidationNormalization(BaseStage):
         pid = shop_data.get("source_internal_id", "")
         return f"{platform}|{pid}", "platform_id"
 
+    def _build_entity_hashes(
+        self,
+        store: StoreModel,
+        menus: List[Dict[str, Any]],
+        reviews: List[Dict[str, Any]],
+        images: List[Any],
+    ) -> Dict[str, str]:
+        store_data = store.model_dump()
+        image_urls = [img.get("url") if isinstance(img, dict) else img for img in images]
+        review_summary = {
+            "review_count": len(reviews),
+            "rating": store_data.get("rating"),
+            "latest_review_at": max(
+                (review.get("visited_at") for review in reviews if review.get("visited_at")),
+                default=None,
+            ),
+        }
+
+        return {
+            "store_content_hash": build_content_hash(
+                pick_fields(
+                    {
+                        **store_data,
+                        "normalized_name": store_data.get("name"),
+                        "normalized_address": f"{store_data.get('address_cd')} {store_data.get('address_detail')}",
+                        "phone": store_data.get("phone"),
+                        "opening_hours": store_data.get("opening_hours"),
+                    },
+                    ["normalized_name", "normalized_address", "phone", "opening_hours", "canonical_url"],
+                )
+            ),
+            "menu_content_hash": build_content_hash(
+                [
+                    pick_fields(menu, ["menu_name", "name", "price", "description"])
+                    for menu in menus
+                ]
+            ),
+            "review_content_hash": build_content_hash(review_summary),
+            "image_content_hash": build_content_hash(image_urls),
+        }
+
+    def _build_change_fields(self, dedup_key: str, current_hashes: Dict[str, str]) -> Dict[str, Any]:
+        snapshot = self.snapshot_repo.find_snapshot_by_dedup_key(dedup_key) or {}
+        previous_hashes = {
+            "previous_store_content_hash": snapshot.get("store_content_hash"),
+            "previous_menu_content_hash": snapshot.get("menu_content_hash"),
+            "previous_review_content_hash": snapshot.get("review_content_hash"),
+            "previous_image_content_hash": snapshot.get("image_content_hash"),
+        }
+        changed = {
+            "store_changed": current_hashes["store_content_hash"] != previous_hashes["previous_store_content_hash"],
+            "menu_changed": current_hashes["menu_content_hash"] != previous_hashes["previous_menu_content_hash"],
+            "review_changed": current_hashes["review_content_hash"] != previous_hashes["previous_review_content_hash"],
+            "image_changed": current_hashes["image_content_hash"] != previous_hashes["previous_image_content_hash"],
+        }
+        return {
+            **current_hashes,
+            **previous_hashes,
+            **changed,
+            "is_changed": any(changed.values()),
+            "changed_fields": [key.removesuffix("_changed") for key, value in changed.items() if value],
+            "hash_version": HASH_VERSION,
+            "hash_fields_version": HASH_FIELDS_VERSION,
+        }
+
     def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
         normalized_data = []
         failures = []
@@ -84,11 +161,20 @@ class Stage3ValidationNormalization(BaseStage):
                     canonical_url=shop_raw.get("canonical_url")
                 )
                 
+                menus = cand.get("menus", [])
+                reviews = cand.get("reviews", [])
+                images = cand.get("images", [])
+                hash_fields = self._build_change_fields(
+                    dedup_key,
+                    self._build_entity_hashes(store, menus, reviews, images),
+                )
+
                 normalized_record = {
                     "store": store.model_dump(),
-                    "menus": cand.get("menus", []),
-                    "reviews": cand.get("reviews", []),
-                    "images": cand.get("images", []),
+                    "menus": menus,
+                    "reviews": reviews,
+                    "images": images,
+                    **hash_fields,
                     "normalized_at": now.isoformat()
                 }
                 normalized_data.append(normalized_record)

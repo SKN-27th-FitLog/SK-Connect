@@ -1,5 +1,5 @@
 import logging
-from typing import Set, Dict, Any
+from typing import Set, Dict, Any, Optional
 from sqlalchemy import text
 from src.core.repository.database import DatabaseManager, db_manager
 
@@ -42,6 +42,33 @@ class StoreRepository:
     def is_duplicated(self, target_dedup_key: str, existing_keys: Set[str]) -> bool:
         """후보 target과 기존 성공 데이터 간의 중복 여부 판정 보조"""
         return target_dedup_key in existing_keys
+
+    def find_snapshot_by_dedup_key(self, dedup_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Design 31: SnapshotRepository 역할.
+        Hash 컬럼이 아직 없는 DB에서도 Stage 3 실행을 막지 않도록 조회 실패는 신규 데이터로 취급한다.
+        """
+        query = """
+            SELECT
+                s.shop_id AS store_id,
+                s.store_content_hash,
+                s.menu_content_hash,
+                s.review_content_hash,
+                s.image_content_hash,
+                s.updated_at AS last_updated_at,
+                s.last_checked_at
+            FROM shop s
+            JOIN maps m ON m.map_id = s.map_id
+            WHERE s.dedup_key = :dedup_key OR m.canonical_url = :dedup_key
+            LIMIT 1
+        """
+        try:
+            with self.db.get_session() as session:
+                row = session.execute(text(query), {"dedup_key": dedup_key}).mappings().first()
+                return dict(row) if row else None
+        except Exception as e:
+            logger.debug(f"Snapshot hash lookup skipped for dedup_key={dedup_key}: {e}")
+            return None
 
 # 전역 인스턴스 등록 (Registry 활용 가능)
 store_repo = StoreRepository()
