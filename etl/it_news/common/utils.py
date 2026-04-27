@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 # 모듈
-from common.constant import CrawlingColumn, CrawlingConstant, PathConst, Stage, Status, ThreadPrefix
+from common.constant import CodeTable, CrawlingColumn, CrawlingConstant, PathConst, Service, Stage, Status
 from common.postgresql.connection import PostgreDB
 
 ###############################################################
@@ -24,19 +24,20 @@ def save_csv(df: pd.DataFrame, path: Path) -> Path:
 
 def build_csv_path(
     stage: Stage,
+    category_cd: CodeTable,
     service: str,
     status: Status,
     run_time: datetime,
 ) -> Path:
     """CSV 저장 경로 생성"""
 
-    file_name = f"{format_hhmmss(run_time)}.csv"
+    file_name = f"{service}_{format_hhmmss(run_time)}.csv"
 
     return (
         Path(PathConst.DIR)
         / f"{PathConst.STAGE_KEY}={stage.value}"
     ) / (
-        f"{PathConst.SERVICE_KEY}={service}"
+        f"{PathConst.CODE_TABLE_KEY}={category_cd.value}"
     ) / (
         f"{PathConst.YEAR_KEY}={run_time.year:04d}"
     ) / (
@@ -231,19 +232,21 @@ def get_last_success_date() -> datetime:
     return raw
 
 
-def get_last_success_date_by_thread_prefix(thread_prefix: ThreadPrefix) -> datetime:
-    """`crawling`에 이미 있는 글 중 `thread`가 해당 접두(소스)로 시작하는 행의 `MAX(created_at)`.
+def get_last_success_date_by_crawl_source(service: Service) -> datetime:
+    """`crawling`에 이미 있는 글 중 `thread`가 `{service.service}_`로 시작하는 행의 `MAX(created_at)`.
 
     geeknews / pytorch 는 `MAX(created_at)`를 **각각** 두어, 한 쪽만 DB에 쌓여도 다른 쪽 `created_at`이
     더 이른 글이 “이미 반영됨”으로 잘못 제외되지 않게 한다. 해당 접두의 행이 없으면
     `default_last_collected_at()`(최초 90일 워터마크)과 동일하게 동작.
     """
-    _queries: dict[ThreadPrefix, str] = {
-        ThreadPrefix.GEEKNEWS: "SELECT MAX(created_at) FROM crawling WHERE thread ~ '^geeknews_'",
-        ThreadPrefix.PYTORCH: "SELECT MAX(created_at) FROM crawling WHERE thread ~ '^pytorch_'",
-    }
+    if service not in (Service.GEEKNEWS, Service.PYTORCH):
+        raise ValueError("get_last_success_date_by_crawl_source: GEEKNEWS / PYTORCH만 지원")
+    pat = f"^{service.service}_"
     conn = PostgreDB()
-    max_rows = conn.run_query(_queries[thread_prefix])
+    max_rows = conn.run_query_lst(
+        "SELECT MAX(created_at) FROM crawling WHERE thread ~ %s",
+        (pat,),
+    )
     raw = max_rows[0][0] if max_rows else None
     if raw is None:
         return default_last_collected_at()

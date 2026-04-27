@@ -27,26 +27,46 @@ _CRAWLING_INSERT_ORDER: tuple[CrawlingColumn, ...] = (
 CRAWLING_INSERT_COLS: tuple[str, ...] = tuple(c.value for c in _CRAWLING_INSERT_ORDER)
 
 INSERT_CRAWLING_FROM_JSONB_SQL = r"""
-INSERT INTO crawling (
-  title, content, thread, article_url, created_at,
-  view_count, comment_count, point, author, map_id, category_cd, keywords
-)
-SELECT *
-FROM jsonb_to_recordset(%s::jsonb) AS t (
-  title         varchar(200),
-  content       text,
-  thread        varchar(20),
-  article_url   varchar(500),
-  created_at    timestamp,
-  view_count    integer,
-  comment_count integer,
-  point         double precision,
-  author        varchar(100),
-  map_id        bigint,
-  category_cd   varchar(6),
-  keywords      varchar(100)
-);
-""".strip()
+MERGE INTO crawling AS c
+USING (
+  SELECT * FROM jsonb_to_recordset(%s::jsonb) AS t (
+    title           varchar(200),
+    content         text,
+    thread          varchar(20),
+    article_url     varchar(500),
+    created_at      timestamp,
+    view_count      integer,
+    comment_count   integer,
+    point           double precision,
+    author          varchar(100),
+    map_id          bigint,
+    category_cd     varchar(6),
+    keywords        varchar(100)
+  )
+) AS s
+ON c.thread = s.thread
+WHEN MATCHED THEN
+  UPDATE SET
+    title         = s.title,
+    content       = s.content,
+    article_url   = s.article_url,
+    created_at    = s.created_at,
+    view_count    = s.view_count,
+    comment_count = s.comment_count,
+    point         = s.point,
+    author        = s.author,
+    map_id        = s.map_id,
+    category_cd   = s.category_cd,
+    keywords      = s.keywords
+WHEN NOT MATCHED THEN
+  INSERT (
+    title, content, thread, article_url, created_at,
+    view_count, comment_count, point, author, map_id, category_cd, keywords
+  )
+  VALUES (
+    s.title, s.content, s.thread, s.article_url, s.created_at,
+    s.view_count, s.comment_count, s.point, s.author, s.map_id, s.category_cd, s.keywords
+  );"""
 
 #####################################################################################################################
 # 데이터 입력 시 에러 발생한 케이스가 있어서 추가로 넣은 예외 케이스 함수 (안정화 되면 클린징 단계로 옮겨야 함 )

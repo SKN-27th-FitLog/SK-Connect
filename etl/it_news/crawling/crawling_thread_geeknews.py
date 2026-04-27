@@ -29,11 +29,11 @@ from bs4 import BeautifulSoup
 
 # 모듈
 from common.constant import CodeTable
-from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status, ThreadPrefix
+from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status
 from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
-    get_last_success_date_by_thread_prefix,
+    get_last_success_date_by_crawl_source,
     get_run_time,
     korean_relative_time,
     save_csv,
@@ -141,7 +141,7 @@ def slicing_content(soup: BeautifulSoup) -> str:
 def slicing_thread(article_url: str) -> str:
     """URL 의 topic?id= 값에 geeknews_ 접두사. id 없으면 예외로 실패."""
     # geeknews_1234 형식으로 고유 id 값을 가지도록 처리함 
-    return f"{ThreadPrefix.GEEKNEWS.value}{parse_qs(urlparse(article_url).query)['id'][0]}"
+    return f"{Service.GEEKNEWS.service}_{parse_qs(urlparse(article_url).query)['id'][0]}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
@@ -223,11 +223,11 @@ def crawling_thread_geeknews(
 
     # 저장할 데이터들이 있을 때만 파일 저장 실행 
     if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLING, Service.GEEKNEWS.service, Status.SUCCESS, run_time)
+        path_success = build_csv_path(Stage.CRAWLING, CodeTable.IT_NEWS, Service.GEEKNEWS.service, Status.SUCCESS, run_time)
         save_csv(df_success, path_success)
 
     if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLING, Service.GEEKNEWS.service, Status.FAIL, run_time)
+        path_fail = build_csv_path(Stage.CRAWLING, CodeTable.IT_NEWS, Service.GEEKNEWS.service, Status.FAIL, run_time)
         save_csv(df_fail, path_fail)
 
     return df_success, df_fail
@@ -240,7 +240,7 @@ def crawling_thread_geeknews(
 ##############################################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    last_success_date = get_last_success_date_by_thread_prefix(ThreadPrefix.GEEKNEWS)
+    last_success_date = get_last_success_date_by_crawl_source(Service.GEEKNEWS)
 
     df_ok, df_bad = crawling_thread_geeknews(last_created_at=last_success_date)
     logger.info(

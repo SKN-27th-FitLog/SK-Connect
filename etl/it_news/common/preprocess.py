@@ -14,14 +14,13 @@ from common.constant import (
     Service,
     Stage,
     Status,
-    ThreadPrefix,
 )
 from common.utils import (
     collect_crawling_success_datas,
     default_last_collected_at,
     get_existing_crawling_threads,
     get_last_success_date,
-    get_last_success_date_by_thread_prefix,
+    get_last_success_date_by_crawl_source,
 )
 
 logger = logging.getLogger(__name__)
@@ -190,7 +189,7 @@ def _filter_crawl_rows_for_cleaning(
         df[CrawlingColumn.THREAD.value]
         .fillna("")
         .astype(str)
-        .str.startswith(ThreadPrefix.PYTORCH.value)
+        .str.startswith(f"{Service.PYTORCH.service}_")
     )
     th_series = pd.Series(t_g, index=df.index).where(~is_pt, t_p)
 
@@ -219,9 +218,7 @@ def get_success_threads(
     if stage is Stage.CRAWLING:
         if service not in (Service.GEEKNEWS, Service.PYTORCH):
             raise ValueError("Stage.CRAWLING 은 Service.GEEKNEWS 또는 Service.PYTORCH 만 지원")
-        th = get_last_success_date_by_thread_prefix(
-            ThreadPrefix.for_crawl_source(service)
-        )
+        th = get_last_success_date_by_crawl_source(service)
         min_run_folder_date = min(
             pd.Timestamp(th).date(),
             date.today() - timedelta(days=CrawlingConstant.ETL_CRAWL_LOOKBACK_DAYS),

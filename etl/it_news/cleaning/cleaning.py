@@ -6,8 +6,8 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from common.constant import CrawlingColumn, PathConst, Service, Stage, Status, ThreadPrefix
-from common.utils import build_csv_path, get_last_success_date_by_thread_prefix, get_run_time, save_csv
+from common.constant import CrawlingColumn, PathConst, Service, Stage, Status
+from common.utils import build_csv_path, get_last_success_date_by_crawl_source, get_run_time, save_csv
 from common.preprocess import (
     cleaning_data_in_df,
     get_success_threads,
@@ -33,8 +33,8 @@ def cleaning_threads(
     ##############################
     # 성공 데이터 조회 (raw=crawling, 소스별 1회씩 + concat 후 필터)
     ##############################
-    th_geek = get_last_success_date_by_thread_prefix(ThreadPrefix.GEEKNEWS)
-    th_pt = get_last_success_date_by_thread_prefix(ThreadPrefix.PYTORCH)
+    th_geek = get_last_success_date_by_crawl_source(Service.GEEKNEWS)
+    th_pt = get_last_success_date_by_crawl_source(Service.PYTORCH)
     df_g = get_success_threads(Stage.CRAWLING, Service.GEEKNEWS)
     df_p = get_success_threads(Stage.CRAWLING, Service.PYTORCH)
     if df_g.empty and df_p.empty:

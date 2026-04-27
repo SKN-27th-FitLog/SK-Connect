@@ -1,4 +1,5 @@
 """save 단계: 클리닝 산출 로드 → `crawling` INSERT → 성공/실패 CSV( diagram §3 )"""
+"""테이블명 하나의 파일만 crawling_시분초.csv """
 import logging
 
 import pandas as pd

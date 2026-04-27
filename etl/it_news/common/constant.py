@@ -4,7 +4,7 @@ from enum import Enum
 
 class Stage(Enum):
     '''작업 단계 표시 '''
-    CRAWLING   = "crawling"
+    CRAWLING   = "raw"
     CLEANING    = "cleaning"
     SAVE        = "save"
 
@@ -18,8 +18,8 @@ class Status(Enum):
 class PathConst:
     '''저장경로 지정 시 폴더명 표시 '''
     DIR = "" #"etl/it_news"
-    STAGE_KEY = "raw"
-    SERVICE_KEY = "service"
+    STAGE_KEY = "process"
+    CODE_TABLE_KEY = "category_cd"
     YEAR_KEY = "year"
     MONTH_KEY = "month"
     DAY_KEY = "day"
@@ -48,7 +48,6 @@ class Service(Enum):
     '''크롤링 대상 페이지 URL 주소를 정의하는 클래스'''
     GEEKNEWS = ("https://news.hada.io/new", "geeknews")
     PYTORCH = ("https://discuss.pytorch.kr/c/news/14/l/latest", "pytorch")
-    IT_NEWS = ("", "it_news") # 클린징, 세이브에서 사용하는 범용 값 
 
 
     @property # 속성 처럼 호출 
@@ -58,21 +57,6 @@ class Service(Enum):
     @property # 속성 처럼 호출 
     def service(self) -> str:
         return self.value[1]
-
-
-class ThreadPrefix(str, Enum):
-    """`crawling.thread` 및 소스별 `MAX(created_at)` 쿼리에 쓰는 접두."""
-
-    GEEKNEWS = "geeknews_"
-    PYTORCH = "pytorch_"
-
-    @classmethod
-    def for_crawl_source(cls, service: Service) -> ThreadPrefix:
-        if service is Service.GEEKNEWS:
-            return cls.GEEKNEWS
-        if service is Service.PYTORCH:
-            return cls.PYTORCH
-        raise ValueError("ThreadPrefix: GEEKNEWS / PYTORCH만 지원")
 
 
 class CrawlingColumn(str, Enum):
@@ -97,4 +81,4 @@ class CrawlingColumn(str, Enum):
 
 
 class CodeTable(Enum):
-    IT_NEWS = "CA07"
+    IT_NEWS = "IC02"

@@ -29,11 +29,11 @@ from bs4 import BeautifulSoup
 
 # 모듈
 from common.constant import CodeTable
-from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status, ThreadPrefix
+from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status
 from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
-    get_last_success_date_by_thread_prefix,
+    get_last_success_date_by_crawl_source,
     get_run_time,
     save_csv,
 )
@@ -146,7 +146,7 @@ def slicing_content(soup: BeautifulSoup) -> str:
 def slicing_thread(article_url: str) -> str:
     """URL 경로 /t/slug/{id} 의 마지막 세그먼트에 pytorch_ 접두사."""
     topic_id = urlparse(article_url).path.split('/')[-1]
-    return f"{ThreadPrefix.PYTORCH.value}{topic_id}"
+    return f"{Service.PYTORCH.service}_{topic_id}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
@@ -219,11 +219,11 @@ def crawling_thread_pytorch(
 
     # 저장할 데이터들이 있을 때만 파일 저장 실행
     if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLING, Service.PYTORCH.service, Status.SUCCESS, run_time)
+        path_success = build_csv_path(Stage.CRAWLING, CodeTable.IT_NEWS, Service.PYTORCH.service, Status.SUCCESS, run_time)
         save_csv(df_success, path_success)
 
     if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLING, Service.PYTORCH.service, Status.FAIL, run_time)
+        path_fail = build_csv_path(Stage.CRAWLING, CodeTable.IT_NEWS, Service.PYTORCH.service, Status.FAIL, run_time)
         save_csv(df_fail, path_fail)
 
     return df_success, df_fail
@@ -236,7 +236,7 @@ def crawling_thread_pytorch(
 ##############################################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    last_success_date = get_last_success_date_by_thread_prefix(ThreadPrefix.PYTORCH)
+    last_success_date = get_last_success_date_by_crawl_source(Service.PYTORCH)
 
     df_ok, df_bad = crawling_thread_pytorch(last_created_at=last_success_date)
     logger.info(
