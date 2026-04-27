@@ -7,12 +7,16 @@ from sqlalchemy.orm import Session
 
 from src.core.base_stage import BaseStage
 from src.core.constants import (
+    QUERY_FIND_MAP,
+    QUERY_FIND_SHOP,
+    QUERY_INSERT_MAP,
     QUERY_INSERT_CRAWLING,
     QUERY_INSERT_IMAGE,
     QUERY_INSERT_MENU,
+    QUERY_INSERT_SHOP,
     QUERY_TOUCH_SHOP_CHECKED_AT,
-    QUERY_UPSERT_MAP,
-    QUERY_UPSERT_SHOP,
+    QUERY_UPDATE_MAP_COORDINATES,
+    QUERY_UPDATE_SHOP_RATING,
 )
 from src.core.policy.exceptions import UndefinedCodeException
 from src.core.policy.fail_record import build_fail_record
@@ -23,6 +27,10 @@ from src.core.repository.database import DatabaseManager
 
 class Stage4Load(BaseStage):
     NAME = "load"
+    CRAWLING_TITLE_MAX_LENGTH = 200
+    CRAWLING_ARTICLE_URL_MAX_LENGTH = 500
+    CRAWLING_AUTHOR_MAX_LENGTH = 100
+    CRAWLING_KEYWORDS_MAX_LENGTH = 100
 
     def __init__(self, db=None, code_repository: CodeTableRepository | None = None):
         super().__init__(self.NAME)
@@ -79,27 +87,43 @@ class Stage4Load(BaseStage):
     def _touch_last_checked_at(self, session: Session, record: Dict[str, Any]) -> None:
         shop_id = record.get("existing_store_id") or record.get("store_id")
         if shop_id:
-            session.execute(text(QUERY_TOUCH_SHOP_CHECKED_AT), {"shop_id": int(shop_id)})
+            store = record.get("store", {})
+            session.execute(text(QUERY_TOUCH_SHOP_CHECKED_AT), {
+                "shop_id": int(shop_id),
+                "title": f"Checked - {store.get('name', 'unknown')}",
+                "content": store.get("description", ""),
+                "article_url": store.get("canonical_url", ""),
+                "category_cd": None,
+                "author": "System",
+                "keywords": "",
+                "point": float(store.get("rating", 0.0)),
+            })
 
     def _load_map_and_shop(self, session: Session, store: Dict[str, Any], record: Dict[str, Any], category_cd: str) -> str:
-        map_id = session.execute(text(QUERY_UPSERT_MAP), {
+        map_params = {
             "name": store["name"],
             "category_cd": category_cd,
             "address_cd": store["address_cd"],
             "address_detail": store["address_detail"],
             "latitude": float(store.get("latitude", 0.0)),
             "longitude": float(store.get("longitude", 0.0)),
-        }).scalar()
+        }
+        map_id = session.execute(text(QUERY_FIND_MAP), map_params).scalar()
+        if map_id:
+            session.execute(text(QUERY_UPDATE_MAP_COORDINATES), {**map_params, "map_id": map_id})
+        else:
+            map_id = session.execute(text(QUERY_INSERT_MAP), map_params).scalar()
 
-        shop_id = session.execute(text(QUERY_UPSERT_SHOP), {
+        shop_params = {
             "map_id": map_id,
             "shop_cd": store["shop_cd"],
             "rating": float(store.get("rating", 0.0)),
-            "store_content_hash": record.get("store_content_hash"),
-            "menu_content_hash": record.get("menu_content_hash"),
-            "review_content_hash": record.get("review_content_hash"),
-            "image_content_hash": record.get("image_content_hash"),
-        }).scalar()
+        }
+        shop_id = session.execute(text(QUERY_FIND_SHOP), shop_params).scalar()
+        if shop_id:
+            session.execute(text(QUERY_UPDATE_SHOP_RATING), {**shop_params, "shop_id": shop_id})
+        else:
+            shop_id = session.execute(text(QUERY_INSERT_SHOP), shop_params).scalar()
 
         return str(shop_id), str(map_id)
 
@@ -134,6 +158,20 @@ class Stage4Load(BaseStage):
                     "table_id": int(shop_id),
                 })
 
+    def _limit_text(self, value: Any, max_length: int) -> str:
+        if value is None:
+            return ""
+        return str(value)[:max_length]
+
+    def _join_keywords(self, keywords: Any) -> str:
+        if not keywords:
+            return ""
+        if isinstance(keywords, list):
+            text = ",".join(str(keyword) for keyword in keywords)
+        else:
+            text = str(keywords)
+        return self._limit_text(text, self.CRAWLING_KEYWORDS_MAX_LENGTH)
+
     def _load_crawling_and_reviews(
         self,
         session: Session,
@@ -143,9 +181,9 @@ class Stage4Load(BaseStage):
         category_cd: str,
     ):
         session.execute(text(QUERY_INSERT_CRAWLING), {
-            "title": f"Crawl - {store['name']}",
+            "title": self._limit_text(f"Crawl - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
             "content": store.get("description", ""),
-            "article_url": store.get("canonical_url", ""),
+            "article_url": self._limit_text(store.get("canonical_url", ""), self.CRAWLING_ARTICLE_URL_MAX_LENGTH),
             "map_id": int(map_id),
             "category_cd": category_cd,
             "author": "System",
@@ -155,13 +193,13 @@ class Stage4Load(BaseStage):
 
         for review in reviews:
             session.execute(text(QUERY_INSERT_CRAWLING), {
-                "title": f"Review - {store['name']}",
+                "title": self._limit_text(f"Review - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
                 "content": review.get("content", ""),
-                "article_url": store.get("canonical_url", ""),
+                "article_url": self._limit_text(store.get("canonical_url", ""), self.CRAWLING_ARTICLE_URL_MAX_LENGTH),
                 "map_id": int(map_id),
                 "category_cd": category_cd,
-                "author": review.get("author", "Anonymous"),
-                "keywords": ",".join(review.get("keywords", [])),
+                "author": self._limit_text(review.get("author", "Anonymous"), self.CRAWLING_AUTHOR_MAX_LENGTH),
+                "keywords": self._join_keywords(review.get("keywords", [])),
                 "point": float(review.get("rating", 0.0)),
             })
 

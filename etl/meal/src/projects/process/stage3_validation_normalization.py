@@ -107,8 +107,8 @@ class Stage3ValidationNormalization(BaseStage):
             "image_content_hash": build_content_hash(image_urls),
         }
 
-    def _build_change_fields(self, dedup_key: str, current_hashes: Dict[str, str]) -> Dict[str, Any]:
-        snapshot = self.snapshot_repo.find_snapshot_by_dedup_key(dedup_key) or {}
+    def _build_change_fields(self, dedup_key: str, current_hashes: Dict[str, str], snapshot_map: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        snapshot = (snapshot_map or {}).get(dedup_key) or {}
         previous_hashes = {
             "previous_store_content_hash": snapshot.get("store_content_hash"),
             "previous_menu_content_hash": snapshot.get("menu_content_hash"),
@@ -138,7 +138,14 @@ class Stage3ValidationNormalization(BaseStage):
         failures = []
         now = datetime.now()
         self.code_repo.preload()
-        
+
+        dedup_keys = []
+        for cand in candidates:
+            shop_raw = cand.get("shop", {})
+            key, _ = self._generate_dedup_key(shop_raw, shop_raw.get("canonical_url"))
+            dedup_keys.append(key)
+        snapshot_map = self.snapshot_repo.bulk_find_snapshots(dedup_keys)
+
         for cand in candidates:
             try:
                 shop_raw = cand.get("shop", {})
@@ -171,6 +178,7 @@ class Stage3ValidationNormalization(BaseStage):
                 hash_fields = self._build_change_fields(
                     dedup_key,
                     self._build_entity_hashes(store, menus, reviews, images),
+                    snapshot_map,
                 )
 
                 normalized_record = {

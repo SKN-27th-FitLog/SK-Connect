@@ -28,7 +28,7 @@ class SaveService:
         )
         
         # 2. 배치 폴더 목록 확보
-        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*"))
+        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*", "status=success"))
         if not batch_dirs:
             logger.info("No normalization success data found for today.")
             return {"message": "No normalized data found"}
@@ -38,7 +38,7 @@ class SaveService:
         
         processed_batches = []
         for bdir in batch_dirs:
-            batch_id = os.path.basename(bdir).split("=")[-1]
+            batch_id = os.path.basename(os.path.dirname(bdir)).split("=")[-1]
             logger.info(f"Processing Batch ID: {batch_id}")
             
             # 정규화된 JSONL 데이터 로드

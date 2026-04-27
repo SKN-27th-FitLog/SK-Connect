@@ -7,7 +7,6 @@ from src.core.repository.code_table_repository import CodeTableRepository
 from src.core.repository.fail_repository import FailRepository
 from src.core.repository.source_pool_provider import SourcePoolProvider
 from src.core.repository.store_repository import StoreRepository
-from src.core.constants import QUERY_SELECT_ALL_ADDRESS_CODES
 
 
 class Stage0TargetSelection(BaseStage):
@@ -109,4 +108,7 @@ class Stage0TargetSelection(BaseStage):
             item["update_reason"] = update_reason
         if source.get("store_id"):
             item["store_id"] = source["store_id"]
+        if source.get("article_url"):
+            item["article_url"] = source["article_url"]
+            item["url"] = source["article_url"]
         return item

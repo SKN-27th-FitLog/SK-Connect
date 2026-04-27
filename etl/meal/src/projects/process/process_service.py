@@ -26,7 +26,7 @@ class ProcessService:
         )
         
         # 2. 배치 폴더 목록 확보
-        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*"))
+        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*", "status=success"))
         if not batch_dirs:
             logger.info("No raw collection success data found for today.")
             return {"message": "No raw data found"}
@@ -37,7 +37,7 @@ class ProcessService:
 
         processed_batches = []
         for bdir in batch_dirs:
-            batch_id = os.path.basename(bdir).split("=")[-1]
+            batch_id = os.path.basename(os.path.dirname(bdir)).split("=")[-1]
             logger.info(f"Processing Batch ID: {batch_id}")
             
             # 해당 배치의 JSONL 파일 합침

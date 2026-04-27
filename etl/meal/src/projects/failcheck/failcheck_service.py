@@ -7,6 +7,7 @@ from src.core.dispatch import Dispatcher
 from src.core.policy.resolver import Action, create_policy_resolver
 from src.core.storage.jsonl_writer import JsonlWriter
 from src.core.storage.path_builder import HivePathBuilder
+from src.projects.failcheck.stage5_fail_classification import Stage5FailClassification
 
 logger = logging.getLogger("failcheck_project")
 
@@ -14,14 +15,14 @@ logger = logging.getLogger("failcheck_project")
 class FailcheckService:
     @staticmethod
     def _resolve_action(record: dict, date_str: str, resolver=None) -> str | None:
+        """단일 레코드 action 판별 — 테스트 및 단독 호출 용도로 유지."""
         resolver = resolver or create_policy_resolver()
-        retry_count = record.get("retry_count", 0)
         if record.get("last_retry_date") == date_str:
             logger.info(f"Skipping record {record.get('target_id')} - Already retried today.")
             return None
-
         reason_code = record.get("reason_code", "UNKNOWN_ERROR")
         stage_val = record.get("stage", "unknown")
+        retry_count = record.get("retry_count", 0)
         resolution = resolver.resolve(reason_code, stage_val, retry_count)
         return resolution.name if isinstance(resolution, Action) else str(resolution)
 
@@ -44,7 +45,7 @@ class FailcheckService:
                 status="fail",
                 dt=dt,
             )
-            fail_files.extend(glob.glob(os.path.join(base_fail_path, "batch_id=*", "*.jsonl")))
+            fail_files.extend(glob.glob(os.path.join(base_fail_path, "batch_id=*", "status=fail", "*.jsonl")))
 
         if not fail_files:
             logger.info("No failed records found for today.")
@@ -54,20 +55,19 @@ class FailcheckService:
         for file in fail_files:
             failed_records.extend(JsonlWriter.read(file))
 
-        logger.info(f"Gathered {len(failed_records)} failed records. Deciding follow-up actions.")
+        logger.info(f"Gathered {len(failed_records)} failed records. Classifying via Stage5.")
 
-        for record in failed_records:
-            action = FailcheckService._resolve_action(record, date_str)
-            if action is None:
-                continue
+        stage5 = Stage5FailClassification()
+        classified = stage5.execute(failed_records, date_str)
 
-            if action in ("RETRY", "REPROCESS"):
-                record["last_retry_date"] = date_str
-            elif action == "DROP":
-                record["final_action"] = "DROP"
-                record["dropped_at"] = dt.isoformat()
-
-            Dispatcher.dispatch(action, record, dt)
+        for action_name, action_records in classified.items():
+            for record in action_records:
+                if action_name in ("RETRY", "REPROCESS"):
+                    record["last_retry_date"] = date_str
+                elif action_name == "DROP":
+                    record["final_action"] = "DROP"
+                    record["dropped_at"] = dt.isoformat()
+                Dispatcher.dispatch(action_name, record, dt)
 
         processed_batches = list({r.get("batch_id") for r in failed_records if r.get("batch_id")})
 

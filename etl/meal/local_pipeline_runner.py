@@ -10,6 +10,7 @@ from src.projects.crawl.crawl_service import CrawlService
 from src.projects.process.process_service import ProcessService
 from src.projects.save.save_service import SaveService
 from src.core.config import settings
+from src.core.storage.path_builder import HivePathBuilder
 
 # 로깅 설정 (로컬 실행 시 출력을 보기 좋게 커스터마이징)
 logging.basicConfig(
@@ -103,11 +104,12 @@ async def run_and_consolidate(platform: str, category_cd: str):
 
     count = 0
     for proc, stage_name in stages:
-        pattern = os.path.join(settings.LAKE_ROOT_PATH, f"process={proc}/**/*batch_id={batch_id}/*.jsonl")
+        process_partition = HivePathBuilder._normalize_process(proc)
+        pattern = os.path.join(settings.LAKE_ROOT_PATH, f"crawling={process_partition}/**/*batch_id={batch_id}/status=*/*.jsonl")
         files = glob.glob(pattern, recursive=True)
 
         if proc == "raw":
-            raw_file_pattern = os.path.join(settings.LAKE_ROOT_PATH, f"process={proc}/**/*batch_id={batch_id}/*.html")
+            raw_file_pattern = os.path.join(settings.LAKE_ROOT_PATH, f"crawling={process_partition}/**/*batch_id={batch_id}/status=*/*.html")
             files.extend(glob.glob(raw_file_pattern, recursive=True))
 
         for f in files:
