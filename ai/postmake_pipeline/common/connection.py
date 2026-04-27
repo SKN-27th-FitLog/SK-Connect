@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
 from pathlib import Path
 from psycopg2 import connect
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_postgres.vectorstores import PGVector
 import os
 
 env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
@@ -28,3 +30,30 @@ class Connection(metaclass=Singleton):
 
     def get_connection(self):
         return self.connection
+
+
+
+class PGVectorStore:
+    """vectorstore를 반환"""
+    def __init__(self, collection_name: str = "post_vector"):
+        model_kwargs = {}
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            model_kwargs["token"] = hf_token
+
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-mpnet-base-v2",
+            model_kwargs=model_kwargs,
+        )
+        self.vectorstore = PGVector(
+            embeddings=embeddings,
+            connection=os.getenv("POSTGRES_URL"),
+            collection_name=collection_name,
+            embedding_length=768,
+        )
+        # 컬렉션/테이블 초기화 보장 (없으면 생성)
+        self.vectorstore.create_vector_extension()
+        self.vectorstore.create_tables_if_not_exists()
+        self.vectorstore.create_collection()
+    def get_vectorstore(self):
+        return self.vectorstore

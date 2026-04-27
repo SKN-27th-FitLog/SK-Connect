@@ -120,6 +120,7 @@ class Create_Prompt():
         except Exception as e:
             logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
             return ""
+            
     @classmethod
     def get_regenerate_prompt(cls, data:dict)->str:
         """유사글 존재 시 재생성 프롬프트 반환"""

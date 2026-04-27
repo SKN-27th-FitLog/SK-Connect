@@ -1,9 +1,9 @@
-from src.logging_config import set_logging
+from common.logging_config import set_logging
 from langchain_core.prompts import ChatPromptTemplate
-from src.llm_factory import get_llm
+from common.llm_factory import get_llm
 logger = set_logging()
 
-def validate_post_completion(result: dict) -> bool:
+def evaluate_post_completion(result: dict) -> bool:
     """게시글 완성도 검사"""
     try:
         llm = get_llm()

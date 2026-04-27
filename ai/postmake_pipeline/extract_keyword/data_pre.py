@@ -1,9 +1,7 @@
 from konlpy.tag import Okt
 from textrankr import TextRank
-import re
 
-from src.logging_config import set_logging
-from src.merge_utils import apply_merge_rules
+from common.logging_config import set_logging
 logger = set_logging()
 
 # 동일 title 기준 merge
@@ -16,33 +14,5 @@ class DataPreprocessing:
         self.textrank = TextRank(tokenizer=self.okt.nouns)
         self.data = []
 
-    def merge_same_title(self):
-        """동일 title + map_id 기준 merge (crawling, map, shop, menu)"""
-        merged_data: dict[tuple[str, str], dict] = {}
-        concat_keys = ['content', 'metadata', 'keywords']
-        fill_if_none_keys = ['article_url', 'author', 'view_count', 'comment_count', 'category_cd', 'map_id', 'shop_name', 'menu_name', 'menu_price']
-
-        for row in self.data:
-            title = str(row.get('title') or '')
-            map_id = row.get('map_id')
-            # map_id가 없으면 row 단위(crawling_id)로 유지해 과도 merge 방지
-            if map_id is None:
-                merge_key = (title, f"crawling:{row.get('crawling_id')}")
-            else:
-                merge_key = (title, str(map_id))
-
-            if merge_key not in merged_data: #title+map_id가 없으면 추가
-                merged_data[merge_key] = row.copy() #row를 복사하여 merged_data에 추가
-                continue
-
-            target = merged_data[merge_key] #title+map_id가 있으면 target에 추가
-
-            apply_merge_rules(
-                target=target,
-                incoming=row,
-                concat_keys=concat_keys,
-                fill_if_none_keys=fill_if_none_keys
-            )
-
-        self.data = list(merged_data.values())
-
+    def merge_same_title(self): # 동일한 title + ??? 으로 merge
+        pass
