@@ -1,49 +1,60 @@
+import glob
 import logging
-from typing import List, Dict, Any
-from sqlalchemy import text
-from src.core.repository.database import DatabaseManager, db_manager
+import os
+from datetime import datetime
+from typing import Any, Dict, List
+
+from src.core.storage.jsonl_writer import JsonlWriter
+from src.core.storage.path_builder import HivePathBuilder
 
 logger = logging.getLogger("core.repository")
 
+
 class FailRepository:
-    """
-    [구현 계획 1, 3 반영] - 실패 이력 레포지토리.
-    retry/reprocess 대상 선별 지원.
-    """
-    def __init__(self, db: DatabaseManager = db_manager):
-        self.db = db
-
     def get_retry_targets(self, category_cd: str, platform: str) -> List[Dict[str, Any]]:
-        """
-        [설계안 14.5 준수] - 재시도(Retry) 대상 목록을 가져옴.
-        주: 실제 구현 환경에 따라 DB의 fail_ledger 테이블이나 partition 파일을 조회.
-        """
-        # 시뮬레이션: DB fail_ledger 테이블이 있다고 가정
-        query = """
-            SELECT entity_id, entity_ref, reason_code, retry_count
-            FROM fail_ledger
-            WHERE category_cd = :category_cd 
-              AND source_platform = :platform
-              AND action = 'RETRY'
-              AND retry_count < 5
-        """
-        targets = []
-        try:
-            with self.db.get_session() as session:
-                result = session.execute(text(query), {
-                    "category_cd": category_cd,
-                    "platform": platform
-                })
-                for row in result:
-                    targets.append({
-                        "entity_id": row.entity_id,
-                        "entity_ref": row.entity_ref,
-                        "retry_count": row.retry_count
-                    })
-        except Exception:
-            # DB가 없을 경우 경고 후 빈 리스트 반환 (설계안에 따라 파일 기반 처리로 대체 가능)
-            logger.debug("Fail Ledger DB table not found, skipping retry pool.")
-            
-        return targets
+        dt = datetime.now()
+        base_path = HivePathBuilder.build_stage_base_path(
+            process="retry",
+            service="shop",
+            category_cd=category_cd,
+            stage="fail_handling",
+            status="pending",
+            dt=dt,
+        )
+        retry_files = glob.glob(os.path.join(base_path, "batch_id=*", "status=pending", "retry_items.jsonl"))
 
-fail_repo = FailRepository()
+        targets = []
+        for file_path in retry_files:
+            for record in JsonlWriter.read(file_path):
+                metadata = record.get("metadata", {})
+                entity_ref = metadata.get("entity_ref", {})
+                data = record.get("data", {})
+
+                address_cd = (
+                    entity_ref.get("address_cd")
+                    or data.get("address_cd")
+                    or data.get("store", {}).get("address_cd")
+                )
+                if not address_cd:
+                    logger.debug(f"Skipping retry record without address_cd: {record.get('entity_id')}")
+                    continue
+
+                target: Dict[str, Any] = {
+                    "address_cd": address_cd,
+                    "retry_count": metadata.get("retry_count", record.get("retry_count", 0)),
+                }
+
+                store_id = entity_ref.get("store_id") or data.get("store_id")
+                article_url = (
+                    entity_ref.get("article_url")
+                    or data.get("article_url")
+                    or data.get("store", {}).get("canonical_url")
+                )
+                if store_id:
+                    target["store_id"] = store_id
+                if article_url:
+                    target["article_url"] = article_url
+
+                targets.append(target)
+
+        return targets

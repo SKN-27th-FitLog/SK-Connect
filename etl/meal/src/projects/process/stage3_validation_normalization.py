@@ -3,11 +3,13 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from src.core.base_stage import BaseStage
-from src.core.repository.code_table_repository import CodeTableRepository, code_repo
+from src.core.repository.code_table_repository import CodeTableRepository
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
 from src.core.models.models import StoreModel
-from src.core.repository.store_repository import StoreRepository, store_repo
+from src.core.repository.store_repository import StoreRepository
+from src.core.policy.fail_record import build_fail_record
+from src.core.policy.reason_code import ReasonCode
 from src.core.utils.content_hash import (
     HASH_FIELDS_VERSION,
     HASH_VERSION,
@@ -24,12 +26,12 @@ class Stage3ValidationNormalization(BaseStage):
 
     def __init__(
         self,
-        code_repository: CodeTableRepository = code_repo,
-        snapshot_repository: StoreRepository = store_repo,
+        code_repository: CodeTableRepository | None = None,
+        snapshot_repository: StoreRepository | None = None,
     ):
         super().__init__(self.NAME)
-        self.code_repo = code_repository
-        self.snapshot_repo = snapshot_repository
+        self.code_repo = code_repository or CodeTableRepository()
+        self.snapshot_repo = snapshot_repository or StoreRepository()
 
     def _normalize_address(self, full_address: str, entity_id: Optional[str] = None) -> tuple[str, str]:
         if entity_id and entity_id.startswith("LA") and len(entity_id) >= 4:
@@ -105,8 +107,8 @@ class Stage3ValidationNormalization(BaseStage):
             "image_content_hash": build_content_hash(image_urls),
         }
 
-    def _build_change_fields(self, dedup_key: str, current_hashes: Dict[str, str]) -> Dict[str, Any]:
-        snapshot = self.snapshot_repo.find_snapshot_by_dedup_key(dedup_key) or {}
+    def _build_change_fields(self, dedup_key: str, current_hashes: Dict[str, str], snapshot_map: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        snapshot = (snapshot_map or {}).get(dedup_key) or {}
         previous_hashes = {
             "previous_store_content_hash": snapshot.get("store_content_hash"),
             "previous_menu_content_hash": snapshot.get("menu_content_hash"),
@@ -122,6 +124,8 @@ class Stage3ValidationNormalization(BaseStage):
         return {
             **current_hashes,
             **previous_hashes,
+            "existing_store_id": snapshot.get("store_id"),
+            "existing_map_id": snapshot.get("map_id"),
             **changed,
             "is_changed": any(changed.values()),
             "changed_fields": [key.removesuffix("_changed") for key, value in changed.items() if value],
@@ -134,7 +138,14 @@ class Stage3ValidationNormalization(BaseStage):
         failures = []
         now = datetime.now()
         self.code_repo.preload()
-        
+
+        dedup_keys = []
+        for cand in candidates:
+            shop_raw = cand.get("shop", {})
+            key, _ = self._generate_dedup_key(shop_raw, shop_raw.get("canonical_url"))
+            dedup_keys.append(key)
+        snapshot_map = self.snapshot_repo.bulk_find_snapshots(dedup_keys)
+
         for cand in candidates:
             try:
                 shop_raw = cand.get("shop", {})
@@ -167,6 +178,7 @@ class Stage3ValidationNormalization(BaseStage):
                 hash_fields = self._build_change_fields(
                     dedup_key,
                     self._build_entity_hashes(store, menus, reviews, images),
+                    snapshot_map,
                 )
 
                 normalized_record = {
@@ -181,14 +193,17 @@ class Stage3ValidationNormalization(BaseStage):
                 
             except Exception as e:
                 self.logger.error(f"Normalization failed for {cand.get('entity_id')}: {str(e)}")
-                failures.append({
-                    "entity_id": cand.get("entity_id", "unknown"),
-                    "entity_ref": cand.get("entity_ref", {}),
-                    "status": "fail",
-                    "reason_code": "INVALID_DATA_FORMAT",
-                    "detail": str(e),
-                    "failed_at": now.isoformat()
-                })
+                failures.append(build_fail_record(
+                    batch_id=batch_id,
+                    run_attempt=run_attempt,
+                    stage=self.stage_name,
+                    entity_type="store",
+                    entity_id=cand.get("entity_id", "unknown"),
+                    entity_ref=cand.get("entity_ref", {}),
+                    reason_code=ReasonCode.INVALID_DATA_FORMAT,
+                    detail=str(e),
+                    created_at=now,
+                ))
         
         if normalized_data:
             normalized_path = HivePathBuilder.build_path(
@@ -207,4 +222,6 @@ class Stage3ValidationNormalization(BaseStage):
             filename_fail = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}_fail.jsonl"
             JsonlWriter.write(fail_path, filename_fail, failures)
         
+        if hasattr(self.code_repo, "clear_cache"):
+            self.code_repo.clear_cache()
         return normalized_data

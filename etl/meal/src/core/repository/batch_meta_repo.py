@@ -11,7 +11,7 @@ class BatchMetadataRepository:
             process="metadata", service="shop", category_cd=category_cd,
             stage="batch_assignment", status="success", dt=dt
         )
-        meta_files = glob.glob(os.path.join(meta_base, "batch_id=*", "*.jsonl"))
+        meta_files = glob.glob(os.path.join(meta_base, "batch_id=*", "status=success", "*.jsonl"))
         
         max_attempt, found_batch_id = 0, None
         for file in meta_files:
@@ -32,7 +32,7 @@ class BatchMetadataRepository:
             process="metadata", service="shop", category_cd=category_cd,
             stage="batch_assignment", status="success", dt=dt
         )
-        meta_files = glob.glob(os.path.join(meta_base, f"batch_id={batch_id}", "*.jsonl"))
+        meta_files = glob.glob(os.path.join(meta_base, f"batch_id={batch_id}", "status=success", "*.jsonl"))
         attempts = [1]
         for file in meta_files:
             for r in JsonlWriter.read(file):

@@ -27,8 +27,8 @@ STAGE_FAIL_CLASSIFICATION = Stage5FailClassification.NAME
 
 # 0. 리포지토리 등록소 (v11/v12/v13/v14 설계 반영)
 REPOSITORY_MAP = {
-    "code_table": CodeTableRepository(),
-    "batch_metadata": BatchMetadataRepository(),
+    "code_table": CodeTableRepository,
+    "batch_metadata": BatchMetadataRepository,
 }
 
 # 1. 수집기 등록소
@@ -80,7 +80,7 @@ def get_parser(platform: str):
 
 def get_repository(name: str):
     """리포지토리 이름을 기반으로 인스턴스 반환"""
-    repo = REPOSITORY_MAP.get(name)
-    if not repo:
+    repo_cls = REPOSITORY_MAP.get(name)
+    if not repo_cls:
         raise ValueError(f"Unsupported repository: {name}")
-    return repo
+    return repo_cls()

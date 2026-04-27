@@ -35,5 +35,3 @@ class SourcePoolProvider:
                     })
         
         return candidates
-
-source_pool_provider = SourcePoolProvider()
