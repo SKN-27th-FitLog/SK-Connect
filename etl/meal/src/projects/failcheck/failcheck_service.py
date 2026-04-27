@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
-from src.core.resolver import Resolver
+from src.core.policy.resolver import policy_resolver, Action
 from src.core.dispatch import Dispatcher
 
 logger = logging.getLogger("failcheck_project")
@@ -18,7 +18,7 @@ class FailcheckService:
         """
         logger.info(f"--- Starting FAILCHECK Project: {category_cd} ---")
         dt = datetime.now()
-        date_str = dt.strftime('%Y%n%d') # Design Policy: 동일 날짜 반복 재시도 방지용 스트링
+        date_str = dt.strftime('%Y%m%d') # Design Policy: 동일 날짜 반복 재시도 방지용 스트링
         
         # 1. 모든 스테이지의 실패(status=fail) 파일 수집
         fail_files = []
@@ -59,12 +59,14 @@ class FailcheckService:
                 logger.warning(f"Retry limit (5) exceeded for {record.get('target_id')}. Dropping.")
                 action = "DROP"
             else:
-                # Policy 2: Resolver에 판단 위임
-                reason_code = record.get("reason_code")
-                action = Resolver.decide_action(reason_code, record)
+                # Policy 2: Resolver에 판단 위임 (policy_resolver 중앙 통제)
+                reason_code = record.get("reason_code", "UNKNOWN_ERROR")
+                stage_val = record.get("stage", "unknown")
+                resolution = policy_resolver.resolve(reason_code, stage_val, retry_count)
+                action = resolution.name if isinstance(resolution, Action) else str(resolution)
             
             # 메타데이터 업데이트 (재시도 날짜 기록 또는 폐기 기록)
-            if action in ("RETRY_CRAWL", "REPROCESS", "RETRY_SAVE"):
+            if action in ("RETRY", "REPROCESS"):
                 record["last_retry_date"] = date_str
             elif action == "DROP":
                 record["final_action"] = "DROP"
