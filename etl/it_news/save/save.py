@@ -4,9 +4,9 @@ import logging
 
 import pandas as pd
 
-from common.constant import CrawlingColumn, Service, Stage, Status
+from common.constant import CodeTable, CrawlingColumn, Stage, Status
 from common.postgresql.run_query import insert_crawling_batch, fetch_crawling_dataframe
-from common.preprocess import get_success_threads
+from common.preprocess import get_cleaning_success_for_save
 from common.utils import get_last_success_date, get_run_time, build_csv_path, save_csv
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 ####################################
 def save_threads(
     *,
-    save_service: Service = Service.IT_NEWS.service,
+    save_file_prefix: str = "it_news",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """diagram 3단계: 전처리 CSV 로드·필터 → 저장 → success/fail CSV."""
 
@@ -31,9 +31,8 @@ def save_threads(
     ##############################
     # cleaning 성공 데이터 조회 
     ##############################
-    df = get_success_threads(
-        Stage.CLEANING, Service.IT_NEWS, last_collected_at=last_collected_at
-    )
+    # `process=cleaning` … success 의 통합 `*.csv` (소스 루프 없음)
+    df = get_cleaning_success_for_save(last_collected_at=last_collected_at)
     if df.empty:
         logger.info("save: 저장 생략(입력 0행)")
         return pd.DataFrame(), pd.DataFrame()
@@ -66,12 +65,16 @@ def save_threads(
     # save 성공/실패 데이터 저장 
     ##############################
     if not df_success.empty:
-        path_success = build_csv_path(Stage.SAVE, save_service, Status.SUCCESS, run_time)
+        path_success = build_csv_path(
+            Stage.SAVE, CodeTable.IT_NEWS, save_file_prefix, Status.SUCCESS, run_time
+        )
         save_csv(df_success, path_success)
         logger.info("저장: 성공 CSV %s (%d행)", path_success.resolve(), len(df_success))
 
     if not df_fail.empty:
-        path_fail = build_csv_path(Stage.SAVE, save_service, Status.FAIL, run_time)
+        path_fail = build_csv_path(
+            Stage.SAVE, CodeTable.IT_NEWS, save_file_prefix, Status.FAIL, run_time
+        )
         save_csv(df_fail, path_fail)
         logger.info("저장: 실패 CSV %s (%d행)", path_fail.resolve(), len(df_fail))
 

@@ -24,7 +24,7 @@ class PathConst:
     MONTH_KEY = "month"
     DAY_KEY = "day"
     STATUS_KEY = "status"
-    
+
 
 class CrawlingConstant:
     """크롤·ETL·HTTP 등에 쓰는 스칼라 상수(열거가 어울리지 않을 때)."""

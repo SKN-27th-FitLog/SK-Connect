@@ -93,18 +93,21 @@ def _iter_success_csv_files_in_dir(success_dir: Path) -> list[Path]:
     return sorted(out, key=lambda x: x.name)
 
 
-def _iter_service_success_csv_paths(
-    path: Path,
-    service_list: list[str],
+def _iter_code_table_success_csv_paths(
+    process_root: Path,
     min_run_folder_date: date,
-) -> Iterator[tuple[str, Path]]:
-    """`(Service.service, csv_path)` — run 폴더 날짜가 `min_run_folder_date` 이상인 성공 CSV만."""
-    for service in service_list:
-        service_dir = path / f"{PathConst.SERVICE_KEY}={service}"
-        if not service_dir.is_dir():
-            continue
+    *,
+    filename_prefix: str | None = None,
+) -> Iterator[Path]:
+    """`build_csv_path`와 동일: `process=…/category_cd=…/year/…/day/…/status=success/*.csv`.
 
-        for year_dir in _iter_keyed_subdirs(service_dir, PathConst.YEAR_KEY):
+    `filename_prefix`가 있으면 `{prefix}_`로 시작하는 CSV만(크롤 `geeknews_`, `pytorch_` 등).
+    `None`이면 success 폴더의 모든 `*.csv`(save 단계: 클리닝 산출 통합).
+    """
+    if not process_root.is_dir():
+        return
+    for _cat in _iter_keyed_subdirs(process_root, PathConst.CODE_TABLE_KEY):
+        for year_dir in _iter_keyed_subdirs(_cat, PathConst.YEAR_KEY):
             yyyy = parse_segment_int(year_dir.name, PathConst.YEAR_KEY)
             if yyyy is None:
                 continue
@@ -118,40 +121,60 @@ def _iter_service_success_csv_paths(
                         continue
                     if date(yyyy, mm, dd) < min_run_folder_date:
                         continue
-
                     success_dir = day_dir / f"{PathConst.STATUS_KEY}={Status.SUCCESS.value}"
                     if not success_dir.is_dir():
                         continue
-                    for csv_file in _iter_success_csv_files_in_dir(success_dir):
-                        yield service, csv_file
+                    for csv_path in _iter_success_csv_files_in_dir(success_dir):
+                        if filename_prefix is not None and not csv_path.name.startswith(
+                            f"{filename_prefix}_"
+                        ):
+                            continue
+                        yield csv_path
 
 
 def collect_crawling_success_datas(
-    path: Path,
+    process_root: Path,
     service_list: list[str],
     *,
     min_run_folder_date: date,
 ) -> tuple[list[pd.DataFrame], dict[str, int]]:
-    """`Service` 열거와 동일한 `service_list` 순서로 raw 성공 CSV를 읽는다.
+    """`process=raw` … `…/status=success/{service}_*.csv`를 서비스명별로 읽는다(클리닝 입력).
 
-    각 DataFrame에 `_page_service`(크롤 저장 서비스명)를 붙인다. 반환:
-    - 로드된 프레임 목록(concat 용)
-    - `service`별 **로드 직후** 행 수(필터 전)
+    각 DataFrame에 `_page_service`를 붙인다. 반환: (프레임 목록, service별 로드 직후 행 수)
     """
     rows_by_service: dict[str, int] = dict.fromkeys(service_list, 0)
     thread_lst: list[pd.DataFrame] = []
-    for service, csv_file in _iter_service_success_csv_paths(
-        path, service_list, min_run_folder_date
+    for service in service_list:
+        for csv_file in _iter_code_table_success_csv_paths(
+            process_root, min_run_folder_date, filename_prefix=service
+        ):
+            try:
+                tdf = pd.read_csv(csv_file, encoding=CrawlingConstant.CSV_ENCODING)
+            except (OSError, ValueError, UnicodeDecodeError, pd.errors.EmptyDataError):
+                continue
+            tdf = tdf.copy()
+            tdf[CrawlingColumn.PAGE_SERVICE.value] = service
+            rows_by_service[service] += len(tdf)
+            thread_lst.append(tdf)
+    return thread_lst, rows_by_service
+
+
+def collect_save_stage_success_datas(
+    process_root: Path,
+    *,
+    min_run_folder_date: date,
+) -> list[pd.DataFrame]:
+    """`process=cleaning` … `…/status=success/*.csv` 전부(클리닝 이후는 파일이 통합된 상태)."""
+    thread_lst: list[pd.DataFrame] = []
+    for csv_file in _iter_code_table_success_csv_paths(
+        process_root, min_run_folder_date, filename_prefix=None
     ):
         try:
             tdf = pd.read_csv(csv_file, encoding=CrawlingConstant.CSV_ENCODING)
         except (OSError, ValueError, UnicodeDecodeError, pd.errors.EmptyDataError):
             continue
-        tdf = tdf.copy()
-        tdf[CrawlingColumn.PAGE_SERVICE.value] = service
-        rows_by_service[service] += len(tdf)
         thread_lst.append(tdf)
-    return thread_lst, rows_by_service
+    return thread_lst
 
 
 ###############################################################

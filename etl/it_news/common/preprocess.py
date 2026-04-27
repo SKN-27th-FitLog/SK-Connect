@@ -17,6 +17,7 @@ from common.constant import (
 )
 from common.utils import (
     collect_crawling_success_datas,
+    collect_save_stage_success_datas,
     default_last_collected_at,
     get_existing_crawling_threads,
     get_last_success_date,
@@ -203,74 +204,79 @@ def _filter_crawl_rows_for_cleaning(
     return df.loc[keep].copy()
 
 
-def get_success_threads(
-    stage: Stage,
-    service: Service,
-    *,
-    last_collected_at: datetime | None = None,
-) -> pd.DataFrame:
-    """`raw=<stage>` 아래 `service=…/…/status=success/*.csv`를 한 `Service`에 대해 읽는다.
-    CRAWLING: geeknews/pytorch(호출부에서 2회 후 concat+필터). CLEANING+IT_NEWS: 클리닝 산출 로드(행 필터는 호출부)."""
-    if stage is Stage.SAVE:
-        raise ValueError("get_success_threads: 읽기 경로는 Stage.CLEANING(클리닝 산출)을 사용. Stage.SAVE 는 출력 단계")
-
-    if stage is Stage.CRAWLING:
-        if service not in (Service.GEEKNEWS, Service.PYTORCH):
-            raise ValueError("Stage.CRAWLING 은 Service.GEEKNEWS 또는 Service.PYTORCH 만 지원")
-        th = get_last_success_date(service)
-        min_run_folder_date = min(
-            pd.Timestamp(th).date(),
-            date.today() - timedelta(days=CrawlingConstant.ETL_CRAWL_LOOKBACK_DAYS),
-        )
-    elif stage is Stage.CLEANING:
-        if service is not Service.IT_NEWS:
-            raise ValueError("Stage.CLEANING 은 Service.IT_NEWS 만 지원")
-        if last_collected_at is not None:
-            min_run_folder_date = pd.Timestamp(last_collected_at).date()
-        else:
-            min_run_folder_date = pd.Timestamp(get_last_success_date()).date()
-    else:
-        raise ValueError(
-            f"get_success_threads: 지원하지 않는 stage {stage!r} (CLEANING, CRAWLING만)"
-        )
-
-    service_list = [service.service]
-    root = _crawling_raw_root(stage)
-    if not root.is_dir():
-        logger.warning("get_success_threads: raw=%s 루트 없음 %s", stage.value, root.resolve())
-        return pd.DataFrame()
-
-    thread_lst, _rows = collect_crawling_success_datas(
-        root,
-        service_list,
-        min_run_folder_date=min_run_folder_date,
-    )
-
-    if not thread_lst:
-        logger.warning("get_success_threads: 조건에 맞는 성공 CSV 없음 (stage=%s, service=%s)", stage.value, service.service)
-        return pd.DataFrame()
-
-    df = pd.concat(thread_lst, ignore_index=True)
-
+##############################################################
+# 클리닝·세이브 단계 입력 CSV 수집 (process=raw / process=cleaning)
+##############################################################
+def _validate_success_thread_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """이후 클리닝·DB 단계에 필요한 `created_at` / `thread`가 없으면 빈 프레임으로 처리."""
     if (
         CrawlingColumn.CREATED_AT.value not in df.columns
         or CrawlingColumn.THREAD.value not in df.columns
     ):
-        logger.warning("get_success_threads: created_at/thread 컬럼 없음 — 중단")
+        logger.warning("성공 CSV 로드: created_at/thread 컬럼 없음 — 중단")
         return pd.DataFrame()
-
     return df
 
 
+def get_crawling_success_for_cleaning(service: Service) -> pd.DataFrame:
+    """클리닝용: 크롤 산출(`process=raw`, …/status=success)에서 **한 소스** `{service}_*.csv`만 수집.
+
+    - 크롤이 `build_csv_path(Stage.CRAWLING, …, service=…, …)` 로 쓴 경로와 동일한 트리를 읽는다.
+    - 호출부에서 `Service` 열거를 돌리며 소스마다 1회 호출한 뒤 `concat` 하면 됨.
+    - 행에 `_page_service`를 붙여 소스를 구분한다(`utils.collect_crawling_success_datas`).
+    """
+    th = get_last_success_date(service)
+    # run 폴더(연/월/일) 하한: DB 워터마크·90일 lookback 중 더 늦은 (오래된) 쪽
+    min_run_folder_date = min(
+        pd.Timestamp(th).date(),
+        date.today() - timedelta(days=CrawlingConstant.ETL_CRAWL_LOOKBACK_DAYS),
+    )
+    root = _crawling_raw_root(Stage.CRAWLING)
+    if not root.is_dir():
+        logger.warning("get_crawling_success_for_cleaning: process=raw 루트 없음 %s", root.resolve())
+        return pd.DataFrame()
+
+    thread_lst, _rows = collect_crawling_success_datas(
+        root,
+        [service.service],
+        min_run_folder_date=min_run_folder_date,
+    )
+    if not thread_lst:
+        logger.warning(
+            "get_crawling_success_for_cleaning: 조건에 맞는 성공 CSV 없음 (service=%s)",
+            service.service,
+        )
+        return pd.DataFrame()
+
+    df = pd.concat(thread_lst, ignore_index=True)
+    return _validate_success_thread_columns(df)
 
 
+def get_cleaning_success_for_save(
+    *, last_collected_at: datetime | None = None
+) -> pd.DataFrame:
+    """세이브용: 클리닝 산출(`process=cleaning`, …/status=success)의 **모든** `*.csv`를 읽는다.
 
+    - 클리닝이 이미 여러 소스를 합친 **통합 파일**이므로, 소스별 인자는 없다.
+    - run 폴더 하한: `last_collected_at`이 있으면 그 날짜, 없으면 DB `MAX(created_at)` 기준.
+    """
+    if last_collected_at is not None:
+        min_run_folder_date = pd.Timestamp(last_collected_at).date()
+    else:
+        min_run_folder_date = pd.Timestamp(get_last_success_date()).date()
 
+    root = _crawling_raw_root(Stage.CLEANING)
+    if not root.is_dir():
+        logger.warning("get_cleaning_success_for_save: process=cleaning 루트 없음 %s", root.resolve())
+        return pd.DataFrame()
 
+    thread_lst = collect_save_stage_success_datas(
+        root, min_run_folder_date=min_run_folder_date
+    )
+    if not thread_lst:
+        logger.warning("get_cleaning_success_for_save: 조건에 맞는 성공 CSV 없음 (cleaning 산출)")
+        return pd.DataFrame()
 
-
-
-
-
-
+    df = pd.concat(thread_lst, ignore_index=True)
+    return _validate_success_thread_columns(df)
 
