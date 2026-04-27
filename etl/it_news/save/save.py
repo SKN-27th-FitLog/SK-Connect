@@ -4,7 +4,7 @@ import logging
 import pandas as pd
 
 from common.constant import CrawlingColumn, Service, Stage, Status
-from common.postgresql.run_query import insert_crawling_batch
+from common.postgresql.run_query import insert_crawling_batch, fetch_crawling_dataframe
 from common.preprocess import get_success_threads
 from common.utils import get_last_success_date, get_run_time, build_csv_path, save_csv
 
@@ -39,6 +39,16 @@ def save_threads(
 
     df = df.drop_duplicates(subset=[CrawlingColumn.THREAD.value], keep="last")
 
+    ##############################
+    # crawling 테이블 데이터 조회 -> thread 컬럼값 기준으로 확인해서 중복이 있으면 df에서 해당 row 드랍 처리 
+    ##############################
+    
+    # db에서 데이터 조회 -> 데이터 프레임으로 반환환 
+    df_thread = fetch_crawling_dataframe(CrawlingColumn.THREAD)
+
+    # df와 df_crawling에서 thread 컬럼값 기준으로 중복 확인 만약 중복이 있으면 df 컬럼에서 해당 row drop
+    cond = df[CrawlingColumn.THREAD.value].isin(df_thread[CrawlingColumn.THREAD.value])
+    df = df[~cond]
 
     ##############################
     # cleaning 테이블 일괄 INSERT 
