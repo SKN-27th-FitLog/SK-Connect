@@ -1,5 +1,4 @@
 from src.from_crawling import GetCrawlingData
-from src.evaluation import evaluate_result
 from src.data_pre import DataPreprocessing
 from src.logging_config import set_logging
 from src.prompt import Prompt
@@ -10,7 +9,6 @@ logger = set_logging()
 
 def run_pipeline():
     batch_count = 0
-    failed_list = []
     attempted_crawling_ids: set[int] = set()
     crawling = GetCrawlingData()
     data_pre = DataPreprocessing()
@@ -36,6 +34,8 @@ def run_pipeline():
         processed_data:list[dict] = data_pre.execute(data) #데이터 전처리
 
         for row in processed_data: #data를 하나씩 가져오면서 프롬프트를 생성
+            row = crawling.attach_existing_post_context(row)
+
             type = crawling.CATEGORY_CD.get(row.get("category_cd"), "casual")
             prompt:str = Prompt.get_prompt(type, row) #프롬프트를 생성
             state = {
@@ -51,18 +51,16 @@ def run_pipeline():
                 "max_retry": 2
             } #state 생성
             result = graph_compile.invoke(state)
-            is_pass = evaluate_result(result)
-
-            if is_pass:
-                post_id = to_post(result["data"])
-                if post_id is not None:
-                    to_post_vector(result["data"], post_id)
-            elif not is_pass: #평가 pass가 아닌 경우
-                if result.get("failed_crawling_id") is not None:
-                    failed_list.append(result["failed_crawling_id"])
-
+            if result.get("status") != "passed":
+                failed_id = result.get("failed_crawling_id")
+                if failed_id is not None:
+                    logger.warning(f"최종 실패(crawling_id={failed_id})")
                 continue
-        print(f"Batch {batch_count} completed...") #배치 완료
+
+            post_id = to_post(result["data"])
+            if post_id is not None:
+                to_post_vector(result["data"], post_id)
+        logger.info(f"Batch {batch_count} completed...") #배치 완료
         batch_count += 1 #배치 카운트 증가
 
 

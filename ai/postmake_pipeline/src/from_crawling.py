@@ -24,6 +24,8 @@ class _Connection:
                 user=os.getenv("DB_USER"),
                 password=os.getenv("DB_PASSWORD"),
             )
+            # from_crawling 경로는 조회 전용이므로 autocommit으로 열린 트랜잭션 누수 방지
+            cls._instance.autocommit = True
         return cls._instance
 
 
@@ -78,7 +80,6 @@ class GetCrawlingData():
             return [dict(zip(columns,row)) for row in rows] #데이터를 딕셔너리 리스트로 반환
             
         except Exception as e:
-            print(f"Error: {e}")
             logger.error(f"Error={e}") #crawling_id를 함께 로깅
             _Connection.get_connection().rollback()
             return None
@@ -118,16 +119,53 @@ class GetCrawlingData():
             return result
 
         except Exception as e:
-            print(f"Error: {e}")
             if 'data' in locals() and data:
                 logger.error(f"Error={e} | crawling_id={data[0]['crawling_id']} ~ {data[-1]['crawling_id']}")
             else:
                 logger.error(f"Error={e}")
             return []
 
+    def attach_existing_post_context(self, row: dict) -> dict:
+        """동일 title+map_id 기존 post를 조회해 프롬프트 컨텍스트로 주입"""
+        map_id = row.get("map_id")
+        title = row.get("title")
+        if map_id is None or not title:
+            return row
+
+        query = """
+        SELECT post_id, title, content
+        FROM posts
+        WHERE LOWER(TRIM(title)) = LOWER(TRIM(%s))
+          AND map_id = %s
+          AND post_cd = %s
+        ORDER BY modify_at DESC, post_id DESC
+        LIMIT 3
+        """
+        existing_posts = self.cursor_excute(query, [title, map_id, "PT01"])
+        if not existing_posts:
+            return row
+
+        row["existing_post_title"] = existing_posts[0].get("title")
+        row["existing_post_count"] = len(existing_posts)
+        row["existing_post_content"] = "\n\n".join(
+            f"[기존글 {idx}] 제목: {post.get('title')}\n본문: {post.get('content')}"
+            for idx, post in enumerate(existing_posts, start=1)
+        )
+        # LLM이 새 크롤링 본문과 기존 글 본문을 함께 재구성하도록 합성 컨텍스트를 제공
+        current_content = str(row.get("content") or "").strip()
+        row["generation_context_content"] = (
+            f"[새 크롤링 본문]\n{current_content}\n\n"
+            f"[기존 게시글 본문]\n{row['existing_post_content']}"
+        )
+        logger.info(
+            "기존 게시글 컨텍스트 결합 완료 "
+            f"(map_id={map_id}, title={title}, existing_count={len(existing_posts)})"
+        )
+        return row
+
     def get_crawling_data(self):
         """crawling 테이블에서 데이터를 조회
-            posts 테이블에 동일 title+map_id가 없는 데이터를 조회"""
+            이미 처리한 crawling_id는 제외하고 조회"""
         query = """
             SELECT c.*
             FROM crawling c
@@ -138,11 +176,7 @@ class GetCrawlingData():
             AND NOT EXISTS (
                 SELECT 1
                 FROM posts p
-                WHERE p.title = c.title
-                AND (
-                    p.map_id = c.map_id
-                    OR (p.map_id IS NULL AND c.map_id IS NULL)
-                )
+                WHERE p.crawling_id = c.crawling_id
             )
             ORDER BY c.crawling_id ASC
             LIMIT %s;

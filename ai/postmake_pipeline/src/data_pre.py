@@ -1,5 +1,6 @@
 from konlpy.tag import Okt
 from textrankr import TextRank
+import re
 
 from src.logging_config import set_logging
 from src.merge_utils import apply_merge_rules
@@ -68,9 +69,27 @@ class DataPreprocessing:
     def remove_duplicate_keywords(self):
         """키워드 중복 제거"""
         for row in self.data:
-            if row['keywords'] is not None:
-                keywords = row['keywords'].split(' ')
-                row['keywords'] = ' '.join(dict.fromkeys(keywords))
+            raw_keywords = row.get('keywords')
+            if raw_keywords is None:
+                continue
+
+            # 공백/쉼표/슬래시/파이프/세미콜론 등 구분자를 모두 허용해 토큰화
+            tokens = re.split(r"[\s,;/|]+", str(raw_keywords))
+            normalized_tokens: list[str] = []
+            seen: set[str] = set()
+
+            for token in tokens:
+                cleaned = token.strip().strip(".,!?\"'`()[]{}")
+                if not cleaned:
+                    continue
+                # 대소문자 차이로 같은 키워드가 중복되는 경우를 함께 제거
+                key = cleaned.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                normalized_tokens.append(cleaned)
+
+            row['keywords'] = ' '.join(normalized_tokens)
         return self.data
 
     def execute(self, data:list[dict])->list[dict]:

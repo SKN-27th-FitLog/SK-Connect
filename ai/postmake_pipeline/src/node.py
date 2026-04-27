@@ -1,10 +1,10 @@
-from langchain_ollama import ChatOllama
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
 from typing import TypedDict, List
 from langgraph.graph import StateGraph, START, END
 from src.logging_config import set_logging
 from src.to_post import get_vectorstore, get_connection
+from src.validator import validate_post_completion
+from src.llm_factory import get_llm
 logger = set_logging()
 
 import os
@@ -12,21 +12,8 @@ import time
 
 _EMBEDDINGS_SINGLETON = None
 COSINE_DISTANCE_THRESHOLD = 0.08  # cosine similarity 0.92 이상이면 중복으로 판단
-MIN_GENERATED_CHARS = 20
+MIN_GENERATED_CHARS = 200
 MAX_GENERATION_RETRY = 2
-
-#llm 모델설정
-#embedding 모델설정
-#similarity_search
-#invoke
-def get_llm():
-    return ChatOllama(
-        model="gemma4:e4b",
-        temperature=0.2,
-        num_predict=256,
-        keep_alive="20m",
-    )
-
 
 def get_embeddings():
     """임베딩 모델 싱글톤 반환"""
@@ -57,11 +44,21 @@ class State(TypedDict):
     retry_count: int #재생성 횟수
     max_retry: int #최대 재생성 횟수
 
-def get_data_node(state: State):
-    """전처리 된 데이터를 받아와 data 키에 저장"""
+
+def _fail_or_retry(state: State):
+    """공통 재시도/실패 분기"""
+    current_retry = state.get("retry_count", 0)
+    max_retry = state.get("max_retry", 2)
+    if current_retry < max_retry:
+        return {
+            **state,
+            "status": "retry",
+            "retry_count": current_retry + 1,
+        }
     return {
         **state,
-        "data": state["data"]
+        "status": "failed",
+        "failed_crawling_id": state["data"]["crawling_id"],
     }
 
 def generate_post_node(state: State):
@@ -126,21 +123,26 @@ def check_existing_post(data: dict) -> bool:
         return False
 
     try:
+        connection = get_connection()
         query = """
         SELECT 1
         FROM posts
-        WHERE title = %s
+        WHERE LOWER(TRIM(title)) = LOWER(TRIM(%s))
         AND (
             map_id = %s
             OR (map_id IS NULL AND %s IS NULL)
         )
         LIMIT 1
         """
-        cursor = get_connection().cursor()
-        cursor.execute(query, (title, map_id, map_id))
-        return cursor.fetchone() is not None
+        with connection.cursor() as cursor:
+            cursor.execute(query, (title, map_id, map_id))
+            exists = cursor.fetchone() is not None
+        # SELECT 이후 트랜잭션을 즉시 정리해 open transaction 상태 종료
+        connection.rollback()
+        return exists
     except Exception as e:
         logger.error(f"Error={e}")
+        get_connection().rollback()
         return False
 
 def similarity_search_node(state: State):
@@ -154,7 +156,7 @@ def similarity_search_node(state: State):
             "similar_posts": [{"source": "posts_by_title_map_id"}]
         }
 
-    vectorstore = get_vectorstore()
+    vectorstore = get_vectorstore(state["data"].get("category_cd"))
     try:
         similar_with_scores = vectorstore.similarity_search_with_score_by_vector(state["embedding"], k=20)
     except ValueError as e:
@@ -188,46 +190,32 @@ def similarity_search_node(state: State):
         "similar_posts": similar_posts
     }
 
-def regenerate_node(state: State):
-    """유사 게시글이 있는 경우 게시글 재생성"""
-    llm = get_llm()
-    current_prompt = state["prompt"]
-    post = ""
-    original_content = (state["data"].get("content") or "").strip()
-    for attempt in range(MAX_GENERATION_RETRY):
-        response = llm.invoke(current_prompt)
-        post = response.content if hasattr(response, "content") else str(response)
-        post = (post or "").strip()
-        if len(post) >= MIN_GENERATED_CHARS:
-            break
-        current_prompt = (
-            f"{state['prompt']}\n\n"
-            "[추가 지시]\n"
-            "- 응답은 반드시 비어있지 않은 한국어 본문으로 작성하세요.\n"
-            f"- 최소 {MIN_GENERATED_CHARS}자 이상 작성하세요.\n"
-            "- 제목/머리말/불릿 없이 본문만 출력하세요.\n"
-        )
-        logger.warning(f"Regenerated post too short/empty (attempt={attempt + 1})")
-        time.sleep(0.5)
-    if len(post) < MIN_GENERATED_CHARS:
-        if len(original_content) > 0:
-            logger.warning("LLM regeneration failed repeatedly, fallback to original content")
-            post = original_content
-        else:
-            logger.warning("LLM regeneration failed and no original content, keep existing")
-            post = state.get("post", "")
-
-    data = state["data"].copy()
-    data["content"] = post
-
-    return {
-        **state,
-        "post": post,
-        "data": data
-    }
-
 def crag_node(state: State):
     """유사도 검색 결과 기준 CRAG 판정"""
+    is_valid_post = validate_post_completion(state)
+
+    # 1) 완성도 실패 분기
+    if not is_valid_post:
+        return _fail_or_retry(state)
+
+    has_existing_post = bool(state["data"].get("existing_post_content"))
+
+    # 기존 게시글 업데이트 케이스: 최소 1회 재생성 강제
+    if has_existing_post and state.get("retry_count", 0) == 0:
+        return {
+            **state,
+            "status": "retry",
+            "retry_count": 1
+        }
+
+    # 기존 게시글 업데이트 케이스: 재생성 1회 이후에는 중복 판정에 막히지 않고 통과
+    if has_existing_post and state.get("retry_count", 0) >= 1:
+        return {
+            **state,
+            "status": "passed",
+            "failed_crawling_id": None
+        }
+
     if state["is_unique"]:
         return {
             **state,
@@ -235,12 +223,8 @@ def crag_node(state: State):
             "failed_crawling_id": None
         }
 
-    # 비유니크 데이터는 즉시 실패 처리 (재생성 루프 제거)
-    return {
-        **state,
-        "status": "failed",
-        "failed_crawling_id": state["data"]["crawling_id"]
-    }
+    # 2) 유사도 실패 분기
+    return _fail_or_retry(state)
 
 def route_crag(state: State):
     """CRAG 분기"""
@@ -250,15 +234,13 @@ def route_crag(state: State):
 
 def graph():
     graph = StateGraph(State)
-    graph.add_node("get_data", get_data_node)
     graph.add_node("generate_post", generate_post_node)
     graph.add_node("embedding", embedding_node)
     graph.add_node("similarity_search", similarity_search_node)
-    graph.add_node("regenerate", regenerate_node)
+    graph.add_node("regenerate", generate_post_node)
     graph.add_node("crag", crag_node)
 
-    graph.add_edge(START, "get_data")
-    graph.add_edge("get_data", "generate_post")
+    graph.add_edge(START, "generate_post")
     graph.add_edge("generate_post", "embedding")
     graph.add_edge("embedding", "similarity_search")
     graph.add_edge("similarity_search", "crag")

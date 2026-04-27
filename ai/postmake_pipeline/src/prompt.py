@@ -15,7 +15,8 @@ class Prompt():
 # [COMMON RULES]
 1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도, 이벤트, 신기능, 패치소식, 오류개선 등)를 지어내지 마세요.
 2. 금지 문구: '안녕하세요', '추천합니다', '참고하세요', '이상입니다', '방문해보세요' 등 상투적인 멘트는 절대 사용하지 않습니다.
-3. 구성: 형식에 얽매이지 않고 본문만 짧고 굵게 작성하세요.
+3. 구성: 형식에 얽매이지 않고 본문만 작성하되, 최소 3문장 이상으로 충분한 내용을 담아 작성하세요.
+4. 분량: 결과 본문은 최소 200자 이상 작성하세요.
 """
 
         self.casual_sub_prompts:list[str] = [
@@ -100,19 +101,49 @@ class Prompt():
         try:
             data = json.dumps(d, ensure_ascii=False, indent=4, default=str) #datetime 등 직렬화 대응
             prompt_instance = cls(type, data)
+            existing_post_content = str(d.get("existing_post_content") or "").strip()
+            existing_post_title = str(d.get("existing_post_title") or "").strip()
 
             if type == "casual":
                 sub_prompts = prompt_instance.casual_sub_prompts
             elif type == "formal":
                 sub_prompts = prompt_instance.formal_sub_prompts
-            else:
+            elif type not in ["casual", "formal"]:
                 raise ValueError(f"Invalid type: {type}")
             selected_prompt = random.choice(sub_prompts)
+            existing_post_rule = ""
+            if existing_post_content:
+                existing_post_count = d.get("existing_post_count")
+                current_crawling_content = str(d.get("content") or "").strip()
+                generation_context = str(d.get("generation_context_content") or "").strip()
+                existing_post_rule = f"""
+
+# [EXISTING POST - MUST FOLLOW]
+- 동일 map_id의 기존 게시글이 이미 {existing_post_count}개 존재합니다. 아래 기존 글은 참고만 하고, 반드시 새 글로 재작성하세요.
+- 기존 글의 문장/표현/문단 구조를 그대로 재사용하면 안 됩니다.
+- 기존 글의 사실 정보는 유지하되, 어휘/문장 순서/전개 방식은 완전히 다르게 작성하세요.
+- 기존 글보다 정보 밀도와 문장 완성도를 높여서 작성하세요.
+- 기존 글 요약/항목 나열/문장 이어붙이기(짜깁기) 방식은 금지합니다.
+- 아래 "새 크롤링 본문"과 "기존 게시글 본문"을 함께 참고해 하나의 자연스러운 본문으로 재구성하세요.
+
+[기존 글 제목]
+{existing_post_title}
+
+[새 크롤링 본문]
+{current_crawling_content}
+
+[기존 글 본문]
+{existing_post_content}
+
+[합성 컨텍스트]
+{generation_context}
+"""
 
             final_prompt = f"""
 {prompt_instance.master_template}
 
 {selected_prompt}
+{existing_post_rule}
 ---
 
 # [DATA]
@@ -123,7 +154,6 @@ class Prompt():
 ai가 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
             """
         except Exception as e:
-            print(f"Error: {e}")
             logger.error(f"Error={e} | crawling_id={d.get('crawling_id')}")
             return None
         return final_prompt
