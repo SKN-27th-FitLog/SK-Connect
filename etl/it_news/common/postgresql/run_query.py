@@ -1,6 +1,7 @@
 """DB 실행 전용(INSERT 등). `crawling` 배치는 JSON 배열 1개로 `jsonb_to_recordset`에 넘긴다."""
 
 import pandas as pd
+import numpy as np
 from psycopg.types.json import Jsonb  # psycopg3: jsonb 파라미터
 
 from common.constant import CrawlingColumn
@@ -26,9 +27,26 @@ _CRAWLING_INSERT_ORDER: tuple[CrawlingColumn, ...] = (
 CRAWLING_INSERT_COLS: tuple[str, ...] = tuple(c.value for c in _CRAWLING_INSERT_ORDER)
 
 INSERT_CRAWLING_FROM_JSONB_SQL = r"""
-INSERT INTO crawling (...)
-SELECT * FROM jsonb_to_recordset($1::jsonb) AS t ( ... );
-""".strip()  # 위 SQL 본문으로 치환
+INSERT INTO crawling (
+  title, content, thread, article_url, created_at,
+  view_count, comment_count, point, author, map_id, category_cd, keywords
+)
+SELECT *
+FROM jsonb_to_recordset(%s::jsonb) AS t (
+  title         varchar(200),
+  content       text,
+  thread        varchar(20),
+  article_url   varchar(500),
+  created_at    timestamp,
+  view_count    integer,
+  comment_count integer,
+  point         double precision,
+  author        varchar(100),
+  map_id        bigint,
+  category_cd   varchar(6),
+  keywords      varchar(100)
+);
+""".strip()
 
 #####################################################################################################################
 # 데이터 입력 시 에러 발생한 케이스가 있어서 추가로 넣은 예외 케이스 함수 (안정화 되면 클린징 단계로 옮겨야 함 )
@@ -44,6 +62,35 @@ def _normalize_map_id(v) -> int | None:
         return None
     return None if i == 0 else i
 
+# JSON으로 값을 넣을 떄 받아주지 못하는 데이터 형식인 경우 데이터 값의 타입을 변환 
+def _to_json_value_temp(v: object) -> object:
+    """JSON/Jsonb 직렬화용으로 스칼라 정리(임시). numpy/pandas → int/float/str, 실패 시 str."""
+    if v is None or v is pd.NA:
+        return None
+    if isinstance(v, float) and pd.isna(v):
+        return None
+    try:
+        if isinstance(v, pd.Timestamp):
+            return None if pd.isna(v) else v.isoformat()
+        if isinstance(v, (np.integer, int)) and not isinstance(v, bool):
+            return int(v)
+        if isinstance(v, (np.floating, float)) and not isinstance(v, bool):
+            x = float(v)
+            if np.isnan(x) or np.isinf(x):
+                return None
+            return x
+        if isinstance(v, (str, type(None), bool)):
+            return v
+        if hasattr(v, "item") and not isinstance(v, (str, bytes, dict, list, pd.Timestamp)):
+            return _to_json_value_temp(v.item())
+    except (TypeError, ValueError, AttributeError, OverflowError):
+        pass
+    try:
+        return str(v) if v is not None and v is not pd.NA else None
+    except Exception:
+        return None
+
+
 # 만약 정의되지 않은 Column이 있는 경우 컬럼 단위로 일괄 처리하는 부분 
 def _row_to_crawling_dict(row) -> dict:
     """DataFrame/Series 한 행 → INSERT용 dict. 없는 열은 None(키는 항상 CRAWLING_INSERT_COLS)."""
@@ -53,9 +100,9 @@ def _row_to_crawling_dict(row) -> dict:
             d[col] = None
         elif col == CrawlingColumn.MAP_ID.value: # map_id에 대한 특별 처리 (0값으로 썻더니 에러 발생해서 None으로 치환)
             d[col] = _normalize_map_id(row[col]) 
-        else: # pandas의 결측치 표현만 None으로 치환 / 나머지는 유지 
+        else: # 최종적으로 구해진 값을 처리하지 못하는 데이터 값이나 형식으로 받은 경우 처리 
             v = row[col]
-            d[col] = None if (v is pd.NA or (isinstance(v, float) and pd.isna(v))) else v 
+            d[col] = _to_json_value_temp(v)
     return d
 
 # 데이터 프레임의 데이터들을 row에 해당하는 dict 형태로 변환 

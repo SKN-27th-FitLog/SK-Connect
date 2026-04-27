@@ -1,0 +1,137 @@
+title,content,thread,article_url,created_at,view_count,comment_count,point,author,map_id,category_cd
+Mixture of Experts(MoE)란 무엇인가 — DeepSeek이 왜 1.6조 파라미터인데 싸게 돌아가는지,"Mixture of Experts(MoE)란 무엇인가 — DeepSeek이 왜 1.6조 파라미터인데 싸게 돌아가는지
+DeepSeek V4가 1.6조 파라미터이면서 GPT-5.5의 10분의 1 가격에 서비스될 수 있는 이유를 MoE 아키텍처로 설명합니다.
+MoE는 여러 전문가(Expert) 서브모델과 어떤 전문가를 쓸지 결정하는 라우터(게이팅 네트워크)로 구성됩니다. 핵심은 매 토큰마다 전체 파라미터 중 일부만 선택적으로 활성화한다는 것입니다. 기존 밀집 모델(Dense Model)은 입력이 무엇이든 모든 파라미터가 계산에 참여하지만, MoE는 라우터가 가장 적합한 전문가 몇 개만 골라 처리합니다.
+DeepSeek V4-Pro 기준으로 전체 파라미터 1.6조 중 토큰당 490억(약 3%)만 활성화됩니다. 1.6조 규모의 지식을 담으면서 실제 추론 비용은 490억 수준 모델과 비슷한 셈입니다. 일반적으로 MoE는 같은 규모 밀집 모델 대비 가격 대비 성능을 3~5배 개선합니다.
+단점도 있습니다. 계산은 희소하게 이루어지지만 모든 전문가의 파라미터를 메모리에 올려두어야 해 VRAM 요구량이 높고, 학습 시 특정 전문가에게 부하가 집중되는 불균형 문제를 별도로 관리해야 합니다.
+2026년 현재 GPT-4, Gemini 1.5, Mixtral, DeepSeek 시리즈 등 주요 프론티어 모델 대부분이 MoE 기반입니다. AI 모델 경쟁의 축이 단순 크기에서 비용 대비 성능으로 이동하면서 MoE가 사실상 표준 아키텍처로 자리잡은 결과입니다.",geeknews_28939,https://news.hada.io/topic?id=28939,2026-04-27 13:28:09.195110,0,0,1,nextvine,,CA07
+Agentic Inbox - AI 에이전트 탑재 셀프호스팅 이메일 클라이언트,"Cloudflare Workers 위에서 전체 실행
+되는 셀프호스팅 이메일 클라이언트로, 이메일 송수신·관리와
+AI 에이전트 기반 자동 답장 초안 생성
+을 하나의 앱에서 처리
+수신 이메일은
+Cloudflare Email Routing
+으로 도착하고, 각 메일박스는
+독립된 Durable Object
+(SQLite 데이터베이스)에 격리 저장되며, 첨부파일은
+R2
+에 보관
+사이드 패널에 내장된
+AI 에이전트
+가
+9개 이메일 도구
+(읽기, 검색, 초안 작성, 전송)를 사용하며, 신규 이메일 수신 시 자동으로 답장 초안을 생성하되
+전송 전 반드시 사용자 확인을 거침
+AI 에이전트는
+Cloudflare Agents SDK
+(AIChatAgent)와
+Workers AI
+(
+@cf/moonshotai/kimi-k2.5
+모델)로 구동되며, 스트리밍 마크다운 응답과 도구 호출 가시성 제공
+메일박스별
+커스텀 시스템 프롬프트
+설정 가능, 영구 채팅 이력 유지, 리치 텍스트 작성기·답장/전달 스레딩·폴더 정리·검색·첨부파일 등
+풀 이메일 클라이언트 기능
+지원
+MCP 서버
+를
+/mcp
+경로에 노출하여 Claude Code, Cursor 등 외부 AI 도구에서 메일박스 조작 가능
+인증은
+Cloudflare Access JWT 검증
+으로 처리하며, Access 정책을 통과한 사용자는 모든 메일박스에 접근 가능
+프론트엔드는 React 19 + Tailwind CSS + Zustand + TipTap, 백엔드는 Hono + Cloudflare Workers
+'Deploy to Cloudflare' 원클릭 배포 후 Email Routing·Access 설정으로 구성 끝
+Apache 2.0 라이선스",geeknews_28926,https://news.hada.io/topic?id=28926,2026-04-27 10:41:09.746535,0,0,4,xguru,,CA07
+Obscura - 오픈소스 헤드리스 브라우저,"웹 스크래핑과 AI 에이전트 자동화에 특화된 헤드리스 브라우저 엔진
+V8 엔진을 내장해 실제 JavaScript를 실행하며,
+Chrome DevTools Protocol(CDP)
+구현으로 Puppeteer·Playwright 코드
+그대로 재사용
+가능
+헤드리스 Chrome 대비 메모리
+30MB
+(vs 200MB+), 바이너리
+70MB
+(vs 300MB+), 페이지 로드
+85ms
+(vs ~500ms)로 대폭 경량화
+페이지 로드
+85ms
+수준이라 대량 크롤링 시 Chrome 대비 대기 시간이 5~10배 단축
+단일 바이너리 배포로 Chrome, Node.js 등
+외부 의존성 제로
+--stealth
+스텔스 모드
+내장:
+navigator.webdriver
+은닉, 네이티브 함수 위장 등
+안티봇 우회 설정 자동 적용
+세션별 핑거프린트 랜덤화(GPU, 캔버스, 오디오 등)
+3,520개 도메인의 광고·애널리틱스·텔레메트리
+트래커 자동 차단
+으로
+페이지 렌더링 속도까지 개선
+CLI에서
+obscura fetch
+로 단일 페이지 렌더링,
+obscura serve
+로 CDP WebSocket 서버 기동
+obscura scrape url1 url2 ... --concurrency 25
+로
+손쉬운 병렬 스크래핑
+--eval ""document.title""
+처럼 CLI에서
+JS 표현식 바로 실행
+해 결과만 뽑을 수 있어, 간단한 데이터 추출에 유용함
+CDP API로 Target, Page, Runtime, DOM, Network, Fetch, Input 등 주요 도메인 지원,
+DOM→Markdown 변환
+(LP.getMarkdown)도 포함
+폼 제출·로그인 시 POST 처리, 302 리다이렉트, 쿠키 유지를
+자동 처리
+해서 인증 흐름 직접 구현할 필요 없음
+Apache 2.0 라이선스",geeknews_28920,https://news.hada.io/topic?id=28920,2026-04-27 09:41:10.295131,0,4,12,xguru,,CA07
+mini-swe-agent - 100줄짜리 AI 에이전트로 GitHub 이슈 해결 및 커맨드라인 지원,"SWE-bench와 SWE-agent를 만든 Princeton·Stanford 팀이 개발한
+최소주의 AI 코딩 에이전트
+약 100줄의 Python 코드
+로 구성된 초경량 AI 소프트웨어 엔지니어링 에이전트로, 거대한 설정 파일이나 모노레포 없이 동작
+bash만 도구로 사용
+하며 LLM의 tool-calling 인터페이스 없이도 어떤 모델과든 호환 가능
+SWE-bench verified 벤치마크에서 74% 이상
+달성, Gemini 3 Pro 기준으로도 동일 수준 기록
+subprocess.run
+으로 각 액션을
+독립 실행
+해 상태 유지 쉘 세션이 불필요하고, Docker 전환 시
+docker exec
+로 교체하는 수준의 단순함
+완전 선형 히스토리 구조
+로 트래젝토리와 LLM에 전달되는 메시지가 동일해 디버깅·파인튜닝에 최적
+로컬,
+Docker/Podman, Singularity/Apptainer, Bubblewrap, Contree
+등 다양한 샌드박스 환경 배포 지원
+litellm, openrouter, portkey
+등을 통해 모든 모델 지원,
+/completion
+및
+/response
+엔드포인트와 interleaved thinking 호환
+Meta, NVIDIA, IBM, Essential AI, Nebius, Anyscale,
+Princeton·Stanford
+등에서 채택
+Claude Code 대비
+시작 속도가 훨씬 빠르며
+, 에이전트 스캐폴드 과적합 없이 LLM 자체 성능을 평가하는 베이스라인으로 활용 가능
+CLI(
+mini
+), 배치 추론,
+트래젝토리 브라우저
+, Python 바인딩(
+DefaultAgent
+,
+LitellmModel
+,
+LocalEnvironment
+) 제공
+MIT 라이선스",geeknews_28891,https://news.hada.io/topic?id=28891,2026-04-26 13:41:10.839992,0,1,11,xguru,,CA07
