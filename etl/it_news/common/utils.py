@@ -258,7 +258,7 @@ def get_existing_crawling_threads(threads: list[str] | None) -> set[str]:
     if not unique:
         return set()
     conn = PostgreDB()
-    rows = conn.run_query_params(
+    rows = conn.run_query_lst(
         "SELECT thread FROM crawling WHERE thread = ANY(%s)",
         (unique,),
     )

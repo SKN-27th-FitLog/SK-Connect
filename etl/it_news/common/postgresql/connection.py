@@ -32,13 +32,19 @@ class PostgreDB(metaclass=Singleton):
         return self.conn
 
     def run_query(self, query:str, **params):
-        """ 전달받은 쿼리랑 인자를 실행하고 결과를 반환하는 함수 """
+        """ 
+        전달받은 쿼리랑 인자를 실행하고 결과를 반환하는 함수 
+        들어가는 인자들은 인자 이름을 같이 넣어줘야 사용 가능함 
+        """
         with self.conn.cursor() as cursor:
             cursor.execute(query, params)
             return cursor.fetchall()
 
-    def run_query_params(self, query: str, args: tuple | list | None = None) -> list:
-        """`%(name)s`가 아닌 `%%s` 자리(튜플·리스트)용. 예: `WHERE x = ANY(%%s)`."""
+    def run_query_lst(self, query: str, args: tuple | list | None = None) -> list:
+        """
+        인자가 아니라 위치 기준으로 반복되는 데이터를 여러개 넣게 되서 만든 별도 함수 
+        `%(name)s`가 아닌 `%%s` 자리(튜플·리스트)용. 예: `WHERE x = ANY(%%s)`.
+        """
         with self.conn.cursor() as cursor:
             cursor.execute(query, args or ())
             return cursor.fetchall()
