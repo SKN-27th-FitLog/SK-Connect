@@ -29,5 +29,13 @@ def set_logging() -> logging.Logger:
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
     logger.addHandler(handler) #로그 핸들러 추가
+
+    # 콘솔 핸들러를 추가해 실행 상태를 터미널에서도 확인 가능하게 함
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+    logger.addHandler(console_handler)
     return logger
 

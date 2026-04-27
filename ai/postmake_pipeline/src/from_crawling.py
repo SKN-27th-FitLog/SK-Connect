@@ -165,7 +165,7 @@ class GetCrawlingData():
 
     def get_crawling_data(self):
         """crawling 테이블에서 데이터를 조회
-            이미 처리한 crawling_id는 제외하고 조회"""
+            동일 title+map_id 기준으로 이미 처리된 최신 crawling_id보다 큰 건만 조회"""
         query = """
             SELECT c.*
             FROM crawling c
@@ -173,10 +173,30 @@ class GetCrawlingData():
             AND c.content IS NOT NULL
             AND NULLIF(TRIM(c.content), '') IS NOT NULL
             AND (c.title IS NULL OR c.title NOT ILIKE 'crawl%%')
-            AND NOT EXISTS (
-                SELECT 1
-                FROM posts p
-                WHERE p.crawling_id = c.crawling_id
+            AND (
+                -- title/map 기준 매칭이 가능한 경우: 최신 처리 crawling_id보다 큰 데이터만 대상
+                (
+                    c.title IS NOT NULL
+                    AND c.map_id IS NOT NULL
+                    AND c.crawling_id > COALESCE((
+                        SELECT MAX(p.crawling_id)
+                        FROM posts p
+                        WHERE p.post_cd = 'PT01'
+                          AND p.crawling_id IS NOT NULL
+                          AND LOWER(TRIM(p.title)) = LOWER(TRIM(c.title))
+                          AND p.map_id = c.map_id
+                    ), 0)
+                )
+                OR
+                -- title/map 매칭이 불가능한 경우: crawling_id 기준 중복만 제거
+                (
+                    (c.title IS NULL OR c.map_id IS NULL)
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM posts p
+                        WHERE p.crawling_id = c.crawling_id
+                    )
+                )
             )
             ORDER BY c.crawling_id ASC
             LIMIT %s;

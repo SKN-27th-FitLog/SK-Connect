@@ -8,12 +8,10 @@ from src.llm_factory import get_llm
 logger = set_logging()
 
 import os
-import time
 
 _EMBEDDINGS_SINGLETON = None
 COSINE_DISTANCE_THRESHOLD = 0.08  # cosine similarity 0.92 이상이면 중복으로 판단
 MIN_GENERATED_CHARS = 200
-MAX_GENERATION_RETRY = 2
 
 def get_embeddings():
     """임베딩 모델 싱글톤 반환"""
@@ -61,39 +59,45 @@ def _fail_or_retry(state: State):
         "failed_crawling_id": state["data"]["crawling_id"],
     }
 
+
+def _build_regenerate_prompt(state: State) -> str:
+    """유사 검색 결과를 반영해 재생성용 프롬프트를 보강"""
+    similar_posts = state.get("similar_posts") or []
+    if not similar_posts:
+        return state["prompt"]
+
+    samples: list[str] = []
+    for idx, post in enumerate(similar_posts[:3], start=1):
+        content = str(post.get("page_content") or "").strip() if isinstance(post, dict) else ""
+        if content:
+            samples.append(f"[유사글 {idx}] {content[:300]}")
+
+    if not samples:
+        return state["prompt"]
+
+    return (
+        f"{state['prompt']}\n\n"
+        "[추가 지시]\n"
+        "아래 유사글과 문장/전개가 겹치지 않게 완전히 새롭게 작성하세요.\n"
+        "- 문장 복붙/짜깁기 금지\n"
+        "- 핵심 사실은 유지하되 어휘/구성은 새롭게\n\n"
+        "[유사글 샘플]\n"
+        f"{chr(10).join(samples)}"
+    )
+
 def generate_post_node(state: State):
     """프롬프트 기반 게시글 1회 생성 후 data.content 교체"""
     llm = get_llm()
-    current_prompt = state["prompt"]
-    post = ""
-    original_content = (state["data"].get("content") or "").strip()
-    for attempt in range(MAX_GENERATION_RETRY):
-        response = llm.invoke(current_prompt)
-        post = response.content if hasattr(response, "content") else str(response)
-        post = (post or "").strip()
-        if len(post) >= MIN_GENERATED_CHARS:
-            break
-        current_prompt = (
-            f"{state['prompt']}\n\n"
-            "[추가 지시]\n"
-            "- 응답은 반드시 비어있지 않은 한국어 본문으로 작성하세요.\n"
-            f"- 최소 {MIN_GENERATED_CHARS}자 이상 작성하세요.\n"
-            "- 제목/머리말/불릿 없이 본문만 출력하세요.\n"
-        )
-        logger.warning(f"Generated post too short/empty (attempt={attempt + 1})")
-        time.sleep(0.5)
+    response = llm.invoke(state["prompt"])
+    post = response.content if hasattr(response, "content") else str(response)
+    post = (post or "").strip()
     if len(post) < MIN_GENERATED_CHARS:
-        # 생성 실패 시 파이프라인 중단 대신 원문으로 fallback
-        if len(original_content) > 0:
-            logger.warning("LLM generation failed repeatedly, fallback to original content")
-            post = original_content
-        else:
-            logger.warning("LLM generation failed and no original content, mark as failed")
-            return {
-                **state,
-                "status": "failed",
-                "failed_crawling_id": state["data"].get("crawling_id")
-            }
+        logger.warning("Generated post too short/empty (single attempt)")
+        return {
+            **state,
+            "status": "failed",
+            "failed_crawling_id": state["data"].get("crawling_id")
+        }
 
     data = state["data"].copy()
     data["content"] = post
@@ -190,41 +194,34 @@ def similarity_search_node(state: State):
         "similar_posts": similar_posts
     }
 
+
+def route_similarity(state: State):
+    """유사도 분기: 없으면 생성, 있으면 재생성"""
+    if state.get("is_unique", True):
+        return "generate"
+    return "regenerate"
+
+
+def regenerate_node(state: State):
+    """유사글 존재 시 재생성"""
+    regenerate_state = {
+        **state,
+        "prompt": _build_regenerate_prompt(state),
+    }
+    return generate_post_node(regenerate_state)
+
 def crag_node(state: State):
-    """유사도 검색 결과 기준 CRAG 판정"""
+    """생성 결과 완성도 기준 CRAG 판정"""
     is_valid_post = validate_post_completion(state)
 
-    # 1) 완성도 실패 분기
     if not is_valid_post:
         return _fail_or_retry(state)
 
-    has_existing_post = bool(state["data"].get("existing_post_content"))
-
-    # 기존 게시글 업데이트 케이스: 최소 1회 재생성 강제
-    if has_existing_post and state.get("retry_count", 0) == 0:
-        return {
-            **state,
-            "status": "retry",
-            "retry_count": 1
-        }
-
-    # 기존 게시글 업데이트 케이스: 재생성 1회 이후에는 중복 판정에 막히지 않고 통과
-    if has_existing_post and state.get("retry_count", 0) >= 1:
-        return {
-            **state,
-            "status": "passed",
-            "failed_crawling_id": None
-        }
-
-    if state["is_unique"]:
-        return {
-            **state,
-            "status": "passed",
-            "failed_crawling_id": None
-        }
-
-    # 2) 유사도 실패 분기
-    return _fail_or_retry(state)
+    return {
+        **state,
+        "status": "passed",
+        "failed_crawling_id": None
+    }
 
 def route_crag(state: State):
     """CRAG 분기"""
@@ -234,16 +231,24 @@ def route_crag(state: State):
 
 def graph():
     graph = StateGraph(State)
-    graph.add_node("generate_post", generate_post_node)
     graph.add_node("embedding", embedding_node)
     graph.add_node("similarity_search", similarity_search_node)
-    graph.add_node("regenerate", generate_post_node)
+    graph.add_node("generate_post", generate_post_node)
+    graph.add_node("regenerate", regenerate_node)
     graph.add_node("crag", crag_node)
 
-    graph.add_edge(START, "generate_post")
-    graph.add_edge("generate_post", "embedding")
+    graph.add_edge(START, "embedding")
     graph.add_edge("embedding", "similarity_search")
-    graph.add_edge("similarity_search", "crag")
+    graph.add_conditional_edges(
+        "similarity_search",
+        route_similarity,
+        {
+            "generate": "generate_post",
+            "regenerate": "regenerate"
+        }
+    )
+    graph.add_edge("generate_post", "crag")
+    graph.add_edge("regenerate", "crag")
     graph.add_conditional_edges(
         "crag",
         route_crag,
@@ -252,6 +257,5 @@ def graph():
             "done": END
         }
     )
-    graph.add_edge("regenerate", "embedding")
     
     return graph.compile()
