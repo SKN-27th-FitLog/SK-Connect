@@ -1,32 +1,9 @@
-from dotenv import load_dotenv
-from pathlib import Path
-from psycopg2 import connect
-import os
 
-from src.logging_config import set_logging
-from src.merge_utils import apply_merge_rules
+from common.logging_config import set_logging
+from common.connection import Connection
 
 logger = set_logging()
-env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
-load_dotenv(env_path, override=True)
 
-
-class _Connection:
-    _instance = None
-
-    @classmethod
-    def get_connection(cls):
-        if cls._instance is None:
-            cls._instance = connect(
-                host=os.getenv("DB_HOST"),
-                port=os.getenv("DB_PORT"),
-                database=os.getenv("SERVICE_DB_NAME"),
-                user=os.getenv("DB_USER"),
-                password=os.getenv("DB_PASSWORD"),
-            )
-            # from_crawling 경로는 조회 전용이므로 autocommit으로 열린 트랜잭션 누수 방지
-            cls._instance.autocommit = True
-        return cls._instance
 
 
 class GetCrawlingData():
@@ -73,7 +50,7 @@ class GetCrawlingData():
     def execute_query(self, query: str, params: list) -> list[dict]:
         """쿼리 실행 후 결과를 딕셔너리 리스트로 반환"""
         try:
-            with _Connection.get_connection().cursor() as cursor:
+            with Connection().get_connection().cursor() as cursor:
                 cursor.execute(query, params)
                 columns = [col[0] for col in cursor.description]
                 rows = cursor.fetchall()

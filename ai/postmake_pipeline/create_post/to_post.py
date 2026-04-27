@@ -6,34 +6,10 @@ import os
 import re
 from langchain_postgres.vectorstores import PGVector
 from langchain_huggingface import HuggingFaceEmbeddings
-from psycopg2 import connect
+from common.connection import Connection
 from src.logging_config import set_logging
 logger = set_logging()
 
-env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
-load_dotenv(env_path, override=True)
-
-
-class Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super().__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-class Connection(metaclass=Singleton):
-    def __init__(self):
-        self.connection = connect(
-            host=os.getenv("DB_HOST"),
-            port=os.getenv("DB_PORT"),
-            database=os.getenv("SERVICE_DB_NAME"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-        )
-
-    def get_connection(self):
-        return self.connection
 
 class PGVectorStore:
     """vectorstore를 반환"""
@@ -63,19 +39,8 @@ class PGVectorStore:
 
 _VECTORSTORE_CACHE: dict[str, PGVectorStore] = {} # 벡터 저장소
 
-def _collection_name_by_category(category_cd: str | None) -> str:
-    """category_cd별 컬렉션명 생성"""
-    if not category_cd: # category_cd가 없으면 기본 컬렉션명 반환
-        return "post_vector_unknown"
-    normalized = re.sub(r"[^a-zA-Z0-9_]", "_", str(category_cd)).lower() # category_cd를 정규화
-    return f"post_vector_{normalized}"
-
-
-def get_vectorstore(category_cd: str | None = None):
-    collection_name = _collection_name_by_category(category_cd)
-    if collection_name not in _VECTORSTORE_CACHE:
-        _VECTORSTORE_CACHE[collection_name] = PGVectorStore(collection_name=collection_name)
-    return _VECTORSTORE_CACHE[collection_name].get_vectorstore()
+def get_vectorstore():
+    return PGVectorStore().get_vectorstore()
 
 def get_connection():
     return Connection().get_connection()

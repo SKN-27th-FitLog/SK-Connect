@@ -1,16 +1,16 @@
 import json
 import random
 
-from src.logging_config import set_logging
+from common.logging_config import set_logging
 logger = set_logging()
 
-class Prompt():
-
+class Create_Prompt():
     def __init__(self, type: str, data: str):
         self.master_template = """
 # [SYSTEM ROLE]
 당신은 대한민국 현지인들이 사용하는 리얼한 말투를 완벽하게 구사하는 게시글 작성자입니다.
 광고 같은 느낌을 완전히 배제하고, 실제 사용자가 작성한 듯한 텍스트를 생성하세요.
+긍정적인 내용으로 작성하세요.
 
 # [COMMON RULES]
 1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도, 이벤트, 신기능, 패치소식, 오류개선 등)를 지어내지 마세요.
@@ -94,66 +94,37 @@ class Prompt():
 - 출력 예시: "기술적 완성도가 상당히 높습니다. 특히 아키텍처의 확장성이 좋아 향후 다양한 프로젝트에 유연하게 대응할 수 있을 것으로 판단합니다."
 """
         ]
+        self.regenerate_sub_prompts:list[str] = [
+            """
+            """,
+            """
+            """,
+            """
+            """,
+            """
+            """,
+            """
+            """,
+        ]
 
     @classmethod
-    def get_prompt(cls, type: str, d:dict)->str:
+    def get_prompt(cls, type: str, data:dict)->str:
         """랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환"""
         try:
-            data = json.dumps(d, ensure_ascii=False, indent=4, default=str) #datetime 등 직렬화 대응
-            prompt_instance = cls(type, data)
-            existing_post_content = str(d.get("existing_post_content") or "").strip()
-            existing_post_title = str(d.get("existing_post_title") or "").strip()
-
             if type == "casual":
-                sub_prompts = prompt_instance.casual_sub_prompts
+                return random.choice(cls.casual_sub_prompts)
             elif type == "formal":
-                sub_prompts = prompt_instance.formal_sub_prompts
-            elif type not in ["casual", "formal"]:
+                return random.choice(cls.formal_sub_prompts)
+            elif type != "casual" and type != "formal":
                 raise ValueError(f"Invalid type: {type}")
-            selected_prompt = random.choice(sub_prompts)
-            existing_post_rule = ""
-            if existing_post_content:
-                existing_post_count = d.get("existing_post_count")
-                current_crawling_content = str(d.get("content") or "").strip()
-                generation_context = str(d.get("generation_context_content") or "").strip()
-                existing_post_rule = f"""
-
-# [EXISTING POST - MUST FOLLOW]
-- 동일 map_id의 기존 게시글이 이미 {existing_post_count}개 존재합니다. 아래 기존 글은 참고만 하고, 반드시 새 글로 재작성하세요.
-- 기존 글의 문장/표현/문단 구조를 그대로 재사용하면 안 됩니다.
-- 기존 글의 사실 정보는 유지하되, 어휘/문장 순서/전개 방식은 완전히 다르게 작성하세요.
-- 기존 글보다 정보 밀도와 문장 완성도를 높여서 작성하세요.
-- 기존 글 요약/항목 나열/문장 이어붙이기(짜깁기) 방식은 금지합니다.
-- 아래 "새 크롤링 본문"과 "기존 게시글 본문"을 함께 참고해 하나의 자연스러운 본문으로 재구성하세요.
-
-[기존 글 제목]
-{existing_post_title}
-
-[새 크롤링 본문]
-{current_crawling_content}
-
-[기존 글 본문]
-{existing_post_content}
-
-[합성 컨텍스트]
-{generation_context}
-"""
-
-            final_prompt = f"""
-{prompt_instance.master_template}
-
-{selected_prompt}
-{existing_post_rule}
----
-
-# [DATA]
-{data}
-
-# [INSTRUCTION]
-위 데이터를 바탕으로 선택된 모드의 페르소나에 빙의하여 리뷰 본문만 작성해줘.
-ai가 쓴 것 같은 느낌이 들면 안 돼. 최대한 사람처럼!
-            """
         except Exception as e:
-            logger.error(f"Error={e} | crawling_id={d.get('crawling_id')}")
-            return None
-        return final_prompt
+            logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
+            return ""
+    @classmethod
+    def get_regenerate_prompt(cls, data:dict)->str:
+        """유사글 존재 시 재생성 프롬프트 반환"""
+        try:
+            return random.choice(cls.regenerate_sub_prompts)
+        except Exception as e:
+            logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
+            return ""
