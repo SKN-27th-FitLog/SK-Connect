@@ -218,36 +218,33 @@ def coalesce_last_created_at(last_created_at: object | None) -> datetime:
     return default_last_collected_at()
 
 
-def get_last_success_date() -> datetime:
-    """이미 DB(`crawling`)에 반영된 글 중 `created_at`이 가장 늦은 시각(마지막으로 적용한 글의 시각).
+def get_last_success_date(service: Service | None = None) -> datetime:
+    """`crawling` 테이블에서 워터마크로 쓸 `MAX(created_at)`(없으면 `default_last_collected_at()`).
 
-    한 건이라도 있으면 그걸 “그 이전은 이미 넣음”의 기준이 되고, 이후 ETL/클리닝은 글 `created_at` > 이 시각인 행만 취한다.
-    `MAX(created_at)`이 NULL(최초)이면 `default_last_collected_at()` — 오늘로부터 90일 전 00:00(같은 상수)을 워터마크로 쓴다.
+    * ``service is None`` (기본)
+        * **전체** `crawling`에 대해 `SELECT MAX(created_at)`. 소스(스레드 접두)를 가리지 않는다.
+    * ``service is Service.GEEKNEWS | Service.PYTORCH``
+        * ``thread``가 ``{service.service}_`` **접두**에 맞는 행만 대상으로 `MAX(created_at)`.
+        * geeknews / pytorch 를 **각각** 두어, 한 쪽만 DB에 쌓여도 다른 쪽의 더 이른 `created_at`이
+          “이미 반영됨”으로 잘못 제외되지 않게 한다.
+        * 그 접두의 행이 없으면 `default_last_collected_at()`(최초 90일 워터마크)과 동일.
+
+    그 밖의 ``Service`` 는 지원하지 않는다(``ValueError``).
     """
-    conn = PostgreDB()
-    max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
-    raw = max_rows[0][0] if max_rows else None
-    if raw is None:
-        return default_last_collected_at()
-    return raw
-
-
-def get_last_success_date_by_crawl_source(service: Service) -> datetime:
-    """`crawling`에 이미 있는 글 중 `thread`가 `{service.service}_`로 시작하는 행의 `MAX(created_at)`.
-
-    geeknews / pytorch 는 `MAX(created_at)`를 **각각** 두어, 한 쪽만 DB에 쌓여도 다른 쪽 `created_at`이
-    더 이른 글이 “이미 반영됨”으로 잘못 제외되지 않게 한다. 해당 접두의 행이 없으면
-    `default_last_collected_at()`(최초 90일 워터마크)과 동일하게 동작.
-    """
-    if service not in (Service.GEEKNEWS, Service.PYTORCH):
-        raise ValueError("get_last_success_date_by_crawl_source: GEEKNEWS / PYTORCH만 지원")
-    pat = f"^{service.service}_"
-    conn = PostgreDB()
-    max_rows = conn.run_query_lst(
-        "SELECT MAX(created_at) FROM crawling WHERE thread ~ %s",
-        (pat,),
-    )
-    raw = max_rows[0][0] if max_rows else None
+    if service is None:
+        conn = PostgreDB()
+        max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
+        raw = max_rows[0][0] if max_rows else None
+    elif service in (Service.GEEKNEWS, Service.PYTORCH):
+        pat = f"^{service.service}_"
+        conn = PostgreDB()
+        max_rows = conn.run_query_lst(
+            "SELECT MAX(created_at) FROM crawling WHERE thread ~ %s",
+            (pat,),
+        )
+        raw = max_rows[0][0] if max_rows else None
+    else:
+        raise ValueError("get_last_success_date: GEEKNEWS / PYTORCH만 service로 지정 가능 (전체는 None)")
     if raw is None:
         return default_last_collected_at()
     return raw

@@ -5,7 +5,7 @@ import logging
 
 from cleaning.cleaning import cleaning_threads
 from common.constant import Service
-from common.utils import get_last_success_date_by_crawl_source, get_run_time
+from common.utils import get_last_success_date, get_run_time
 from crawling.crawling_thread_geeknews import crawling_thread_geeknews
 from crawling.crawling_thread_pytorch import crawling_thread_pytorch
 from save.save import save_threads
@@ -17,8 +17,8 @@ def run_pipeline() -> None:
     """한 프로세스에서 1) 두 소스 크롤, 2) 클리닝, 3) 저장 순으로 실행."""
     # 같은 `run_time`으로 두 크롤 출력이 동일 run 폴더에 쌓이도록
     run_time = get_run_time()
-    last_geek = get_last_success_date_by_crawl_source(Service.GEEKNEWS)
-    last_pt = get_last_success_date_by_crawl_source(Service.PYTORCH)
+    last_geek = get_last_success_date(Service.GEEKNEWS)
+    last_pt = get_last_success_date(Service.PYTORCH)
 
     logger.info("1/4 크롤링 geeknews")
     g_ok, g_fail = crawling_thread_geeknews(

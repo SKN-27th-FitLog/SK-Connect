@@ -33,7 +33,7 @@ from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Serv
 from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
-    get_last_success_date_by_crawl_source,
+    get_last_success_date,
     get_run_time,
     save_csv,
 )
@@ -236,7 +236,7 @@ def crawling_thread_pytorch(
 ##############################################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    last_success_date = get_last_success_date_by_crawl_source(Service.PYTORCH)
+    last_success_date = get_last_success_date(Service.PYTORCH)
 
     df_ok, df_bad = crawling_thread_pytorch(last_created_at=last_success_date)
     logger.info(
