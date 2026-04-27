@@ -1073,3 +1073,8 @@ etl/meal/targets_verify.csv
 *.mkv
 
 study/
+
+*.jsonl
+*.html
+*.txt
+*.csv
