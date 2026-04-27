@@ -56,5 +56,3 @@ class DatabaseManager:
             raise
         finally:
             session.close()
-
-db_manager = DatabaseManager()

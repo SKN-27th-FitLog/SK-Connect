@@ -21,14 +21,40 @@ QUERY_SELECT_PROCESSED_URLS = 'SELECT article_url FROM crawling WHERE article_ur
 QUERY_UPSERT_MAP = """
     INSERT INTO maps (name, category_cd, address_cd, address_detail, latitude, longitude)
     VALUES (:name, :category_cd, :address_cd, :address_detail, :latitude, :longitude)
+    ON CONFLICT (name, category_cd, address_cd, address_detail)
+    DO UPDATE SET
+        latitude = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude
     RETURNING map_id
 """
 
 # 2.2 Shop Upsert
 QUERY_UPSERT_SHOP = """
-    INSERT INTO shop (map_id, shop_cd, rating)
-    VALUES (:map_id, :shop_cd, :rating)
+    INSERT INTO shop (
+        map_id, shop_cd, rating,
+        store_content_hash, menu_content_hash, review_content_hash, image_content_hash,
+        last_checked_at
+    )
+    VALUES (
+        :map_id, :shop_cd, :rating,
+        :store_content_hash, :menu_content_hash, :review_content_hash, :image_content_hash,
+        NOW()
+    )
+    ON CONFLICT (map_id, shop_cd)
+    DO UPDATE SET
+        rating = EXCLUDED.rating,
+        store_content_hash = EXCLUDED.store_content_hash,
+        menu_content_hash = EXCLUDED.menu_content_hash,
+        review_content_hash = EXCLUDED.review_content_hash,
+        image_content_hash = EXCLUDED.image_content_hash,
+        last_checked_at = NOW()
     RETURNING shop_id
+"""
+
+QUERY_TOUCH_SHOP_CHECKED_AT = """
+    UPDATE shop
+    SET last_checked_at = NOW()
+    WHERE shop_id = :shop_id
 """
 
 # 2.3 Crawling Insert (확장됨)
@@ -65,3 +91,60 @@ SERVICE_REVIEW = "review"
 
 STATUS_SUCCESS = "success"
 STATUS_FAIL = "fail"
+
+
+# ---------------------------------------------------------
+# 4. store repository queries
+# ---------------------------------------------------------
+
+find_success_loaded_dedup_keys = """
+    SELECT name, address_cd
+    FROM maps
+    WHERE category_cd = :category_cd
+"""
+
+find_update_targets = """
+            SELECT
+                s.shop_id AS store_id,
+                m.address_cd,
+                m.category_cd,
+                s.last_checked_at
+            FROM shop s
+            JOIN maps m ON m.map_id = s.map_id
+            WHERE m.category_cd = :category_cd
+              AND (
+                    s.last_checked_at IS NULL
+                    OR s.last_checked_at <= NOW() - (:refresh_interval_days * INTERVAL '1 day')
+              )
+            ORDER BY s.last_checked_at ASC NULLS FIRST
+            LIMIT :limit
+        """
+
+find_snapshot_by_dedup_key="""
+            SELECT
+                s.shop_id AS store_id,
+                m.map_id,
+                s.store_content_hash,
+                s.menu_content_hash,
+                s.review_content_hash,
+                s.image_content_hash,
+                s.updated_at AS last_updated_at,
+                s.last_checked_at
+            FROM shop s
+            JOIN maps m ON m.map_id = s.map_id
+            WHERE s.dedup_key = :dedup_key OR m.canonical_url = :dedup_key
+            LIMIT 1
+        """
+
+# ---------------------------------------------------------
+# 5.fail repository queries
+# ---------------------------------------------------------
+
+get_retry_targets = """
+            SELECT entity_id, entity_ref, reason_code, retry_count
+            FROM fail_ledger
+            WHERE category_cd = :category_cd 
+              AND source_platform = :platform
+              AND action = 'RETRY'
+              AND retry_count < 5
+        """

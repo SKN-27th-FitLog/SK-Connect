@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from src.core.base_stage import BaseStage
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
-from src.core.policy.resolver import PolicyResolver, policy_resolver, Action
+from src.core.policy.resolver import PolicyResolver, create_policy_resolver, Action
 
 class Stage5FailClassification(BaseStage):
     """
@@ -15,9 +15,9 @@ class Stage5FailClassification(BaseStage):
     """
     NAME = "fail_classification"
 
-    def __init__(self, resolver: PolicyResolver = policy_resolver):
+    def __init__(self, resolver: PolicyResolver | None = None):
         super().__init__(self.NAME)
-        self.policy_resolver = resolver
+        self.policy_resolver = resolver or create_policy_resolver()
 
     def execute(self, shard_results: List[Dict[str, Any]], batch_id: str, category_cd: str, origin_stage: str) -> Dict[str, List[Dict[str, Any]]]:
         """
