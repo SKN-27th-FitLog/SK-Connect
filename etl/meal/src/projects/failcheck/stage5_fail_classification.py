@@ -6,6 +6,7 @@ from src.core.base_stage import BaseStage
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
 from src.core.policy.resolver import PolicyResolver, create_policy_resolver, Action
+from src.core.repository.fail_repository import FailRepository
 
 class Stage5FailClassification(BaseStage):
     """

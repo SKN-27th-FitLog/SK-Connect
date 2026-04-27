@@ -7,6 +7,7 @@ from src.core.repository.database import DatabaseManager
 from src.core.constants import find_success_loaded_dedup_keys
 from src.core.constants import find_update_targets
 from src.core.constants import find_snapshot_by_dedup_key
+from src.core.constants import get_retry_targets
 
 logger = logging.getLogger("core.repository")
 
@@ -16,7 +17,7 @@ class StoreRepository:
         self.db = db or DatabaseManager()
 
     def find_success_loaded_dedup_keys(self, category_cd: str) -> Set[str]:
-        query = constants.find_success_loaded_dedup_keys
+        query = find_success_loaded_dedup_keys
         dedup_keys = set()
         try:
             with self.db.get_session() as session:
@@ -32,7 +33,7 @@ class StoreRepository:
         return target_dedup_key in existing_keys
 
     def find_update_targets(self, category_cd: str, limit: int, refresh_interval_days: int = 30) -> list[Dict[str, Any]]:
-        query = constants.find_update_targets
+        query = find_update_targets
         try:
             with self.db.get_session() as session:
                 rows = session.execute(text(query), {
@@ -46,7 +47,7 @@ class StoreRepository:
             return []
 
     def find_snapshot_by_dedup_key(self, dedup_key: str) -> Optional[Dict[str, Any]]:
-        query = constants.find_snapshot_by_dedup_key
+        query = find_snapshot_by_dedup_key
         try:
             with self.db.get_session() as session:
                 row = session.execute(text(query), {"dedup_key": dedup_key}).mappings().first()

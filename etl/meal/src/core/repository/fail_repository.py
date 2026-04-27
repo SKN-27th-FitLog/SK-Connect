@@ -20,7 +20,7 @@ class FailRepository:
         주: 실제 구현 환경에 따라 DB의 fail_ledger 테이블이나 partition 파일을 조회.
         """
         # 시뮬레이션: DB fail_ledger 테이블이 있다고 가정
-        query = constants.get_retry_targets
+        query = get_retry_targets
         targets = []
         try:
             with self.db.get_session() as session:
