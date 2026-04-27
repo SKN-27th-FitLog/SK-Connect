@@ -1,0 +1,6 @@
+title,content,thread,article_url,created_at,view_count,comment_count,point,author,map_id,category_cd
+"TorchTPU, Google이 공개한 PyTorch의 네이티브 TPU 백엔드, Gemini와 Veo를 떠받치는 슈퍼컴퓨팅 인프라를 PyTorch에서 직접 활용하기","TorchTPU 소개
+오늘날 최전선에 있는 거대 모델들은 더 이상 단일 가속기 위에서 학습되지 않습니다. Gemini, Veo, GPT 계열, Claude 계열 등 최신 모델들은 수만 개 단위의 가속기 클러스터를 동시에 활용하며, 이런 규모에서는 가속기 칩 자체의 연산 능력만큼이나 칩과 칩, 호스트와 호스트를 잇는 네트워크 토폴로지와 그 위에서 동작하는 소프트웨어 스택의 품질이 모델의 학습 속도와 비용을 결정합니다. 이러한 맥락에서 Google은 자체 설계한 TPU(Tensor Processing Unit)를 자사 인프라의 핵심으로 삼아왔고, Cloud TPU 형태로 외부 사용자들에게도 개방해 왔습니다. 
+  
+문제는 PyTorch 사용자가 TPU를 자연스럽게 사용하기 어려웠다는 점이었습니다. 기존 PyTorch/XLA 경로는 동작은 했지만, SPMD(Single Program Multiple Data) 가정과 XLA 컴파일러의 제약 때문에 일반적인 PyTorch 코드를 그대로 옮기기에는 마찰이 적지 않았습니다. 결과적으로 TPU는 JAX 사용자에게는 친숙하지만, 압도적 다수를 차지하는 PyTorch 사용자에게는 진입 장벽이 있는 하드웨어로 남아 있었습니다. 
+이번에 Google Developers 블로그에 공개된 TorchTPU는 바로 이 격차를 메우기 위해 설계된 새로운 PyTorch 네이티브 TPU 백엔드입니다. 핵심 메시지는 단순합니다. &quot;기존 PyTorch 스크립트의 디바이스 초기화만 tpu로 바꾸면, 학습 루프의 핵심 로직은 한 줄도 바꾸지 않고 TPU에서 그대로 돌아간다.&quot; TorchTPU는 PyTorch의 PrivateUse1 인터페이스 위에 직접 통합되어, 별도의 서브클래스나 래퍼 없이 평범한 torch.Tensor가 TPU 디바이스에 올라가는 진짜 네이티브 경험을 제공합니다. 더 나아가 세 가지 eager 모드, torch.compile 기반 정적 컴파일, 분산 학습(DDP/FSDPv2/DTensor), 그리고 Pallas/JAX 기반 &hellip;",pytorch_9905,https://discuss.pytorch.kr/t/torchtpu-google-pytorch-tpu-gemini-veo-pytorch/9905,2026-04-27 21:30:31,19,0,0,9bow,,IC02
