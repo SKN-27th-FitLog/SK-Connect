@@ -37,7 +37,7 @@ class GetCrawlingData():
             "IC02": "formal", #IT
         }
 
-    def merge_data(self, row:dict, another_data:list[dict]) -> list[dict]:
+    def merge_data(self, row: dict, another_data: list[dict]) -> list[dict]:
         """각 4개의 테이블에서 가져온 데이터들을 crawling_id를 기준으로 하나의 데이터로 합친다"""
         try:
             is_matched = False
@@ -70,14 +70,14 @@ class GetCrawlingData():
             return None
 
 
-    def cursor_excute(self, query: str, params: list)->list[dict]:
+    def execute_query(self, query: str, params: list) -> list[dict]:
         """쿼리 실행 후 결과를 딕셔너리 리스트로 반환"""
         try:
-            with _Connection.get_connection().cursor() as cursor: #cursor 연결
+            with _Connection.get_connection().cursor() as cursor:
                 cursor.execute(query, params)
-                columns = [col[0] for col in cursor.description] #컬럼 이름 가져오기
-                rows = cursor.fetchall() #데이터 가져오기
-            return [dict(zip(columns,row)) for row in rows] #데이터를 딕셔너리 리스트로 반환
+                columns = [col[0] for col in cursor.description]
+                rows = cursor.fetchall()
+            return [dict(zip(columns, row)) for row in rows]
             
         except Exception as e:
             logger.error(f"Error={e}") #crawling_id를 함께 로깅
@@ -85,37 +85,36 @@ class GetCrawlingData():
             return None
 
     def route_crawling_data(self):
-        """category_cd에 따라 분기, 데이터를 반환"""
+        """row별 category_cd에 따라 분기해 데이터를 반환"""
         try:
-            #crawling테이블에서 데이터를 가져옴 + 해당 데이터의 type을 확인
-            data:list[dict] = self.get_crawling_data()
+            # crawling 테이블에서 데이터를 가져옴
+            data: list[dict] = self.get_crawling_data()
             if not data:
                 return []
-            type = data[0]['category_cd']
 
-            if type not in self.CATEGORY_CD:
-                logger.error(f"Error=Invalid category_cd({type})")
-                return []
+            result: list[dict] = []
 
-            if type == 'IC02': #crawling테이블에서만 데이터를 가져오는 경우
-                return data
+            # IC01만 별도 조인 데이터를 미리 조회 (row별 분기에서 재사용)
+            another_data_ic01 = self.get_shop_crawling_data("IC01")
+            if another_data_ic01 is None:
+                raise ValueError("another_data_ic01 is None")
 
-            # IC01: 식당성 데이터는 map/shop/menu 조인 후 merge
-            result:list[dict] = []
-            another_data = self.get_shop_crawling_data(type)
-
-            #another_data가 없는 경우
-            if another_data is None:
-                raise ValueError("another_data is None")
-
-            #data를 하나씩 가져오면서 another_data와 합침
+            # row별 category_cd 기준 분기 처리
             for row in data:
-                merged_data = self.merge_data(row, another_data)
+                category_cd = row.get("category_cd")
+                if category_cd not in self.CATEGORY_CD:
+                    logger.error(f"Error=Invalid category_cd({category_cd})")
+                    continue
 
+                if category_cd == "IC02":
+                    result.append(row)
+                    continue
+
+                # IC01: map/shop/menu 조인 후 merge
+                merged_data = self.merge_data(row, another_data_ic01)
                 if merged_data is not None:
                     result.append(merged_data)
-                elif merged_data is None:
-                    continue
+
             return result
 
         except Exception as e:
@@ -141,7 +140,7 @@ class GetCrawlingData():
         ORDER BY modify_at DESC, post_id DESC
         LIMIT 3
         """
-        existing_posts = self.cursor_excute(query, [title, map_id, "PT01"])
+        existing_posts = self.execute_query(query, [title, map_id, "PT01"])
         if not existing_posts:
             return row
 
@@ -201,7 +200,7 @@ class GetCrawlingData():
             ORDER BY c.crawling_id ASC
             LIMIT %s;
             """
-        rows = self.cursor_excute(query, params = [self.BATCH_SIZE])
+        rows = self.execute_query(query, params=[self.BATCH_SIZE])
         return rows
 
 
@@ -225,7 +224,7 @@ class GetCrawlingData():
         LIMIT %s
         """
         try:
-            another_data = self.cursor_excute(query, params = [category_cd, self.BATCH_SIZE])
+            another_data = self.execute_query(query, params=[category_cd, self.BATCH_SIZE])
             return another_data
 
         except Exception as e:

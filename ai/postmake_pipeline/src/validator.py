@@ -7,8 +7,8 @@ def validate_post_completion(result: dict) -> bool:
     """게시글 완성도 검사"""
     try:
         llm = get_llm()
-        post_text = str(result.get("post") or result.get("data", {}).get("content") or "").strip()
-        if not post_text:
+        post_text = str(result.get("post") or result.get("data", {}).get("content") or "").strip() # 게시글 본문 가져오기
+        if not post_text: # 게시글 본문이 없으면 실패
             return False
         prompt = ChatPromptTemplate.from_template(
             """
@@ -26,8 +26,8 @@ def validate_post_completion(result: dict) -> bool:
             {post}
             """
         )
-        response = llm.invoke(prompt.format(post=post_text))
-        verdict = response.content if hasattr(response, "content") else str(response)
+        response = llm.invoke(prompt.format(post=post_text)) # LLM 실행
+        verdict = response.content if hasattr(response, "content") else str(response) # 결과 가져오기
         return verdict.strip().lower() == "passed"
     except Exception as e:
         crawling_id = result.get("data", {}).get("crawling_id")

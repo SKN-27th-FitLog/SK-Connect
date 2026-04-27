@@ -112,52 +112,65 @@ def generate_post_node(state: State):
 def embedding_node(state: State):
     """크롤링 데이터를 받아와 embedding 벡터를 생성"""
     embeddings = get_embeddings()
-    state["embedding"] = embeddings.embed_query(state["data"]["content"])
+    embedding = embeddings.embed_query(state["data"]["content"])
 
     return {
         **state,
-        "embedding": state["embedding"]
+        "embedding": embedding
     }
 
-def check_existing_post(data: dict) -> bool:
-    """post 테이블에서 title + map_id 기준 중복 체크"""
-    title = data.get("title")
+def check_existing_post(data: dict) -> tuple[bool, list[dict]]:
+    """post 테이블에서 title + map_id 기준 기존 게시글 조회"""
+    title = str(data.get("title") or "").strip()
     map_id = data.get("map_id")
-    if title is None:
-        return False
+    if not title or map_id is None:
+        return False, []
 
     try:
         connection = get_connection()
         query = """
-        SELECT 1
+        SELECT post_id, title, content, modify_at
         FROM posts
         WHERE LOWER(TRIM(title)) = LOWER(TRIM(%s))
-        AND (
-            map_id = %s
-            OR (map_id IS NULL AND %s IS NULL)
-        )
-        LIMIT 1
+          AND map_id = %s
+          AND post_cd = %s
+        ORDER BY modify_at DESC, post_id DESC
+        LIMIT 3
         """
         with connection.cursor() as cursor:
-            cursor.execute(query, (title, map_id, map_id))
-            exists = cursor.fetchone() is not None
+            cursor.execute(query, (title, map_id, "PT01"))
+            rows = cursor.fetchall()
+            existing_posts = [
+                {
+                    "post_id": row[0],
+                    "title": row[1],
+                    "page_content": row[2],
+                    "modify_at": row[3],
+                    "source": "posts_by_title_map_id",
+                }
+                for row in rows
+            ]
         # SELECT 이후 트랜잭션을 즉시 정리해 open transaction 상태 종료
         connection.rollback()
-        return exists
+        return len(existing_posts) > 0, existing_posts
     except Exception as e:
-        logger.error(f"Error={e}")
-        get_connection().rollback()
-        return False
+        logger.error(f"Error={e} | title={title} | map_id={map_id}")
+        try:
+            get_connection().rollback()
+        except Exception:
+            pass
+        return False, []
 
 def similarity_search_node(state: State):
     """임베딩한 데이터와 유사한 데이터를 post_vector 테이블에서 검색, 만약
     유사한 데이터가 있다면 row 가져와서 self.similar_posts에 추가"""
     # map_id 기준으로 DB 중복 검사 1회
-    if check_existing_post(state["data"]):
+    exists, existing_posts = check_existing_post(state["data"])
+    if exists:
         return {
             **state,
             "is_unique": False,
-            "similar_posts": [{"source": "posts_by_title_map_id"}]
+            "similar_posts": existing_posts
         }
 
     vectorstore = get_vectorstore(state["data"].get("category_cd"))
@@ -197,9 +210,7 @@ def similarity_search_node(state: State):
 
 def route_similarity(state: State):
     """유사도 분기: 없으면 생성, 있으면 재생성"""
-    if state.get("is_unique", True):
-        return "generate"
-    return "regenerate"
+    return "generate" if state.get("is_unique", True) else "regenerate"
 
 
 def regenerate_node(state: State):
@@ -225,9 +236,7 @@ def crag_node(state: State):
 
 def route_crag(state: State):
     """CRAG 분기"""
-    if state["status"] == "retry":
-        return "retry"
-    return "done"
+    return "retry" if state["status"] == "retry" else "done"
 
 def graph():
     graph = StateGraph(State)

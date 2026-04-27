@@ -61,13 +61,13 @@ class PGVectorStore:
         return self.vectorstore
 
 
-_VECTORSTORE_CACHE: dict[str, PGVectorStore] = {}
+_VECTORSTORE_CACHE: dict[str, PGVectorStore] = {} # 벡터 저장소
 
 def _collection_name_by_category(category_cd: str | None) -> str:
     """category_cd별 컬렉션명 생성"""
-    if not category_cd:
+    if not category_cd: # category_cd가 없으면 기본 컬렉션명 반환
         return "post_vector_unknown"
-    normalized = re.sub(r"[^a-zA-Z0-9_]", "_", str(category_cd)).lower()
+    normalized = re.sub(r"[^a-zA-Z0-9_]", "_", str(category_cd)).lower() # category_cd를 정규화
     return f"post_vector_{normalized}"
 
 
