@@ -22,6 +22,8 @@ def set_logging() -> logging.Logger:
         backupCount=24, #24개 파일 저장
         encoding="utf-8" #인코딩 설정
     )
+    # 파일에는 실패 관련 로그만 남김
+    handler.setLevel(logging.WARNING)
     handler.suffix = "%Y-%m-%d" #파일 이름 형식
 
     #로그 형식 설정
@@ -32,6 +34,7 @@ def set_logging() -> logging.Logger:
 
     # 콘솔 핸들러를 추가해 실행 상태를 터미널에서도 확인 가능하게 함
     console_handler = logging.StreamHandler()
+    # 터미널에는 단계/성공 로그 포함 전체 진행 상황 출력
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(
         logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")

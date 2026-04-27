@@ -119,6 +119,7 @@ def embedding_node(state: State):
         "embedding": embedding
     }
 
+
 def check_existing_post(data: dict) -> tuple[bool, list[dict]]:
     """post 테이블에서 title + map_id 기준 기존 게시글 조회"""
     title = str(data.get("title") or "").strip()
@@ -132,8 +133,8 @@ def check_existing_post(data: dict) -> tuple[bool, list[dict]]:
         SELECT post_id, title, content, modify_at
         FROM posts
         WHERE LOWER(TRIM(title)) = LOWER(TRIM(%s))
-          AND map_id = %s
-          AND post_cd = %s
+            AND map_id = %s
+            AND post_cd = %s
         ORDER BY modify_at DESC, post_id DESC
         LIMIT 3
         """
@@ -235,7 +236,7 @@ def crag_node(state: State):
     }
 
 def route_crag(state: State):
-    """CRAG 분기"""
+    """재시도 """
     return "retry" if state["status"] == "retry" else "done"
 
 def graph():

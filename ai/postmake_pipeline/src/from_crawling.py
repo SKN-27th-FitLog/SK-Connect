@@ -135,8 +135,8 @@ class GetCrawlingData():
         SELECT post_id, title, content
         FROM posts
         WHERE LOWER(TRIM(title)) = LOWER(TRIM(%s))
-          AND map_id = %s
-          AND post_cd = %s
+            AND map_id = %s
+            AND post_cd = %s
         ORDER BY modify_at DESC, post_id DESC
         LIMIT 3
         """
@@ -181,9 +181,9 @@ class GetCrawlingData():
                         SELECT MAX(p.crawling_id)
                         FROM posts p
                         WHERE p.post_cd = 'PT01'
-                          AND p.crawling_id IS NOT NULL
-                          AND LOWER(TRIM(p.title)) = LOWER(TRIM(c.title))
-                          AND p.map_id = c.map_id
+                            AND p.crawling_id IS NOT NULL
+                            AND LOWER(TRIM(p.title)) = LOWER(TRIM(c.title))
+                            AND p.map_id = c.map_id
                     ), 0)
                 )
                 OR
