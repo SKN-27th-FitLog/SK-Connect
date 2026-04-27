@@ -5,6 +5,8 @@ from sqlalchemy import text
 
 from src.core.repository.database import DatabaseManager
 from src.core.constants import find_success_loaded_dedup_keys
+from src.core.constants import find_update_targets
+from src.core.constants import find_snapshot_by_dedup_key
 
 logger = logging.getLogger("core.repository")
 
