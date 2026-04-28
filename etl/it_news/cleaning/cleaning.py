@@ -3,12 +3,11 @@ import logging
 import pandas as pd
 
 from common.constant import CodeTable, Service, Stage, Status
-from common.utils import build_csv_path, get_last_success_date, get_run_time, save_csv
+from common.utils import build_csv_path, get_run_time, save_csv
 from common.preprocess import (
     cleaning_data_in_df,
     get_crawling_success_for_cleaning,
     separate_success_and_fail,
-    _filter_crawl_rows_for_cleaning,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,27 +20,22 @@ def cleaning_threads(
     *,
     output_csv_prefix: str = "it_news",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """diagram 2단계: 성공 CSV 로드·필터 → 전처리 → success/fail CSV."""
+    """diagram 2단계: 성공 CSV 로드·concat → 전처리 → success/fail CSV."""
 
     # 현재 시간 생성 
     run_time = get_run_time()
 
     ##############################
-    # 성공 데이터 조회 (process=raw, Service 열거별 1회씩 + concat 후 필터)
+    # 성공 데이터 조회 (process=raw, Service 열거별 1회씩 로드 후 concat)
     ##############################
-    th_geek = get_last_success_date(Service.GEEKNEWS)
-    th_pt = get_last_success_date(Service.PYTORCH)
     frames: list[pd.DataFrame] = []
     for service in Service:
         # `process=raw` 에서 이 소스의 `{service}_*.csv` 만 로드(소스마다 1회)
         part = get_crawling_success_for_cleaning(service)
         if not part.empty:
             frames.append(part)
-    if not frames:
-        df = pd.DataFrame()
-    else:
-        df = pd.concat(frames, ignore_index=True)
-        df = _filter_crawl_rows_for_cleaning(df, th_geek=th_geek, th_pt=th_pt)
+
+    df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
     if df.empty:
         logger.info("클리닝: 입력 0행")

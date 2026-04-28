@@ -271,18 +271,3 @@ def get_last_success_date(service: Service | None = None) -> datetime:
     if raw is None:
         return default_last_collected_at()
     return raw
-
-
-def get_existing_crawling_threads(threads: list[str] | None) -> set[str]:
-    """`crawling`에 이미 있는 `thread` 집합(배치). 없으면 빈 set."""
-    if not threads:
-        return set()
-    unique = list(dict.fromkeys(t.strip() for t in threads if t and str(t).strip()))
-    if not unique:
-        return set()
-    conn = PostgreDB()
-    rows = conn.run_query_lst(
-        "SELECT thread FROM crawling WHERE thread = ANY(%s)",
-        (unique,),
-    )
-    return {r[0] for r in rows if r[0] is not None}

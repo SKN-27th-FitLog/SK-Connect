@@ -18,8 +18,6 @@ from common.constant import (
 from common.utils import (
     collect_crawling_success_datas,
     collect_save_stage_success_datas,
-    default_last_collected_at,
-    get_existing_crawling_threads,
     get_last_success_date,
 )
 
@@ -174,34 +172,6 @@ def _crawling_raw_root(stage: Stage) -> Path:
 def _coerce_created_at(series: pd.Series) -> pd.Series:
     """geeknews(소수 초)·pytorch(초만) 등 서로 다른 문자열 형식이 섞일 때 NaT 방지."""
     return pd.to_datetime(series, errors="coerce", format="mixed")
-
-
-def _filter_crawl_rows_for_cleaning(
-    df: pd.DataFrame,
-    *,
-    th_geek: datetime,
-    th_pt: datetime,
-) -> pd.DataFrame:
-    """diagram 2단계: DB 소스별 워터마크 + 미적재 thread는 90일 이내면 포함."""
-    c = _coerce_created_at(df[CrawlingColumn.CREATED_AT.value])
-    t_g, t_p = pd.Timestamp(th_geek), pd.Timestamp(th_pt)
-    is_pt = (
-        df[CrawlingColumn.THREAD.value]
-        .fillna("")
-        .astype(str)
-        .str.startswith(f"{Service.PYTORCH.service}_")
-    )
-    th_series = pd.Series(t_g, index=df.index).where(~is_pt, t_p)
-
-    d0 = pd.Timestamp(default_last_collected_at())
-    thread_str = df[CrawlingColumn.THREAD.value].fillna("").astype(str)
-    uids = thread_str[thread_str.str.len() > 0].unique().tolist()
-    in_db = get_existing_crawling_threads(uids)
-    not_in_db = ~thread_str.isin(in_db) & thread_str.str.len().gt(0)
-
-    by_date = c > th_series
-    keep = by_date | (not_in_db & (c > d0))
-    return df.loc[keep].copy()
 
 
 ##############################################################
