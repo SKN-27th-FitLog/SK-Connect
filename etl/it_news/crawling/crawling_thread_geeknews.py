@@ -6,8 +6,8 @@ geeknews 크롤링 작업 순서
 3. 게시글 각각을 크롤링 하면 결과물로 하나의 row를 생성한다. 
 4. 게시글 크롤링 할 때 댓글 내용도 같이 수집한다. => 일단 보류 
 5. 게시글 내용을 파싱한다. DB에 적제해야 하는 실제 컬럼들 기준으로 적용함 (중간과정 필요 없을듯)
-6. 중요한 데이터를 수집 / 파싱하는데 실패하면 해당 데이터는 status=fail 로 분류해서 데이터 프레임에 추가한다. 
-7. 이외의 데이터는 모두 status=success 로 분류해서 데이터 프레임에 추가한다. 
+6. 중요한 데이터를 수집 / 파싱하는데 실패하면 해당 URL 행은 별도 실패용 DataFrame에 넣고(`error` 컬럼). 클리닝 단계의 `state`(success/fail)와는 별개다.
+7. 파싱에 성공한 행만 성공용 DataFrame에 쌓는다. 이후 단계에서 날짜 워터마크로 행을 거른 뒤 CSV로 저장한다.
 8. 모든 게시글 URL순회가 끝나면 success / fail 데이터 프레임 들을 지정한 경로에 csv 파일로 저장한다. 
 9. 각 컬럼 데이터를 채우는 방법에 대해서는 컬럼별 상세 데이터 작업 때 정의하도록 한다. 
 10. 작업 중 필요한 상수값들에 대해서는 constant.py 파일을 common 폴더에 두고 사용한다. 
@@ -15,10 +15,8 @@ geeknews 크롤링 작업 순서
 
 # 패키지
 import logging
-import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
 from tqdm import tqdm

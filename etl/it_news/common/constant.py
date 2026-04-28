@@ -32,6 +32,7 @@ class CrawlingConstant:
     PAGE_COUNT = 10
     REQUEST_DELAY_SECONDS = 0.5  # 연속 요청 간 간격(초). 서버 부하·차단 완화용
     # DB에 반영할 “마지막” 기준(워터마크)은 `get_last_success_date()` = `crawling.created_at` MAX(이미 넣은 글 중 가장 늦은 시각).
+    # (행동일·활동일 등 다른 컬럼으로 워터마크를 바꿀 경우 이 주석과 `get_last_success_date` 쿼리만 맞추면 됨.)
     # DB가 비어 있을 때(최초 적재)만: 오늘로부터 n일 이전 00:00을 워터마크로 쓰고, 그 **이후**로 발행된 글만(행 필터) 대상 — n은 아래 n일.
     # raw=crawling run 폴더 하한·최초 워터마크 모두 아래 n일(클리닝·`default_last_collected_at`에서 동일 상수 사용).
     ETL_CRAWL_LOOKBACK_DAYS = 90

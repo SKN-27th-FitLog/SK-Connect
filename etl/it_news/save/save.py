@@ -1,5 +1,4 @@
-"""save 단계: 클리닝 산출 로드 → `crawling` INSERT → 성공/실패 CSV( diagram §3 )"""
-"""테이블명 하나의 파일만 crawling_시분초.csv """
+"""save( diagram 3단계 ): 클리닝 산출(`process=cleaning` 성공 CSV) 로드 → DB `crawling`에 MERGE·INSERT(`insert_crawling_batch`) → 성공·실패 CSV는 `build_csv_path`(Stage.SAVE, `save_file_prefix` 예: it_news, HHMMSS 파일명)로 저장."""
 import logging
 
 import pandas as pd
@@ -51,13 +50,13 @@ def save_threads(
     df = df[~cond]
 
     ##############################
-    # cleaning 테이블 일괄 INSERT 
+    # crawling 테이블 일괄 MERGE·INSERT (`insert_crawling_batch`)
     ##############################
     try:
         insert_crawling_batch(df)
         df_success, df_fail = df, pd.DataFrame()
     except Exception:
-        logger.exception("save: crawling 일괄 INSERT 실패 — 전부 fail 처리")
+        logger.exception("save: crawling 일괄 MERGE·INSERT 실패 — 전부 fail 처리")
         df_success, df_fail = pd.DataFrame(), df
 
 
