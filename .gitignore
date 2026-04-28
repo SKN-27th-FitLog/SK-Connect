@@ -1071,4 +1071,10 @@ etl/meal/targets_verify.csv
 *.flv
 *.webm
 *.mkv
-*.
+
+study/
+
+*.jsonl
+*.html
+*.txt
+*.csv
