@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, List
 from sqlalchemy import text
-from src.core.repository.database import DatabaseManager, db_manager
+from src.core.repository.database import DatabaseManager
 from src.core.constants import (
     QUERY_SELECT_ALL_ADDRESS_CODES,
     QUERY_SELECT_ALL_SHOP_CODES
@@ -14,8 +14,8 @@ class CodeTableRepository:
     DB 코드 테이블(codeT)을 조회하고 메모리 캐싱을 수행하는 클래스.
     설계안 7장(코드 테이블 중심 설계) 준수.
     """
-    def __init__(self, db: DatabaseManager = db_manager):
-        self.db = db
+    def __init__(self, db: DatabaseManager | None = None):
+        self.db = db or DatabaseManager()
         # Handler Scope 캐시
         self._address_cache: Dict[str, Dict[str, Any]] = {}
         self._shop_code_cache: Dict[str, str] = {}
@@ -113,5 +113,3 @@ class CodeTableRepository:
         self._shop_code_cache.clear()
         self._shop_name_cache.clear()
         self._is_loaded = False
-
-code_repo = CodeTableRepository()

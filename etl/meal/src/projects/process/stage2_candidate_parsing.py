@@ -7,6 +7,8 @@ from src.core.base_stage import BaseStage
 from src.services.parsers.base_parser import BaseParser
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
+from src.core.policy.fail_record import build_fail_record
+from src.core.policy.reason_code import ReasonCode
 
 class Stage2CandidateParsing(BaseStage):
     """
@@ -64,14 +66,17 @@ class Stage2CandidateParsing(BaseStage):
                 
             except Exception as e:
                 self.logger.error(f"Failed to parse {file_path}: {str(e)}")
-                failures.append({
-                    "entity_id": record.get("entity_id", "unknown"),
-                    "entity_ref": record.get("entity_ref", {}),
-                    "status": "fail",
-                    "reason_code": "INVALID_DATA_FORMAT",
-                    "detail": str(e),
-                    "failed_at": now.isoformat()
-                })
+                failures.append(build_fail_record(
+                    batch_id=batch_id,
+                    run_attempt=run_attempt,
+                    stage=self.stage_name,
+                    entity_type="store",
+                    entity_id=record.get("entity_id", "unknown"),
+                    entity_ref=record.get("entity_ref", {}),
+                    reason_code=ReasonCode.INVALID_DATA_FORMAT,
+                    detail=str(e),
+                    created_at=now,
+                ))
         
         if candidates:
             candidate_path = HivePathBuilder.build_path(

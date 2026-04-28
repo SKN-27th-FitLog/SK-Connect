@@ -6,6 +6,8 @@ from src.core.registry import get_stage, get_repository, STAGE_LOAD
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
 from src.core.utils.batch_util import BatchUtil
+from src.core.policy.fail_record import build_fail_record
+from src.core.policy.reason_code import ReasonCode
 
 logger = logging.getLogger("save_project")
 
@@ -26,7 +28,7 @@ class SaveService:
         )
         
         # 2. 배치 폴더 목록 확보
-        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*"))
+        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*", "status=success"))
         if not batch_dirs:
             logger.info("No normalization success data found for today.")
             return {"message": "No normalized data found"}
@@ -36,7 +38,7 @@ class SaveService:
         
         processed_batches = []
         for bdir in batch_dirs:
-            batch_id = os.path.basename(bdir).split("=")[-1]
+            batch_id = os.path.basename(os.path.dirname(bdir)).split("=")[-1]
             logger.info(f"Processing Batch ID: {batch_id}")
             
             # 정규화된 JSONL 데이터 로드
@@ -55,9 +57,19 @@ class SaveService:
             for r in normalized_data:
                 if not code_repo.validate_references(r):
                     # Design Policy: 참조 오류 시 즉시 retry_count 증가 및 실패 처리
-                    r["reason_code"] = "REFERENCE_INTEGRITY_VIOLATION"
-                    r["retry_count"] = r.get("retry_count", 0) + 1
-                    failures.append(r)
+                    store = r.get("store", {})
+                    failures.append(build_fail_record(
+                        batch_id=batch_id,
+                        run_attempt=run_attempt,
+                        stage="load",
+                        entity_type="store",
+                        entity_id=store.get("entity_id", r.get("entity_id", "unknown")),
+                        entity_ref=store.get("entity_ref", r.get("entity_ref", {})),
+                        reason_code=ReasonCode.REFERENCE_INTEGRITY_VIOLATION,
+                        retry_count=r.get("retry_count", 0) + 1,
+                        detail="Reference integrity validation failed before load.",
+                        data=r,
+                    ))
                 else:
                     valid_list.append(r)
 

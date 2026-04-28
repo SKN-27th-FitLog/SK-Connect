@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("crawl_project")
 
-def lambda_handler(event, context):
+def lambda_handler(event : dict, context:str):
     """
     AWS Lambda 엔트리 포인트. 핸들러는 단순 입력 파싱 및 Service 호출 역할만 수행.
     """
