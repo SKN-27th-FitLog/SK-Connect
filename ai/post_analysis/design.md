@@ -5,15 +5,16 @@
 | 컬럼명        | 타입            | 값                                      |
 |---------------|-----------------|------------------------------------------|
 | crawling_id   | int             | crawling.crawling_id                     |
-| category_cd   | codetable       | crawling.category_cd (IC01)              |
 | title         | str             | crawling.title                           |
 | content       | str             | crawling.content                         |
+| article_url   | str             | crawling.article_url                     |
 | map_id        | int             | crawling.map_id                          |
 | shop_id       | int             | shop.map_id                              |
+| category_cd   | codetable       | crawling.category_cd (IC01)              |
 | created_dt    | datetime        | 2016-04-25 15:55:02                      |
 | sentimental   | enum            | positive / negative                      |
 | score         | float           | 0.3356                                   |
-| keywords         | list[str] | ["keyword1", "keyword2", ...]                                    |
+| keywords      | list[str]       | ["keyword1", "keyword2", ...]            |
 | positive_kw   | list[str]       | ["keyword1", "keyword2", ...]            |
 | negative_kw   | list[str]       | ["keyword3", "keyword4", ...]            |
 

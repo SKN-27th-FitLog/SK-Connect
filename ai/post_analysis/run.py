@@ -4,6 +4,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # 패키지
+import pandas as pd
 
 
 
