@@ -11,7 +11,7 @@ class BatchMetadataRepository:
             process="metadata", service="shop", category_cd=category_cd,
             stage="batch_assignment", status="success", dt=dt
         )
-        meta_files = glob.glob(os.path.join(meta_base, "batch_id=*", "status=success", "*.jsonl"))
+        meta_files = glob.glob(os.path.join(meta_base, "batch_assignment_*.jsonl"))
         
         max_attempt, found_batch_id = 0, None
         for file in meta_files:
@@ -32,7 +32,7 @@ class BatchMetadataRepository:
             process="metadata", service="shop", category_cd=category_cd,
             stage="batch_assignment", status="success", dt=dt
         )
-        meta_files = glob.glob(os.path.join(meta_base, f"batch_id={batch_id}", "status=success", "*.jsonl"))
+        meta_files = glob.glob(os.path.join(meta_base, f"batch_assignment_{batch_id}_*.jsonl"))
         attempts = [1]
         for file in meta_files:
             for r in JsonlWriter.read(file):
@@ -53,4 +53,8 @@ class BatchMetadataRepository:
             "run_attempt": run_attempt,
             "recorded_at": dt.isoformat()
         }
-        JsonlWriter.write(path, HivePathBuilder.build_filename("jsonl", dt), [record])
+        JsonlWriter.write(
+            path,
+            HivePathBuilder.build_filename("jsonl", dt, stage="batch_assignment", batch_id=batch_id, run_attempt=run_attempt),
+            [record],
+        )

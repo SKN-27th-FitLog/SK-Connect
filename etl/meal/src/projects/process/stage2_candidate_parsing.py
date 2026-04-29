@@ -54,6 +54,10 @@ class Stage2CandidateParsing(BaseStage):
                 
                 # 2. Candidate 데이터 구성 (설계안 13번 참조)
                 candidate = {
+                    "batch_id": batch_id,
+                    "run_attempt": run_attempt,
+                    "stage": self.stage_name,
+                    "category_cd": category_cd,
                     "entity_id": record.get("entity_id"),
                     "entity_ref": record.get("entity_ref", {}),
                     "shop": shop_data,
@@ -83,7 +87,9 @@ class Stage2CandidateParsing(BaseStage):
                 process="candidate", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="success", dt=now
             )
-            filename = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}.jsonl"
+            filename = HivePathBuilder.build_filename(
+                "jsonl", now, stage=self.stage_name, batch_id=batch_id, run_attempt=run_attempt
+            )
             JsonlWriter.write(candidate_path, filename, candidates)
             self.logger.info(f"Parsed {len(candidates)} candidates for batch {batch_id}")
 
@@ -92,7 +98,9 @@ class Stage2CandidateParsing(BaseStage):
                 process="candidate", service="shop", category_cd=category_cd,
                 stage=self.stage_name, batch_id=batch_id, status="fail", dt=now
             )
-            filename_fail = f"{now.strftime('%y%m%d%H%M%S')}_att{run_attempt}_fail.jsonl"
+            filename_fail = HivePathBuilder.build_filename(
+                "jsonl", now, stage=self.stage_name, batch_id=batch_id, run_attempt=run_attempt, suffix="fail"
+            )
             JsonlWriter.write(fail_path, filename_fail, failures)
         
         return candidates
