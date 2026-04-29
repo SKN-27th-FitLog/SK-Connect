@@ -7,11 +7,15 @@ logging.basicConfig(level=logging.INFO)
 import pandas as pd
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
 
 
-
+class KeywordClassification(BaseModel):
+    positive_kw: str = Field(default="", description="긍정 키워드, #로 구분")
+    negative_kw: str = Field(default="", description="부정 키워드, #로 구분")
 
 
 
@@ -40,14 +44,17 @@ def main():
 [분류]: "positive_kw": "키워드1#키워드2#키워드3", "negative_kw": "키워드4#키워드5#키워드6"
 """
 )
-    chain = prompt | llm
+
+    parser = PydanticOutputParser(pydantic_object=KeywordClassification)
+
+    chain = prompt | llm | parser
 
     # 체인 실행 
     for index, row in df.iterrows():
-        result = chain.invoke({"keywords": HumanMessage(content=row["keywords"])})
-        print(result.content)
-        df.at[index, "positive_kw"] = result.content.split(",")[0]
-        df.at[index, "negative_kw"] = result.content.split(",")[1]
+        result = chain.invoke({"keywords": row["keywords"]})
+        print(result)
+        df.at[index, "positive_kw"] = result.positive_kw
+        df.at[index, "negative_kw"] = result.negative_kw
 
     # 결과 적용 
     df.to_csv("analysis_keywords_classified.csv", index=False)
