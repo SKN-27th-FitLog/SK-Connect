@@ -1078,3 +1078,12 @@ study/
 *.html
 *.txt
 *.csv
+
+##################################################
+# 해당 파일들은 2026년 4월 29일 기준 스냅샷 (테스트 용이하게 하기위한 용도)
+##################################################
+!database/data/crawling.csv
+!database/data/images.csv
+!database/data/menu.csv
+!database/data/shop.csv
+!database/data/maps.csv
