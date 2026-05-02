@@ -13,3 +13,4 @@ class NaverParser(BaseParser):
         }
     def parse_menus(self, html: str) -> List[Dict[str, Any]]: return []
     def parse_reviews(self, html: str) -> List[Dict[str, Any]]: return []
+    def parse_images(self, html: str) -> List[str]: return []

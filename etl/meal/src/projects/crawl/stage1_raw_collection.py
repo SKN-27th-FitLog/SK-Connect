@@ -2,6 +2,7 @@ import os
 import re
 import asyncio
 import logging
+from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -26,6 +27,23 @@ class Stage1RawCollection(BaseStage):
     def _create_shards(self, targets: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
         return [targets[i:i + self.shard_size] for i in range(0, len(targets), self.shard_size)]
 
+    def _write_raw_file(self, directory: str | Path, filename: str, content: str) -> Path:
+        path = Path(directory)
+        path.mkdir(parents=True, exist_ok=True)
+        candidate = path / filename
+        stem = candidate.stem
+        suffix = candidate.suffix
+        index = 1
+
+        while True:
+            try:
+                with candidate.open("x", encoding="utf-8") as f:
+                    f.write(content)
+                return candidate
+            except FileExistsError:
+                candidate = path / f"{stem}_{index:03d}{suffix}"
+                index += 1
+
     async def _collect_single_url(self, url: str, target_id: str, batch_id: str, category_cd: str, shard_id: str, dt: datetime, run_attempt: int = 1) -> Dict[str, Any]:
         """ Single URL Collection """
         try:
@@ -39,16 +57,12 @@ class Stage1RawCollection(BaseStage):
             rid_match = re.search(r'rid=([a-zA-Z0-9\-_]+)', url)
             unique_suffix = rid_match.group(1) if rid_match else target_id
             filename = f"{dt.strftime('%y%m%d%H%M%S')}_att{run_attempt}_{unique_suffix}.html"
-            os.makedirs(success_path, exist_ok=True)
-            full_file_path = os.path.join(success_path, filename)
-            
-            with open(full_file_path, "w", encoding="utf-8") as f:
-                f.write(raw_data["raw_content"])
+            full_file_path = self._write_raw_file(success_path, filename, raw_data["raw_content"])
             
             return {
                 "entity_id": target_id,
                 "entity_ref": {"target_id": target_id, "url": url, "shard_id": shard_id, "run_attempt": run_attempt},
-                "raw_file_path": full_file_path,
+                "raw_file_path": str(full_file_path),
                 "photo_data": raw_data.get("photo_data"),
                 "status": "success",
                 "collected_at": dt.isoformat()

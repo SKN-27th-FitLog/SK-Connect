@@ -33,6 +33,7 @@ class PolicyResolver:
             
             ReasonCode.CONFLICTING_DEDUP_SIGNALS.value: Action.WARN,
             ReasonCode.UNDEFINED_CODE_DETECTED.value: Action.REPROCESS, # 설계안 16. reprocess 승격 후보
+            ReasonCode.REFERENCE_INTEGRITY_VIOLATION.value: Action.REPROCESS,
             
             ReasonCode.DB_CONSTRAINT_VIOLATION.value: Action.WARN,
             ReasonCode.INVALID_DATA_FORMAT.value: Action.WARN,
@@ -70,4 +71,5 @@ class PolicyResolver:
         return action == Action.CRITICAL
 
 # 전역 Resolver 인스턴스
-policy_resolver = PolicyResolver()
+def create_policy_resolver() -> PolicyResolver:
+    return PolicyResolver()

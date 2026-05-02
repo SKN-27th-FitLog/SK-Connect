@@ -19,6 +19,9 @@ class FakeSnapshotRepository:
     def find_snapshot_by_dedup_key(self, dedup_key):
         return None
 
+    def bulk_find_snapshots(self, dedup_keys):
+        return {}
+
 
 def test_stage3_outputs_entity_hash_contract():
     stage = Stage3ValidationNormalization(

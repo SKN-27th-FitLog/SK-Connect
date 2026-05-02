@@ -48,16 +48,18 @@ class ReviewModel(BaseEntityModel):
 
 class FailLedgerModel(BaseModel):
     """
-    설계안 14장 준수 - 실패 기록 모델.
+    설계안 14장, 33.6 준수 - 실패 기록 모델.
     logger와 별개로 운영 기록을 담당.
+    build_fail_record() 출력 구조와 일치.
     """
     batch_id: str
+    run_attempt: int = 1
     stage: str
     entity_type: str
     entity_id: str
     entity_ref: Dict[str, Any] = {}
-    reason_code: str                     # ReasonCode.name
-    action: str                          # RETRY | DROP | REPROCESS 등
+    status: str = "fail"
+    reason_code: str                     # ReasonCode.value
     detail: str = ""
     retry_count: int = 0
     created_at: datetime = Field(default_factory=datetime.now)

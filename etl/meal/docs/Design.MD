@@ -582,19 +582,52 @@ Stage 4 Load 전:
 
 Hive 스타일 경로를 사용한다.
 
+기본 구조:
+
+```
+crawling={raw|cleansing|save|failcheck}/service={category_cd}/year=YYYY/month=MM/day=DD/stage={stage_name}/batch_id={batch_id}/status={success|fail}
+```
+
+원칙:
+- `crawling` 파티션은 처리 영역을 나타낸다.
+  - crawl raw 저장: `crawling=raw`
+  - parsing / normalization 저장: `crawling=cleansing`
+  - DB load 결과 저장: `crawling=save`
+  - failcheck dispatch / 후속 판단 결과 저장: `crawling=failcheck`
+- `service` 파티션은 업무명(`shop`)이 아니라 category_cd 값을 사용한다.
+  - 예: `service=CA01`
+- 날짜 파티션은 `year=YYYY/month=MM/day=DD` 형식으로 중간에 둔다.
+- `status`는 마지막 폴더 분류로 둔다.
+- save 영역은 테이블 단위 분리를 위해 날짜 파티션 뒤에 `save={table_name}` 파티션을 추가한다.
+  - 예: `save=shop`, `save=menu`, `save=map`, `save=crawling`
+
 예:
-process=raw/service=shop/year=2026/month=04/day=23/status=success/category_cd=CA01/stage=raw_collection/batch_id=20260423_CA01_001/
+
+```
+crawling=raw/service=CA01/year=2026/month=04/day=28/stage=raw_collection/batch_id=20260428_CA01_001/status=success/
+crawling=cleansing/service=CA01/year=2026/month=04/day=28/stage=validation_normalization/batch_id=20260428_CA01_001/status=fail/
+crawling=save/service=CA01/year=2026/month=04/day=28/save=shop/stage=load/batch_id=20260428_CA01_001/status=success/
+crawling=failcheck/service=CA01/year=2026/month=04/day=29/stage=fail_handling/batch_id=20260428_CA01_001/status=pending/
+```
 
 18.2 파일명
 
 경로는 Hive 스타일로 충분히 의미를 가지므로 파일명은 timestamp 기반으로 단순화한다.
 
 최종 원칙:
-- 파일명은 YYMMDDHHMMmm.확장자 형식을 기본으로 한다.
+- raw / cleansing / failcheck JSONL 파일명은 YYMMDDHHMMSS.확장자 형식을 기본으로 한다.
+- save 영역에서 테이블별 CSV를 생성하는 경우 파일명은 `{table_name}_HHMMSS.csv` 형식을 사용한다.
 
 예:
+
+```
 260423101530.html
 260423104501.jsonl
+shop_153012.csv
+menu_153012.csv
+map_153012.csv
+crawling_153012.csv
+```
 
 보완 원칙:
 - raw 증거 추적이 필요한 경우 target_id를 보조 메타데이터로 반드시 저장한다.
@@ -918,6 +951,13 @@ Stage는 다음까지만 수행한다.
 
 필수 판단 기준은 entity별 hash이다.
 
+현재 스키마 호환 모드에서는 위 필드 중 DB에 존재하지 않는 필드를
+물리 컬럼으로 요구하지 않는다.
+
+* `last_checked_at`은 `MAX(crawling.created_at)`으로 계산한다.
+* `*_content_hash`와 `previous_*_content_hash`는 Stage 산출물 또는 Repository 응답의 논리 필드로 관리한다.
+* 물리 저장이 필요한 경우에는 향후 스키마 확장 모드에서 컬럼을 추가한다.
+
 ---
 
 ## 26.7 변경 필드 기록 정책
@@ -942,6 +982,34 @@ changed_fields는 전체 diff가 아니라
 * Dedup 판정은 기존 규칙을 그대로 따른다.
 * Update는 dedup_key 또는 store_id 기준으로 수행한다.
 * Dedup 충돌 시 update 처리보다 우선한다.
+
+---
+
+## 26.8.1 현재 스키마 호환 모드
+
+현재 `database/init.sql` 스키마에 `dedup_key`, `canonical_url`, `*_content_hash`,
+물리 `last_checked_at` 컬럼이 없는 경우에는 현재 스키마 호환 모드를 사용한다.
+
+현재 스키마 호환 모드의 원칙:
+
+* 신규 컬럼을 전제로 하지 않는다.
+* `last_checked_at`은 DB 컬럼이 아니라 논리 필드로 본다.
+* 논리 `last_checked_at`은 해당 store/map에 연결된 `crawling.created_at`의 최신값으로 계산한다.
+* UPDATE 대상 선정은 최근 저장일 기준으로 수행한다.
+* 중복/동일성 판단은 현재 스키마에 존재하는 컬럼만 사용한다.
+* 이름/주소 변경 가능성은 별도 가정으로 처리하지 않는다.
+* PostgreSQL `MERGE` 또는 동등한 upsert 로직을 사용해 insert/update 정책을 명시한다.
+
+현재 스키마 호환 모드의 기본 매칭 기준:
+
+* maps: `name`, `category_cd`, `address_cd`, `address_detail`
+* shop: `map_id`, `shop_cd`
+* menu: `shop_id`, `name`
+* images: `table_name`, `table_id`, `image_url`
+* crawling: `article_url`, `map_id`, 필요 시 `title`/`content`
+
+`dedup_key`, `canonical_url`, `*_content_hash`, 물리 `last_checked_at`은
+향후 스키마 확장 모드의 필드로 둔다.
 
 ---
 
@@ -1146,6 +1214,25 @@ Stage 4 Save는 Stage 3에서 생성한 is_changed 결과를 기준으로
 
 ---
 
+## 28.1.1 현재 스키마 호환 Upsert 전략
+
+현재 스키마 호환 모드에서는 Stage 4가 신규 컬럼을 요구하지 않는다.
+
+원칙:
+
+* Store/Map 적재는 현재 스키마의 실제 컬럼 기준으로 `MERGE` 또는 동등한 upsert를 수행한다.
+* `maps`는 `name`, `category_cd`, `address_cd`, `address_detail` 조합을 기준으로 매칭한다.
+* `shop`은 `map_id`, `shop_cd` 조합을 기준으로 매칭한다.
+* `menu`는 `shop_id`, `name` 조합을 기준으로 매칭한다.
+* `images`는 `table_name`, `table_id`, `image_url` 조합을 기준으로 중복 저장을 방지한다.
+* 현재 스키마에 없는 `dedup_key`, `canonical_url`, `*_content_hash`, 물리 `last_checked_at` 컬럼은 사용하지 않는다.
+
+이 모드에서 `last_checked_at`은 `crawling.created_at`의 최신값으로 계산되는 논리 값이다.
+따라서 Stage 4가 확인 이력을 남겨야 하는 경우 `crawling` row를 기록하고,
+Stage 0/Repository는 `MAX(crawling.created_at)`을 `last_checked_at`으로 해석한다.
+
+---
+
 ## 28.2 Store Upsert 원칙
 
 Store는 non-null partial update 방식을 사용한다.
@@ -1196,6 +1283,12 @@ inactive 처리 의미:
   여러 번의 수집에서 연속 미검출된 메뉴라는 운영 상태로 해석한다.
 * inactive 처리의 최종 기준은 30장 Menu Inactive 처리 기준을 따른다.
 
+현재 스키마 호환 모드:
+
+* `menu` 테이블에 `active`, `missing_count`, `last_seen_at`, `inactivated_at`, `inactive_reason` 컬럼이 없는 경우 missing_count 증가 및 inactive 처리를 수행하지 않는다.
+* 이번 수집에서 검출된 menu만 upsert(WHERE NOT EXISTS)하며, 누락 판단은 스키마 확장 모드의 책임으로 유예한다.
+* 30장의 상태 전이 규칙은 스키마 확장 모드에서 구현한다.
+
 ---
 
 ## 28.4 Review Upsert 원칙
@@ -1245,6 +1338,13 @@ is_changed = false인 경우 Stage 4는 본문 데이터를 수정하지 않는�
 수행:
 
 * last_checked_at만 갱신한다.
+
+현재 스키마 호환 모드:
+
+* 물리 `last_checked_at` 컬럼을 갱신하지 않는다.
+* 확인 이력이 필요한 경우 `crawling`에 확인 row를 남긴다.
+* 이후 `last_checked_at`은 해당 store/map의 `MAX(crawling.created_at)`으로 계산한다.
+* 본문 데이터가 변경되지 않았다는 원칙은 유지한다.
 
 금지:
 
@@ -1378,11 +1478,13 @@ Image:
 
 * 본문 수정 금지
 * last_checked_at만 갱신
+* 현재 스키마 호환 모드에서는 확인 이력 `crawling` row를 남기고 `MAX(crawling.created_at)`을 논리 `last_checked_at`으로 사용
 
 변경 있음:
 
 * 필요한 엔티티만 안전하게 갱신
 * 변경된 entity별 content_hash / last_updated_at / update_detected_at / last_checked_at 갱신
+* 현재 스키마 호환 모드에서는 현재 스키마에 존재하는 컬럼만 갱신하고, hash/timestamp 물리 컬럼 갱신은 생략
 
 ==================================================
 28. Stage 4 Upsert 전략 (신규) END
@@ -1694,6 +1796,14 @@ menu 엔티티는 다음 필드를 반드시 포함해야 한다.
 
 ## 30.9 최종 정리
 
+현재 스키마 호환 모드:
+
+* `menu` 테이블에 30.6의 관리 필드(`active`, `missing_count`, `last_seen_at`, `inactivated_at`, `inactive_reason`)가 없는 경우 본 장의 처리를 전면 생략한다.
+* 현재 스키마에서는 수집된 menu를 `WHERE NOT EXISTS` 기반 INSERT로만 처리한다.
+* missing_count 기반 inactive 판단 및 상태 전이는 스키마 확장 모드에서 구현한다.
+
+---
+
 menu는 단순 누락을 삭제로 판단하지 않는다.
 
 동일 store_id + menu_name 기준으로
@@ -1746,6 +1856,13 @@ entity별 content_hash는 entity별로 분리하여 저장한다.
 * menu는 store 단위 aggregate hash로 관리한다.
 * review는 store 단위 aggregate hash로 관리한다.
 * image는 store 단위 aggregate hash로 관리한다.
+
+현재 스키마 호환 모드:
+
+* `store_content_hash`, `menu_content_hash`, `review_content_hash`, `image_content_hash` 컬럼을 요구하지 않는다.
+* hash는 Stage 3 산출물과 변경 판단용 논리 값으로 유지한다.
+* previous hash 조회가 불가능한 경우에는 현재 스키마의 최근 저장일과 저장된 crawling 이력을 기준으로 재확인 대상을 판단한다.
+* hash 물리 저장은 향후 스키마 확장 모드의 책임으로 둔다.
 
 ---
 
@@ -2012,6 +2129,14 @@ Stage 0은 다음 기준으로 UPDATE 대상을 선정한다.
 
 → UPDATE 대상
 
+현재 스키마 호환 모드:
+
+* `last_checked_at`은 물리 컬럼이 아니라 `crawling.created_at` 기반 논리 값이다.
+* store/map별 `MAX(crawling.created_at)`을 최근 저장일로 계산한다.
+* 최근 저장일이 없거나, 최근 저장일이 `refresh_interval_days` 이상 지난 경우 UPDATE 대상으로 본다.
+* 재수집 URL은 기존에 저장된 `crawling.article_url`을 사용한다.
+* 동일성 판단과 대상 추출은 현재 스키마에 있는 `maps`, `shop`, `crawling` 컬럼만 사용한다.
+
 ---
 
 ## 32.4 주기 설정
@@ -2040,6 +2165,9 @@ Stage 0은 다음 기준으로 UPDATE 대상을 선정한다.
 
 * last_checked_at이 오래된 순으로 정렬
 * 오래된 store부터 quota만큼 선택
+
+현재 스키마 호환 모드에서는 `last_checked_at` 정렬을
+`MAX(crawling.created_at)` 오름차순 정렬로 대체한다.
 
 ---
 
