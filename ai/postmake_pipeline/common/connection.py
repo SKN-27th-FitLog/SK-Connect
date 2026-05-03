@@ -4,6 +4,9 @@ from psycopg2 import connect
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres.vectorstores import PGVector
 import os
+import time
+from common.logging_config import set_logging
+logger = set_logging()
 
 env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
 load_dotenv(env_path, override=True)
@@ -57,3 +60,13 @@ class PGVectorStore:
         self.vectorstore.create_collection()
     def get_vectorstore(self):
         return self.vectorstore
+
+def get_cursor(query:str):
+    try:
+        connection = Connection().get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query)
+        return cursor
+    except Exception as e:
+        logger.error(f"Error={e} | time={time.time()}")
+        return None

@@ -19,6 +19,13 @@ class Create_Prompt():
 4. 분량: 결과 본문은 최소 200자 이상 작성하세요.
 """
 
+        self.title_template = """
+# [SYSTEM ROLE]
+작성된 content를 바탕으로 적절한 제목을 작성해주세요.
+부정적인 내용으로 작성하지 마세요.
+없는 내용을 지어내지 마세요.
+        """
+
         self.casual_sub_prompts:list[str] = [
             #MODE 1
 """
@@ -120,7 +127,15 @@ class Create_Prompt():
         except Exception as e:
             logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
             return ""
-            
+    
+    @classmethod
+    def get_title_prompt(cls, data:dict)->str:
+        """제목 프롬프트 반환"""
+        try:
+            return cls.title_template
+        except Exception as e:
+            logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
+            return ""
     @classmethod
     def get_regenerate_prompt(cls, data:dict)->str:
         """유사글 존재 시 재생성 프롬프트 반환"""
