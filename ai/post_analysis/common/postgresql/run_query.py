@@ -24,10 +24,7 @@ def get_crawling_data() -> pd.DataFrame:
     # 컬럼값 까지 확인 
     with db.conn.cursor() as cur:
         cur.execute("SELECT * FROM crawling")
-        if cur.description is None:
-            columns = []
-        else:
-            columns = [col.name for col in cur.description]
+        columns = [col.name for col in cur.description]
         rows = cur.fetchall()
     
     # 데이터 프레임으로 반환 
@@ -46,48 +43,11 @@ def get_analysis_data() -> pd.DataFrame:
     db = PostgreDB()
     with db.conn.cursor() as cur:
         cur.execute("SELECT * FROM analysis")
-        if cur.description is None:
-            columns = []
-        else:
-            columns = [col.name for col in cur.description]
+        columns = [col.name for col in cur.description]
         rows = cur.fetchall()
 
     # 데이터 프레임으로 반환 
     return pd.DataFrame(rows, columns=columns)
-
-##############################################
-# 처리 후 데이터를 다시 analysis 테이블에 업데이트 
-##############################################
-def update_analysis_data_column(df: pd.DataFrame, column:str) -> None:
-    """ 처리가 끝난 데이터 프레임을 다시 crawling 테이블에 업데이트 하는 함수 
-    인자로는 적용할 데이터 프레임 자체 데이터에 추가로 업데이트를 적용할 컬럼 이름을 받는다. 
-    업데이트 방식은 MERGE를 사용, 컬럼 이름을 지정해서 사용한다. 
-    MERGE의 key는 crawling_id 컬럼을 사용한다. 
-
-    - 대상 테이블: Analysis
-    - 컬럼의 Key: crawling_id
-    - 변경대상 컬럼 : column 인자로 받은 컬럼 이름
-    """
-    # 실제 테이블에 있는 컬럼만 허용 (SQL 인젝션 방지)
-    if column not in AnalysisColumn.allowed_analysis_columns():
-        raise ValueError(f"허용되지 않은 column: {column}")
-
-    ids = df["crawling_id"].tolist()
-    # 교체될 값 — 타입에 맞게 tolist() 전에 astype 등 정리
-    vals = df[column].tolist()
-    query = f"""
-    UPDATE analysis AS a
-    SET {column} = v.new_val
-    FROM (
-    SELECT unnest(%s::bigint[]) AS crawling_id,
-            unnest(%s::text[]) AS new_val
-    ) AS v
-    WHERE a.crawling_id = v.crawling_id;
-    """
-    db = PostgreDB()
-    with db.conn.cursor() as cur:
-        cur.execute(query, (ids, vals))
-
 
     ##############################################
     # crawling테이블에서 analysis 테이블로 한번에 데이터 merge
