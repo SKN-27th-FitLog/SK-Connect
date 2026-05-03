@@ -666,3 +666,5 @@ logs/
 # ──────────────────────────────────────────────
 docs/
 data/
+etl/meal/diningcode_real_lake/
+etl/meal/run_snapshot/
