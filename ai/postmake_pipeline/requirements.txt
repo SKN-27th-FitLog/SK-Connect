@@ -7,7 +7,6 @@ langchain_huggingface
 langchain_postgres
 psycopg2-binary
 
-konlpy
-textrankr
+
 scipy
 sentence-transformers

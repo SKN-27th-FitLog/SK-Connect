@@ -55,8 +55,7 @@ def get_shop_data()->list[dict]:
             elif title == "": # 첫 데이터 처리
                 title = data['title'] 
                 if post_data := search_post(data): # 이미 생성된 데이터가 있는 경우
-                    created_dt = post_data['created_dt']
-                    ################# 해당 날짜 이후로부터 리뷰가 최소 5개 이상 작성되었는가.......
+                    analysis_data(post_data)
                 elif not post_data: # 이미 생성된 데이터가 없으면 추가
                     shop_data.append(data)
                     continue
@@ -80,5 +79,5 @@ def analysis_data(data:list[dict])->bool:
             elif row['sentimental'] == 'positive':
                 count += 1
     except Exception as e:
-        logger.error(f"analysis_data | Error={e} | time={time.time()} | crawling_id={crawling_id}")
+        logger.error(f"analysis_data | Error={e} | time={time.time()} | crawling_id={data['crawling_id']}")
         return None
