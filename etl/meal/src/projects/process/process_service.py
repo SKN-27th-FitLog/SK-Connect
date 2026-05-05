@@ -26,8 +26,8 @@ class ProcessService:
         )
         
         # 2. 배치 폴더 목록 확보
-        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*", "status=success"))
-        if not batch_dirs:
+        raw_files = glob.glob(os.path.join(base_path, "raw_collection_*.jsonl"))
+        if not raw_files:
             logger.info("No raw collection success data found for today.")
             return {"message": "No raw data found"}
 
@@ -35,14 +35,19 @@ class ProcessService:
         stage2 = get_stage(STAGE_CANDIDATE_PARSING, parser=parser)
         stage3 = get_stage(STAGE_VALIDATION_NORMALIZATION)
 
+        files_by_batch: dict[str, list[str]] = {}
+        for file_path in raw_files:
+            batch_id = HivePathBuilder.extract_batch_id_from_filename(file_path, "raw_collection")
+            if batch_id:
+                files_by_batch.setdefault(batch_id, []).append(file_path)
+
         processed_batches = []
-        for bdir in batch_dirs:
-            batch_id = os.path.basename(os.path.dirname(bdir)).split("=")[-1]
+        for batch_id, batch_files in files_by_batch.items():
             logger.info(f"Processing Batch ID: {batch_id}")
             
             # 해당 배치의 JSONL 파일 합침
             raw_data = []
-            for file in glob.glob(os.path.join(bdir, "*.jsonl")):
+            for file in batch_files:
                 raw_data.extend(JsonlWriter.read(file))
                 
             if not raw_data:
@@ -50,7 +55,13 @@ class ProcessService:
             
             # 현재 배치 ID의 실제 run_attempt 조회
             run_attempt = BatchUtil.resolve_run_attempt(category_cd, batch_id, dt)
-            filename = HivePathBuilder.build_filename(extension="jsonl", dt=dt)
+            filename = HivePathBuilder.build_filename(
+                extension="jsonl",
+                dt=dt,
+                stage="candidate_parsing",
+                batch_id=batch_id,
+                run_attempt=run_attempt,
+            )
             
             # --- 3. Stage 2: 후보 파싱 실행 ---
             candidates = stage2.execute(raw_data, batch_id, category_cd, run_attempt=run_attempt)
@@ -91,14 +102,29 @@ class ProcessService:
                         process="normalized", service="shop", category_cd=category_cd,
                         stage="validation_normalization", batch_id=batch_id, status="success", dt=dt
                     )
-                    JsonlWriter.write(s3_succ_path, filename, s3_successes)
+                    s3_filename = HivePathBuilder.build_filename(
+                        extension="jsonl",
+                        dt=dt,
+                        stage="validation_normalization",
+                        batch_id=batch_id,
+                        run_attempt=run_attempt,
+                    )
+                    JsonlWriter.write(s3_succ_path, s3_filename, s3_successes)
                     
                 if s3_failures:
                     s3_fail_path = HivePathBuilder.build_path(
                         process="normalized", service="shop", category_cd=category_cd,
                         stage="validation_normalization", batch_id=batch_id, status="fail", dt=dt
                     )
-                    JsonlWriter.write(s3_fail_path, filename, s3_failures)
+                    s3_fail_filename = HivePathBuilder.build_filename(
+                        extension="jsonl",
+                        dt=dt,
+                        stage="validation_normalization",
+                        batch_id=batch_id,
+                        run_attempt=run_attempt,
+                        suffix="fail",
+                    )
+                    JsonlWriter.write(s3_fail_path, s3_fail_filename, s3_failures)
                     
                 processed_batches.append(batch_id)
 

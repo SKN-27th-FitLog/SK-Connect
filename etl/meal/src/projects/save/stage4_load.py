@@ -247,6 +247,10 @@ class Stage4Load(BaseStage):
                             self._touch_last_checked_at(session, record)
                         session.commit()
                         results.append({
+                            "batch_id": batch_id,
+                            "run_attempt": run_attempt,
+                            "stage": self.NAME,
+                            "category_cd": category_cd,
                             "entity_id": store.get("entity_id", "unknown"),
                             "entity_type": "store",
                             "status": "success",
@@ -301,6 +305,10 @@ class Stage4Load(BaseStage):
                         for r in results
                     ) else "success"
                     results.append({
+                        "batch_id": batch_id,
+                        "run_attempt": run_attempt,
+                        "stage": self.NAME,
+                        "category_cd": category_cd,
                         "entity_id": store.get("entity_id", "unknown"),
                         "entity_type": "store",
                         "status": status,

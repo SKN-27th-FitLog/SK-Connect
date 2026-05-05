@@ -105,11 +105,17 @@ async def run_and_consolidate(platform: str, category_cd: str):
     count = 0
     for proc, stage_name in stages:
         process_partition = HivePathBuilder._normalize_process(proc)
-        pattern = os.path.join(settings.LAKE_ROOT_PATH, f"crawling={process_partition}/**/*batch_id={batch_id}/status=*/*.jsonl")
+        pattern = os.path.join(
+            settings.LAKE_ROOT_PATH,
+            f"process={process_partition}/category_cd={category_cd}/**/status=*/{stage_name}_{batch_id}_*.jsonl",
+        )
         files = glob.glob(pattern, recursive=True)
 
         if proc == "raw":
-            raw_file_pattern = os.path.join(settings.LAKE_ROOT_PATH, f"crawling={process_partition}/**/*batch_id={batch_id}/status=*/*.html")
+            raw_file_pattern = os.path.join(
+                settings.LAKE_ROOT_PATH,
+                f"process={process_partition}/category_cd={category_cd}/**/status=*/{stage_name}_{batch_id}_*.html",
+            )
             files.extend(glob.glob(raw_file_pattern, recursive=True))
 
         for f in files:
