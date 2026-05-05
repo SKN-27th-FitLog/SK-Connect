@@ -29,12 +29,12 @@ class BatchUtil:
             stage="raw_collection", status="success", dt=dt
         )
         
-        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*"))
+        batch_files = glob.glob(os.path.join(base_path, "raw_collection_*.jsonl"))
         max_seq = 0
-        for bdir in batch_dirs:
+        for file_path in batch_files:
             try:
                 # b_id 예: 20260424_shop_001
-                b_id = os.path.basename(bdir).split("=")[-1]
+                b_id = HivePathBuilder.extract_batch_id_from_filename(file_path, "raw_collection")
                 seq = int(b_id.split("_")[-1])
                 if seq > max_seq:
                     max_seq = seq

@@ -45,7 +45,7 @@ class FailcheckService:
                 status="fail",
                 dt=dt,
             )
-            fail_files.extend(glob.glob(os.path.join(base_fail_path, "batch_id=*", "status=fail", "*.jsonl")))
+            fail_files.extend(glob.glob(os.path.join(base_fail_path, f"{stage_name}_*.jsonl")))
 
         if not fail_files:
             logger.info("No failed records found for today.")
