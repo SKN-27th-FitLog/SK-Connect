@@ -163,3 +163,70 @@ def social_login(request):
         # 예상치 못한 서버 에러 - 스택 트레이스 로그 기록
         logger.exception("social_login error")
         return JsonResponse({"message": "서버 오류"}, status=500)
+
+# 기존 Refresh Token은 재사용 못하게 폐기하고 새 토큰을 발급하는 API
+@csrf_exempt
+@require_POST
+def refresh_token_view(request):
+    try:
+        # 요청 body(JSON) 파싱
+        body          = json.loads(request.body)
+        refresh_token = body.get("refresh_token")
+
+        # refresh_token이 없으면 에러
+        if not refresh_token:
+            return JsonResponse({"message": "refresh_token 필수입니다"}, status=400)
+
+        # 현재 시각
+        now       = datetime.datetime.now(datetime.timezone.utc)
+
+        # DB에서 토큰 조회
+        # - is_revoked=False : 폐기되지 않은 토큰만
+        # - expires_at__gt=now : 만료되지 않은 토큰만
+        # 둘 다 만족해야 유효한 토큰
+        token_obj = RefreshToken.objects.filter(
+            token=refresh_token,
+            is_revoked=False,
+            expires_at__gt=now
+        ).select_related("user").first()
+
+        # 유효하지 않거나 만료된 토큰이면 에러
+        if not token_obj:
+            return JsonResponse({"message": "유효하지 않거나 만료된 토큰"}, status=401)
+
+        # 토큰 주인 유저 가져오기
+        user = token_obj.user
+
+        # 기존 Refresh Token 폐기
+        # - 같은 토큰을 두 번 쓰지 못하게 막는 토큰 로테이션
+        # - 탈취된 토큰이 재사용되는 걸 방지
+        token_obj.is_revoked = True
+        token_obj.save()
+
+        # 새 Access Token, Refresh Token 발급
+        new_access  = create_access_token(user.user_id, user.role)
+        new_refresh = create_refresh_token(user.user_id)
+
+        ip         = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        # 새 Refresh Token DB 저장
+        RefreshToken.objects.create(
+            user=user,
+            token=new_refresh,
+            ip_address=ip,
+            user_agent=user_agent,
+            expires_at=now + REFRESH_TOKEN_EXP,
+        )
+
+        # 새 토큰 반환
+        return JsonResponse({
+            "access_token":  new_access,
+            "refresh_token": new_refresh,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"message": "잘못된 JSON 형식"}, status=400)
+    except Exception:
+        logger.exception("refresh_token_view error")
+        return JsonResponse({"message": "서버 오류"}, status=500)
