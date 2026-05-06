@@ -6,8 +6,10 @@ from common.connection import Connection, PGVectorStore
 from make_post.evaluation import evaluate_post_completion
 from common.llm_factory import get_llm
 from typing import Optional
-from get_data.get_similar_post import get_similar_post
-from common.prompt import get_prompt, get_title_prompt
+from get_data.get_another import get_similar_post
+from common.prompt import get_prompt, get_title_prompt, get_regenerate_prompt, get_regenerate_reason_prompt
+from common.connection import get_cursor
+from get_data. get_another import get_image
 import time
 import os
 logger = set_logging()
@@ -36,18 +38,32 @@ class State(TypedDict):
     post: Optional[str]
     title: Optional[str]
     similar_post: Optional[list[dict]]
-
+    reason: Optional[str]
 
 
 def make_post(state: State) -> State:
     try:
         llm = get_llm()
-        prompt = get_prompt(state['keyword'])
-        response = llm.invoke(prompt)
+        image_list = get_image(state['data'])
+        prompt = get_prompt(state['keyword'], image_list)
+        response = llm.invoke( state['data']['category_cd'], prompt)
         
         return {
             **state,
             'post': response,
+        }
+    except Exception as e:
+        logger.error(f"Error={e} | time={time.time() | state['data']['crawling_id']}")
+        return state
+
+def make_title(state: State) -> State:
+    try:
+        llm = get_llm()
+        prompt = get_title_prompt(state['post'])
+        response = llm.invoke(prompt)
+        return {
+            **state,
+            'title': response,
         }
     except Exception as e:
         logger.error(f"Error={e} | time={time.time() | state['data']['crawling_id']}")
@@ -66,13 +82,15 @@ def embedding(state: State) -> bool:
     except Exception as e:
         logger.error(f"Error={e} | time={time.time() | state['data']['crawling_id']}")
 
-def update_prompt(state: State) -> State:
-    pass
-
 def regenerate_post(state: State) -> State:
     try:
         llm = get_llm()
-        prompt = get_regenerate_prompt(state['similar_post'])
+        if state['reason']:
+            prompt = get_regenerate_reason_prompt(state['reason'])
+        elif state['similar_post']:
+            prompt = get_regenerate_prompt(state['similar_post'])
+        else:
+            return state
         response = llm.invoke(prompt)
         return {
             **state,
@@ -84,7 +102,7 @@ def regenerate_post(state: State) -> State:
 
 def evaluate_post(state: State) -> bool:
     try:
-        reason = evaluate_post_completion(state['post'])
+        state['reason'] = evaluate_post_completion(state['post'])
 
     except Exception as e:
         logger.error(f"Error={e} | time={time.time() | state['data']['crawling_id']}")
@@ -94,4 +112,32 @@ def evaluate_post(state: State) -> bool:
 def graph():
 
     graph = StateGraph(State)
+    graph.add_node("make_post", make_post)
+    graph.add_node("make_title", make_title)
+    graph.add_node("embedding", embedding)
+    graph.add_node("regenerate_post", regenerate_post)
+    graph.add_node("evaluate_post", evaluate_post)
+    graph.add_edge(START, "make_post")
+    graph.add_edge("make_post", "make_title")
+    graph.add_edge("make_title", "embedding")
+    graph.add_edge("embedding", "similar_post")
+    graph.add_edge("similar_post", "regenerate_post")
+    graph.add_conditional_edges(
+        "similar_post", 
+        embedding,
+        {
+            "regenerate_post": "embedding",
+            "evaluate_post": "regenerate_post",
+        }
+    )
+    graph.add_edge("regenerate_post", "evaluate_post")
+    graph.add_conditional_edges(
+        "evaluate_post",
+        evaluate_post,
+        {
+            "evaluate_post": END,
+            "regenerate_post": "regenerate_post",
+        }
+    )
+    graph.add_edge("evaluate_post", END)
     return graph.compile()

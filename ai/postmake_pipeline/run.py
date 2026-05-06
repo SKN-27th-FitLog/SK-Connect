@@ -2,6 +2,7 @@ from get_data.get_data import get_shop_data
 from get_data.select_shop import select_shop, select_keyword
 from common.logging_config import set_logging
 from make_post.node import graph
+from make_post.to_post import to_post, to_post_vector
 import time
 logger = set_logging()
 
@@ -26,6 +27,8 @@ def run_pipeline():
                 continue # 다음 음식점 확인
             ###################make post####################
             post_data = graph.invoke(keyword_data, shop_data)
+            post_id = to_post(post_data, shop_data[0])
+            to_post_vector(post_data, shop_data[0],post_id, keyword_data)
 
         except Exception as e:
             logger.error(f"Error={e} | time={time.time()}")

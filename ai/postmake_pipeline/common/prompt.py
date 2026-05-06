@@ -1,30 +1,49 @@
 import json
 import random
-
+from typing import Optional
 from common.logging_config import set_logging
 logger = set_logging()
 
 class Create_Prompt():
-    def __init__(self, type: str, data: str):
-        self.master_template = """
+    def __init__(self, data: str, similar_post: Optional[list[str]], reason: Optional[str], image_list: Optional[list], url:Optional[str]):
+        self.master_template = ["""
 # [SYSTEM ROLE]
 당신은 대한민국 현지인들이 사용하는 리얼한 말투를 완벽하게 구사하는 게시글 작성자입니다.
 광고 같은 느낌을 완전히 배제하고, 실제 사용자가 작성한 듯한 텍스트를 생성하세요.
 긍정적인 내용으로 작성하세요.
+
+#[image_urls]
+{image_list}
+
+#[url]
+{url}
+
 
 # [COMMON RULES]
 1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도, 이벤트, 신기능, 패치소식, 오류개선 등)를 지어내지 마세요.
 2. 금지 문구: '안녕하세요', '추천합니다', '참고하세요', '이상입니다', '방문해보세요' 등 상투적인 멘트는 절대 사용하지 않습니다.
 3. 구성: 형식에 얽매이지 않고 본문만 작성하되, 최소 3문장 이상으로 충분한 내용을 담아 작성하세요.
 4. 분량: 결과 본문은 최소 200자 이상 작성하세요.
-"""
+5. 게시글 하단이나 맥락 상 적절한 곳에 url을 작성하세요. 지어내면 안됩니다
+6. 게시글 중간중간 적절한 곳에 위의 이미지를 첨부하세요
+"""]
 
-        self.title_template = """
+        self.title_template = ["""
 # [SYSTEM ROLE]
 작성된 content를 바탕으로 적절한 제목을 작성해주세요.
-부정적인 내용으로 작성하지 마세요.
-없는 내용을 지어내지 마세요.
-        """
+본문과 비슷한 말투로 작성해주세요.
+
+# [TITLE RULES]
+1. 제목은 최대 20자 이하로 작성하세요.
+2. 제목은 최소 5자 이상 작성하세요.
+3. 제목은 게시글의 내용을 요약한 것이어야 합니다.
+4. 제목은 게시글의 내용을 바탕으로 작성해주세요.
+5. 없는 내용을 지어내지 마세요.
+6. 부정적인 내용으로 작성하지 마세요.
+
+# [post]
+{data}
+        """]
 
         self.casual_sub_prompts:list[str] = [
             #MODE 1
@@ -101,17 +120,33 @@ class Create_Prompt():
 - 출력 예시: "기술적 완성도가 상당히 높습니다. 특히 아키텍처의 확장성이 좋아 향후 다양한 프로젝트에 유연하게 대응할 수 있을 것으로 판단합니다."
 """
         ]
-        self.regenerate_sub_prompts:list[str] = [
-            """
-            """,
-            """
-            """,
-            """
-            """,
-            """
-            """,
-            """
-            """,
+        self.regenerate_similar_sub_prompts:list[str] = [
+'''
+# [CONTEXT]
+다음은 비슷한 게시글의 내용입니다. 
+{similar_post}
+
+# [SYSTEM ROLE]
+이 위의 내용을 참고하여 다른 느낌의 게시글을 작성해주세요.
+최대한 비슷한 내용을 작성하지 마세요.
+부정적인 내용으로 작성하지 마세요.
+없는 내용을 지어내지 마세요.
+
+'''
+        ]
+
+        self.regenerate_reason_sub_prompts:list[str] = [
+'''
+# [REASON]
+다음은 evaluatoin 단계에서 failed 처리된 이유입니다.
+(키워드 누락, 할루시네이션, 어조 일관성, 종결어미의 반복, 독창성, 상투적 표현 등 상세히 이유를 작성해주세요
+{reason}
+
+# [SYSTEM ROLE]
+이 위의 내용을 참고하여 게시글을 보강하세요
+부정적인 내용으로 작성하지 마세요
+없는 내용을 지어내지 마세요
+'''
         ]
 
     @classmethod
@@ -119,9 +154,9 @@ class Create_Prompt():
         """랜덤으로 여러개의 프롬프트 중 하나를 선택하여 반환"""
         try:
             if type == "casual":
-                return random.choice(cls.casual_sub_prompts)
+                return cls.master_template + random.choice(cls.casual_sub_prompts)
             elif type == "formal":
-                return random.choice(cls.formal_sub_prompts)
+                return cls.master_template + random.choice(cls.formal_sub_prompts)
             elif type != "casual" and type != "formal":
                 raise ValueError(f"Invalid type: {type}")
         except Exception as e:
@@ -131,16 +166,21 @@ class Create_Prompt():
     @classmethod
     def get_title_prompt(cls, data:dict)->str:
         """제목 프롬프트 반환"""
-        try:
-            return cls.title_template
-        except Exception as e:
-            logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
-            return ""
+        return cls.get_title_prompt(data)
+
     @classmethod
     def get_regenerate_prompt(cls, data:dict)->str:
         """유사글 존재 시 재생성 프롬프트 반환"""
         try:
-            return random.choice(cls.regenerate_sub_prompts)
+            return cls.master_template + random.choice(cls.regenerate_similar_sub_prompts)
+        except Exception as e:
+            logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
+            return ""
+
+    def get_regenerate_reason_prompt(cls, data:dict)->str:
+        """이유 존재 시 재생성 프롬프트 반환"""
+        try:
+            return cls.master_template + random.choice(cls.regenerate_reason_sub_prompts)
         except Exception as e:
             logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
             return ""
