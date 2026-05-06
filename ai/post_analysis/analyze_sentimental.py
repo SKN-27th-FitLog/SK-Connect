@@ -1,6 +1,7 @@
 # 로그 
 import logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 패키지
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -45,7 +46,7 @@ def predict_sentiment(text: str) -> dict:
     }
 
 
-def analyze_sentimantal():
+def analyze_sentimental():
 
     # 데이터 로드 
     df = get_analysis_data()
@@ -76,6 +77,4 @@ def analyze_sentimantal():
 
 ########################################################
 if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
-
-    analyze_sentimantal()
+    analyze_sentimental()

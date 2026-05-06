@@ -19,6 +19,9 @@ def analyze_keywords():
 
     # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )
     df = get_analysis_data()
+
+    # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
+    df = df[df["keywords"].isnull()]
     
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
     df["keywords"] = df["keywords"].astype("object")
