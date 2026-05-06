@@ -56,10 +56,21 @@ class Stage1RawCollection(BaseStage):
             # URL에서 고유 ID 추출하여 파일명에 포함 (덮어쓰기 방지)
             rid_match = re.search(r'rid=([a-zA-Z0-9\-_]+)', url)
             unique_suffix = rid_match.group(1) if rid_match else target_id
-            filename = f"{dt.strftime('%y%m%d%H%M%S')}_att{run_attempt}_{unique_suffix}.html"
+            filename = HivePathBuilder.build_filename(
+                "html",
+                dt,
+                stage=self.stage_name,
+                batch_id=batch_id,
+                run_attempt=run_attempt,
+                suffix=unique_suffix,
+            )
             full_file_path = self._write_raw_file(success_path, filename, raw_data["raw_content"])
             
             return {
+                "batch_id": batch_id,
+                "run_attempt": run_attempt,
+                "stage": self.stage_name,
+                "category_cd": category_cd,
                 "entity_id": target_id,
                 "entity_ref": {"target_id": target_id, "url": url, "shard_id": shard_id, "run_attempt": run_attempt},
                 "raw_file_path": str(full_file_path),
@@ -70,6 +81,10 @@ class Stage1RawCollection(BaseStage):
         except Exception as e:
             self.logger.warning(f"Failed to collect {url}: {e}")
             return {
+                "batch_id": batch_id,
+                "run_attempt": run_attempt,
+                "stage": self.stage_name,
+                "category_cd": category_cd,
                 "entity_id": target_id,
                 "entity_ref": {"target_id": target_id, "url": url, "shard_id": shard_id, "run_attempt": run_attempt},
                 "status": "fail",
@@ -104,7 +119,14 @@ class Stage1RawCollection(BaseStage):
 
         successes = [r for r in results if r["status"] == "success"]
         failures = [r for r in results if r["status"] == "fail"]
-        filename = f"shard_{shard_id}_att{run_attempt}.jsonl"
+        filename = HivePathBuilder.build_filename(
+            "jsonl",
+            now,
+            stage=self.stage_name,
+            batch_id=batch_id,
+            run_attempt=run_attempt,
+            suffix=shard_id,
+        )
 
         if successes:
             succ_path = HivePathBuilder.build_path(
