@@ -1,64 +1,71 @@
 from common.logging_config import set_logging
 from common.connection import get_cursor
 import time
+
 logger = set_logging()
 
-def search_post(row:dict)->dict:
+
+def search_post(row: dict) -> dict:
     """
-    get_data로 가져온 데이터의 title을 기준으로
-    post에 이미 생성된 적이 있는 가게인지 조회하고 
-    생성 날짜 이후 crawling된 데이터인지 조회한다.
+    analysis row의 shop_id와 posts.created_at 날짜 기준으로 이미 생성된 게시글을 조회한다.
+    하루에 하나의 shop_id는 하나의 게시글만 생성한다.
     """
     try:
-        # post테이블에서 가져온 데이터와 동일한 title의 데이터가 있는지 확인 (가장 최근 데이터)
-        query = "SELECT * FROM posts WHERE title = %s ORDER BY created_at DESC LIMIT 1"
-        cursor = get_cursor(query, (row['title'],)) #post의 데이터
+        query = """
+        SELECT *
+        FROM posts
+        WHERE shop_id = %s
+          AND created_at::date = CURRENT_DATE
+        ORDER BY created_at DESC
+        LIMIT 1
+        """
+        cursor = get_cursor(query, (row["shop_id"],))
         data = cursor.fetchone() if cursor else None
-        if not data: # 데이터
+        if not data:
             return None
-        elif data:
-            return data
+        return data
 
     except Exception as e:
         logger.error(f"search_post | Error={e} | time={time.time()}")
         return False
 
+
 def get_data():
-    """analysis 테이블에서 row단위로 동일한 가게의 데이터만 가져온다"""
+    """analysis 테이블에서 게시글 생성 대상 row를 가져온다."""
     try:
-        query = "SELECT * FROM analysis WHERE created_dt < NOW() - INTERVAL '1 day' ORDER BY title, created_dt DESC"
+        query = "SELECT * FROM analysis WHERE created_dt < NOW() - INTERVAL '1 day' ORDER BY shop_id, created_dt DESC"
         cursor = get_cursor(query)
         if not cursor:
             return None
         for row in cursor.fetchall():
             post_data = search_post(row)
-            if post_data and post_data['created_at'] >= row['created_dt']:
+            if post_data:
                 continue
             yield row
 
     except Exception as e:
         logger.error(f"get_data | Error={e} | time={time.time()}")
-
         return None
 
-def get_shop_data()->list[dict]:
-    """get_data로 가져온 데이터"""
+
+def get_shop_data() -> list[dict]:
+    """get_data로 가져온 같은 shop_id의 analysis row들을 묶는다."""
     try:
-        shop_data:list[dict] = []
-        title = ""
+        shop_data: list[dict] = []
+        shop_id = None
         data_iter = get_data()
         while True:
-            data:dict = next(data_iter, None)
-            if not data: # 데이터가 없으면 종료
+            data: dict = next(data_iter, None)
+            if not data:
                 break
-            elif title == "": # 첫 데이터 처리
-                title = data['title'] 
+            elif shop_id is None:
+                shop_id = data["shop_id"]
                 shop_data.append(data)
                 continue
-            elif title != "": # 두 번째 이후 데이터 처리
-                if title != data['title']: # 동일한 가게의 데이터가 아니면 종료
+            elif shop_id is not None:
+                if shop_id != data["shop_id"]:
                     return shop_data
-                elif title == data['title']: # 동일한 가게의 데이터이면 추가
+                elif shop_id == data["shop_id"]:
                     shop_data.append(data)
                     continue
         return shop_data
@@ -66,13 +73,14 @@ def get_shop_data()->list[dict]:
         logger.error(f"get_shop_data | Error={e} | time={time.time()}")
         return None
 
-def analysis_data(data:list[dict])->bool:
+
+def analysis_data(data: list[dict]) -> bool:
     try:
         count = 0
         for row in data:
             if count >= 5:
                 return True
-            elif row['sentimental'] == 'positive':
+            elif row["sentimental"] == "positive":
                 count += 1
     except Exception as e:
         logger.error(f"analysis_data | Error={e} | time={time.time()}")

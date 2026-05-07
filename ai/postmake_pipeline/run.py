@@ -34,6 +34,9 @@ def run_pipeline():
                 "title": None,
                 "similar_post": None,
                 "reason": None,
+                "sample_data": None,
+                "is_pass": None,
+                "retry_count": 0,
             })
             post_id = to_post(post_data, shop_data[0])
             to_post_vector(post_data, shop_data[0],post_id, keyword_data)

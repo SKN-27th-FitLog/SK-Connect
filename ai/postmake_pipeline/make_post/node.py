@@ -11,6 +11,7 @@ from common.prompt import get_prompt, get_title_prompt, get_regenerate_prompt, g
 from get_data.get_another import get_image
 import time
 import os
+import random
 logger = set_logging()
 
 def get_embeddings():
@@ -38,18 +39,23 @@ class State(TypedDict):
     title: Optional[str]
     similar_post: Optional[list[str]]
     reason: Optional[str]
+    sample_data: Optional[dict]
+    is_pass: Optional[bool]
+    retry_count: int
 
 
 def make_post(state: State) -> State:
     try:
         llm = get_llm()
         image_list = get_image(state['data'])
-        prompt = get_prompt(state['keyword'], image_list, state['data'][0].get('article_url'))
+        sample_data = random.choice(state['data']) if state['data'] else None
+        prompt = get_prompt(state['keyword'], image_list, state['data'][0].get('article_url'), sample_data)
         response = llm.invoke(prompt)
         
         return {
             **state,
             'post': response.content if hasattr(response, "content") else str(response),
+            'sample_data': sample_data,
         }
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
@@ -81,17 +87,25 @@ def embedding(state: State) -> State:
 
 def regenerate_post(state: State) -> State:
     try:
+        retry_count = state.get('retry_count', 0)
+        if retry_count >= 2:
+            return state
         llm = get_llm()
+        image_list = get_image(state['data'])
+        url = state['data'][0].get('article_url')
+        sample_data = state.get('sample_data') or (random.choice(state['data']) if state['data'] else None)
         if state['reason']:
-            prompt = get_regenerate_reason_prompt(state['reason'])
+            prompt = get_regenerate_reason_prompt(state['reason'], state['keyword'], image_list, url, sample_data)
         elif state['similar_post']:
-            prompt = get_regenerate_prompt(state['similar_post'])
+            prompt = get_regenerate_prompt(state['similar_post'], state['keyword'], image_list, url, sample_data)
         else:
             return state
         response = llm.invoke(prompt)
         return {
             **state,
             'post': response.content if hasattr(response, "content") else str(response),
+            'sample_data': sample_data,
+            'retry_count': retry_count + 1,
         }
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
@@ -99,8 +113,12 @@ def regenerate_post(state: State) -> State:
 
 def evaluate_post(state: State) -> State:
     try:
-        state['reason'] = evaluate_post_completion(state)
-        return state
+        result = evaluate_post_completion(state)
+        return {
+            **state,
+            'is_pass': result.get('is_pass'),
+            'reason': result.get('reason'),
+        }
 
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
@@ -110,6 +128,14 @@ def route_after_embedding(state: State) -> str:
     if state.get('similar_post'):
         return "regenerate_post"
     return "evaluate_post"
+
+
+def route_after_evaluation(state: State) -> str:
+    if state.get('is_pass'):
+        return "end"
+    if state.get('retry_count', 0) >= 2:
+        return "end"
+    return "regenerate_post"
 
 
 def graph():
@@ -132,5 +158,12 @@ def graph():
         }
     )
     graph.add_edge("regenerate_post", "evaluate_post")
-    graph.add_edge("evaluate_post", END)
+    graph.add_conditional_edges(
+        "evaluate_post",
+        route_after_evaluation,
+        {
+            "regenerate_post": "regenerate_post",
+            "end": END,
+        }
+    )
     return graph.compile()

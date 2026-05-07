@@ -5,7 +5,7 @@ from common.logging_config import set_logging
 logger = set_logging()
 
 class Create_Prompt():
-    def __init__(self, data: str, similar_post: Optional[list[str]], reason: Optional[str], image_list: Optional[list], url:Optional[str]):
+    def __init__(self, data: str, similar_post: Optional[list[str]], reason: Optional[str], image_list: Optional[list], url:Optional[str], title:str):
         self.master_template = ["""
 # [SYSTEM ROLE]
 당신은 대한민국 현지인들이 사용하는 리얼한 말투를 완벽하게 구사하는 게시글 작성자입니다.
@@ -18,6 +18,10 @@ class Create_Prompt():
 #[url]
 {url}
 
+#[shop_name]
+{title}
+
+
 
 # [COMMON RULES]
 1. 데이터 준수: 제공된 데이터에 없는 메뉴나 정보(주차 가능 여부, 친절도, 이벤트, 신기능, 패치소식, 오류개선 등)를 지어내지 마세요.
@@ -26,20 +30,28 @@ class Create_Prompt():
 4. 분량: 결과 본문은 최소 200자 이상 작성하세요.
 5. 게시글 하단이나 맥락 상 적절한 곳에 url을 작성하세요. 지어내면 안됩니다
 6. 게시글 중간중간 적절한 곳에 위의 이미지를 첨부하세요
+7. 이런 내용은 넣지 마세요 >>> "**[참고]** 위 후기는 실제 방문 경험을 바탕으로 작성된 가상의 리뷰이며, 실제 정보와는 다를 수 있습니다"
 """]
 
         self.title_template = ["""
 # [SYSTEM ROLE]
 작성된 content를 바탕으로 적절한 제목을 작성해주세요.
 본문과 비슷한 말투로 작성해주세요.
+이모티콘 사용은 하지 마세요
 
 # [TITLE RULES]
+0. 제목은 반드시 100자 이내로 작성하세요.
 1. 제목은 최대 20자 이하로 작성하세요.
 2. 제목은 최소 5자 이상 작성하세요.
 3. 제목은 게시글의 내용을 요약한 것이어야 합니다.
 4. 제목은 게시글의 내용을 바탕으로 작성해주세요.
 5. 없는 내용을 지어내지 마세요.
 6. 부정적인 내용으로 작성하지 마세요.
+
+#[EXAMPLE]
+1. 어른들 모시고 가기 좋은 00동 한식 맛집...
+2. 모임 장소로 추천! 피자 + 맥주 조합 최고다!!!!
+3. 나만 알려고 했는데 그냥 알려줌
 
 # [post]
 {data}
@@ -190,7 +202,34 @@ def _create_prompt() -> Create_Prompt:
     return Create_Prompt("", None, None, None, None)
 
 
-def get_prompt(keyword: list[str], image_list: Optional[list] = None, url: Optional[str] = None) -> str:
+def _clip_text(value: Optional[str], limit: int = 700) -> str:
+    text = str(value or "").strip()
+    return text[:limit]
+
+
+def _format_sample_data(sample_data: Optional[dict]) -> str:
+    if not sample_data:
+        return ""
+    fields = [
+        ("shop_id", sample_data.get("shop_id")),
+        ("title", sample_data.get("title")),
+        ("content", _clip_text(sample_data.get("content"))),
+        ("keywords", sample_data.get("keywords")),
+        ("positive_kw", sample_data.get("positive_kw")),
+        ("negative_kw", sample_data.get("negative_kw")),
+        ("sentimental", sample_data.get("sentimental")),
+        ("score", sample_data.get("score")),
+        ("article_url", sample_data.get("article_url")),
+    ]
+    return "\n".join(f"- {key}: {value}" for key, value in fields if value not in (None, ""))
+
+
+def get_prompt(
+    keyword: list[str],
+    image_list: Optional[list] = None,
+    url: Optional[str] = None,
+    sample_data: Optional[dict] = None,
+) -> str:
     prompt = _create_prompt()
     master = prompt.master_template[0].format(
         image_list=image_list or [],
@@ -200,6 +239,10 @@ def get_prompt(keyword: list[str], image_list: Optional[list] = None, url: Optio
         master,
         "# [KEYWORDS]",
         ", ".join(keyword),
+        "# [RANDOM SOURCE SAMPLE]",
+        _format_sample_data(sample_data),
+        "# [SOURCE SAMPLE RULE]",
+        "위 RANDOM SOURCE SAMPLE은 같은 shop_id로 모은 analysis 원본 데이터 중 랜덤으로 하나 뽑은 예시입니다. 이 예시의 구체적인 관찰 포인트와 표현 재료를 반영하되, 원문을 그대로 복사하지 말고 자연스러운 새 게시글로 작성하세요.",
         random.choice(prompt.casual_sub_prompts),
     ])
 
@@ -209,17 +252,53 @@ def get_title_prompt(data: str) -> str:
     return prompt.title_template[0].format(data=data)
 
 
-def get_regenerate_prompt(data: list[str]) -> str:
+def get_regenerate_prompt(
+    data: list[str],
+    keyword: Optional[list[str]] = None,
+    image_list: Optional[list] = None,
+    url: Optional[str] = None,
+    sample_data: Optional[dict] = None,
+) -> str:
     prompt = _create_prompt()
-    master = prompt.master_template[0].format(image_list=[], url="")
+    master = prompt.master_template[0].format(
+        image_list=image_list or [],
+        url=url or "",
+    )
     sub_prompt = random.choice(prompt.regenerate_similar_sub_prompts).format(
         similar_post="\n".join(data)
     )
-    return f"{master}\n{sub_prompt}"
+    return "\n".join([
+        master,
+        "# [KEYWORDS]",
+        ", ".join(keyword or []),
+        "# [RANDOM SOURCE SAMPLE]",
+        _format_sample_data(sample_data),
+        sub_prompt,
+        "# [REGENERATION RULE]",
+        "위의 keyword, image_urls, url, RANDOM SOURCE SAMPLE 정보는 유지해서 반영하되, CONTEXT의 기존 유사 게시글과는 문장 구조, 표현, 전개 방식, 강조 포인트가 겹치지 않게 완전히 다른 게시글로 작성하세요.",
+    ])
 
 
-def get_regenerate_reason_prompt(data: str) -> str:
+def get_regenerate_reason_prompt(
+    data: str,
+    keyword: Optional[list[str]] = None,
+    image_list: Optional[list] = None,
+    url: Optional[str] = None,
+    sample_data: Optional[dict] = None,
+) -> str:
     prompt = _create_prompt()
-    master = prompt.master_template[0].format(image_list=[], url="")
+    master = prompt.master_template[0].format(
+        image_list=image_list or [],
+        url=url or "",
+    )
     sub_prompt = random.choice(prompt.regenerate_reason_sub_prompts).format(reason=data)
-    return f"{master}\n{sub_prompt}"
+    return "\n".join([
+        master,
+        "# [KEYWORDS]",
+        ", ".join(keyword or []),
+        "# [RANDOM SOURCE SAMPLE]",
+        _format_sample_data(sample_data),
+        sub_prompt,
+        "# [REGENERATION RULE]",
+        "위의 keyword, image_urls, url, RANDOM SOURCE SAMPLE 정보는 유지해서 반영하되, 실패 사유에 나온 문제와 기존 표현 반복을 피해서 다른 문장 구조와 전개 방식으로 다시 작성하세요.",
+    ])

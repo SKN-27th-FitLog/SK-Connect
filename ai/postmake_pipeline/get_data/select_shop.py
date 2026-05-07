@@ -31,23 +31,31 @@ def select_keyword(shop_data:list[dict])->list:
         keyword_data = []
         positive_keyword_count = {}
         result_keyword = []
+
         for shop in shop_data:
             keywords = shop.get('positive_kw') or ''
+            
             if isinstance(keywords, str):
                 keyword_data.append([kw.strip() for kw in keywords.split('#') if kw.strip()])
+
             else:
                 keyword_data.append(keywords)
 
         for keyword in keyword_data:
+
             for kw in keyword:
                 if kw in positive_keyword_count:
                     positive_keyword_count[kw] += 1
                 elif kw not in positive_keyword_count:
                     positive_keyword_count[kw] = 1
+
         for kw, count in positive_keyword_count.items():
+
             if count / len(keyword_data) >= 0.5:
                 result_keyword.append(kw)
+
         return result_keyword
+
     except Exception as e:
         logger.error(f"select_keyword | Error={e} | time={time.time()} | crawling_id={shop.get('crawling_id')}")
         return []

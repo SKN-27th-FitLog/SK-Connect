@@ -26,7 +26,7 @@ def to_post(result: dict, shop_data: dict) -> str:
             shop_data["map_id"],
             shop_data["shop_id"],
             shop_data["crawling_id"],
-            ",".join(result.get("keyword", [])),
+            "# ".join(result.get("keyword", [])),
         ))
         row = cursor.fetchone() if cursor else None
         return row["post_id"] if row else None
