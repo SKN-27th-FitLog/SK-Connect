@@ -19,7 +19,7 @@ def select_shop(shop_data:list[dict])->bool:
         elif positive_count / total_count < 0.7:
             return False
     except Exception as e:
-        logger.error(f"select_shop | Error={e} | time={time.time() | shop['crawling_id']}")
+        logger.error(f"select_shop | Error={e} | time={time.time()} | crawling_id={shop.get('crawling_id')}")
         return False
 
 def select_keyword(shop_data:list[dict])->list:
@@ -32,7 +32,11 @@ def select_keyword(shop_data:list[dict])->list:
         positive_keyword_count = {}
         result_keyword = []
         for shop in shop_data:
-                keyword_data.append(shop['positive_kw'])
+            keywords = shop.get('positive_kw') or ''
+            if isinstance(keywords, str):
+                keyword_data.append([kw.strip() for kw in keywords.split('#') if kw.strip()])
+            else:
+                keyword_data.append(keywords)
 
         for keyword in keyword_data:
             for kw in keyword:
@@ -45,5 +49,5 @@ def select_keyword(shop_data:list[dict])->list:
                 result_keyword.append(kw)
         return result_keyword
     except Exception as e:
-        logger.error(f"select_keyword | Error={e} | time={time.time() | shop['crawling_id']}")
+        logger.error(f"select_keyword | Error={e} | time={time.time()} | crawling_id={shop.get('crawling_id')}")
         return []

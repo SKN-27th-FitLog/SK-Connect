@@ -11,8 +11,9 @@ def search_post(row:dict)->dict:
     """
     try:
         # post테이블에서 가져온 데이터와 동일한 title의 데이터가 있는지 확인 (가장 최근 데이터)
-        query = "SELECT * FROM posts WHERE title = %s LIMIT 1 ORDER BY created_dt DESC"
-        data = get_cursor(query, (row['title'])) #post의 데이터
+        query = "SELECT * FROM posts WHERE title = %s ORDER BY created_at DESC LIMIT 1"
+        cursor = get_cursor(query, (row['title'],)) #post의 데이터
+        data = cursor.fetchone() if cursor else None
         if not data: # 데이터
             return None
         elif data:
@@ -25,18 +26,15 @@ def search_post(row:dict)->dict:
 def get_data():
     """analysis 테이블에서 row단위로 동일한 가게의 데이터만 가져온다"""
     try:
-        query = "SELECT * FROM analysis WHERE created_dt < NOW() - INTERVAL '1 day' LIMIT 1 ORDER BY created_dt DESC"
-        data = get_cursor(query)
-        if not data:
+        query = "SELECT * FROM analysis WHERE created_dt < NOW() - INTERVAL '1 day' ORDER BY title, created_dt DESC"
+        cursor = get_cursor(query)
+        if not cursor:
             return None
-        elif post_data := search_post(data):
-            if post_data['created_dt'] > data['created_dt']:
-                print(f"post_data['created_dt'] > data['created_dt']")
-                return None
-            elif post_data['created_dt'] < data['created_dt']:
-                return data
-        row = data.fetchone()
-        yield row
+        for row in cursor.fetchall():
+            post_data = search_post(row)
+            if post_data and post_data['created_at'] >= row['created_dt']:
+                continue
+            yield row
 
     except Exception as e:
         logger.error(f"get_data | Error={e} | time={time.time()}")
@@ -48,20 +46,18 @@ def get_shop_data()->list[dict]:
     try:
         shop_data:list[dict] = []
         title = ""
+        data_iter = get_data()
         while True:
-            data:dict = next(get_data())
+            data:dict = next(data_iter, None)
             if not data: # 데이터가 없으면 종료
                 break
             elif title == "": # 첫 데이터 처리
                 title = data['title'] 
-                if post_data := search_post(data): # 이미 생성된 데이터가 있는 경우
-                    analysis_data(post_data)
-                elif not post_data: # 이미 생성된 데이터가 없으면 추가
-                    shop_data.append(data)
-                    continue
+                shop_data.append(data)
+                continue
             elif title != "": # 두 번째 이후 데이터 처리
                 if title != data['title']: # 동일한 가게의 데이터가 아니면 종료
-                    return None
+                    return shop_data
                 elif title == data['title']: # 동일한 가게의 데이터이면 추가
                     shop_data.append(data)
                     continue
@@ -79,5 +75,5 @@ def analysis_data(data:list[dict])->bool:
             elif row['sentimental'] == 'positive':
                 count += 1
     except Exception as e:
-        logger.error(f"analysis_data | Error={e} | time={time.time()} | crawling_id={data['crawling_id']}")
+        logger.error(f"analysis_data | Error={e} | time={time.time()}")
         return None

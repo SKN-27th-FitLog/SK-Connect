@@ -22,11 +22,19 @@ def run_pipeline():
                 break
             #################Select Shop#####################
             if select_shop(shop_data): # 해당 음식점 선택
-                keyword_data = select_keyword(shop_data).keys()
+                keyword_data = select_keyword(shop_data)
             else: # 해당 음식점 선택 실패
                 continue # 다음 음식점 확인
             ###################make post####################
-            post_data = graph.invoke(keyword_data, shop_data)
+            pre_post_data = graph()
+            post_data = pre_post_data.invoke({
+                "keyword": keyword_data,
+                "data": shop_data,
+                "post": None,
+                "title": None,
+                "similar_post": None,
+                "reason": None,
+            })
             post_id = to_post(post_data, shop_data[0])
             to_post_vector(post_data, shop_data[0],post_id, keyword_data)
 

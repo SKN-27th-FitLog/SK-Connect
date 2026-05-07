@@ -184,3 +184,42 @@ class Create_Prompt():
         except Exception as e:
             logger.error(f"Error={e} |crawling_id={data.get('crawling_id')}")
             return ""
+
+
+def _create_prompt() -> Create_Prompt:
+    return Create_Prompt("", None, None, None, None)
+
+
+def get_prompt(keyword: list[str], image_list: Optional[list] = None, url: Optional[str] = None) -> str:
+    prompt = _create_prompt()
+    master = prompt.master_template[0].format(
+        image_list=image_list or [],
+        url=url or "",
+    )
+    return "\n".join([
+        master,
+        "# [KEYWORDS]",
+        ", ".join(keyword),
+        random.choice(prompt.casual_sub_prompts),
+    ])
+
+
+def get_title_prompt(data: str) -> str:
+    prompt = _create_prompt()
+    return prompt.title_template[0].format(data=data)
+
+
+def get_regenerate_prompt(data: list[str]) -> str:
+    prompt = _create_prompt()
+    master = prompt.master_template[0].format(image_list=[], url="")
+    sub_prompt = random.choice(prompt.regenerate_similar_sub_prompts).format(
+        similar_post="\n".join(data)
+    )
+    return f"{master}\n{sub_prompt}"
+
+
+def get_regenerate_reason_prompt(data: str) -> str:
+    prompt = _create_prompt()
+    master = prompt.master_template[0].format(image_list=[], url="")
+    sub_prompt = random.choice(prompt.regenerate_reason_sub_prompts).format(reason=data)
+    return f"{master}\n{sub_prompt}"

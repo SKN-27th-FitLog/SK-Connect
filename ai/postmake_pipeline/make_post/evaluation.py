@@ -35,5 +35,6 @@ def evaluate_post_completion(result: dict) -> str:
         return response.content
             
     except Exception as e:
-        logger.error(f"Error={e} | time={time.time() | result['data']['crawling_id']}")
+        data = result.get("data") or [{}]
+        logger.error(f"Error={e} | time={time.time()} | crawling_id={data[0].get('crawling_id')}")
         return ""

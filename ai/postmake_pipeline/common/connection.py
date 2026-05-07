@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from pathlib import Path
 from psycopg2 import connect
+from psycopg2.extras import RealDictCursor
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_postgres.vectorstores import PGVector
 import os
@@ -61,11 +62,11 @@ class PGVectorStore:
     def get_vectorstore(self):
         return self.vectorstore
 
-def get_cursor(query:str):
+def get_cursor(query:str, params=None):
     try:
         connection = Connection().get_connection()
-        cursor = connection.cursor()
-        cursor.execute(query)
+        cursor = connection.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(query, params)
         return cursor
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()}")
