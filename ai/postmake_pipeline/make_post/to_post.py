@@ -41,10 +41,17 @@ def to_post_vector(result: dict, shop_data: dict, post_id: int, keyword_data: li
     try:
         metadata = result["metadata"].copy() if isinstance(result.get("metadata"), dict) else {}
         metadata["post_id"] = post_id
+        metadata["title"] = result.get("title")
+        metadata["content"] = result.get("post")
+        metadata["status_cd"] = "ST01"
+        metadata["post_cd"] = "PT03"
         metadata["map_id"] = shop_data.get("map_id")
+        metadata["shop_id"] = shop_data.get("shop_id")
+        metadata["crawling_id"] = shop_data.get("crawling_id")
         metadata["shop"] = shop_data.get("title")
         metadata["category_cd"] = shop_data.get("category_cd")
         metadata["keywords"] = keyword_data
+        metadata["tag"] = "# ".join(result.get("keyword", []))
         document = Document(
             page_content=result["post"],
             metadata=metadata

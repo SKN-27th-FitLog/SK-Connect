@@ -26,8 +26,7 @@ def run_pipeline():
             else: # 해당 음식점 선택 실패
                 continue # 다음 음식점 확인
             ###################make post####################
-            pre_post_data = graph()
-            post_data = pre_post_data.invoke({
+            post_data = graph.invoke({
                 "keyword": keyword_data,
                 "data": shop_data,
                 "post": None,

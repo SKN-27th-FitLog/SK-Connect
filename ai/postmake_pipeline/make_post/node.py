@@ -59,7 +59,10 @@ def make_post(state: State) -> State:
         }
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
-        return state
+        return {
+            **state,
+            'retry_count': state.get('retry_count', 0) + 1,
+        }
 
 def make_title(state: State) -> State:
     try:
@@ -109,7 +112,10 @@ def regenerate_post(state: State) -> State:
         }
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
-        return state
+        return {
+            **state,
+            'retry_count': state.get('retry_count', 0) + 1,
+        }
 
 def evaluate_post(state: State) -> State:
     try:
@@ -138,7 +144,7 @@ def route_after_evaluation(state: State) -> str:
     return "regenerate_post"
 
 
-def graph():
+def build_graph():
 
     graph = StateGraph(State)
     graph.add_node("make_post", make_post)
@@ -167,3 +173,6 @@ def graph():
         }
     )
     return graph.compile()
+
+
+graph = build_graph()

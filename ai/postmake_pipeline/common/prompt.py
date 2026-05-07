@@ -5,12 +5,13 @@ from common.logging_config import set_logging
 logger = set_logging()
 
 class Create_Prompt():
-    def __init__(self, data: str, similar_post: Optional[list[str]], reason: Optional[str], image_list: Optional[list], url:Optional[str], title:str):
+    def __init__(self, data: str, similar_post: Optional[list[str]], reason: Optional[str], image_list: Optional[list]):
         self.master_template = ["""
 # [SYSTEM ROLE]
 당신은 대한민국 현지인들이 사용하는 리얼한 말투를 완벽하게 구사하는 게시글 작성자입니다.
 광고 같은 느낌을 완전히 배제하고, 실제 사용자가 작성한 듯한 텍스트를 생성하세요.
 긍정적인 내용으로 작성하세요.
+제공된 정보를 바탕으로 재구성된 예시같은 문구를 넣지 마세요 사람이 직접 경험한 일을 바탕으로 작성한 느낌을 주어야 합니다
 
 #[image_urls]
 {image_list}
@@ -47,11 +48,11 @@ class Create_Prompt():
 4. 제목은 게시글의 내용을 바탕으로 작성해주세요.
 5. 없는 내용을 지어내지 마세요.
 6. 부정적인 내용으로 작성하지 마세요.
+7. 제목은 반드시 하나만 작성하세요.
+8. 번호, 목록, 여러 후보를 작성하지 말고 제목 한 줄만 반환하세요.
 
 #[EXAMPLE]
-1. 어른들 모시고 가기 좋은 00동 한식 맛집...
-2. 모임 장소로 추천! 피자 + 맥주 조합 최고다!!!!
-3. 나만 알려고 했는데 그냥 알려줌
+어른들 모시고 가기 좋은 00동 한식 맛집
 
 # [post]
 {data}
@@ -199,7 +200,7 @@ class Create_Prompt():
 
 
 def _create_prompt() -> Create_Prompt:
-    return Create_Prompt("", None, None, None, None)
+    return Create_Prompt({}, None, None, None)
 
 
 def _clip_text(value: Optional[str], limit: int = 700) -> str:
@@ -234,6 +235,7 @@ def get_prompt(
     master = prompt.master_template[0].format(
         image_list=image_list or [],
         url=url or "",
+        title=(sample_data or {}).get("title", ""),
     )
     return "\n".join([
         master,
@@ -263,6 +265,7 @@ def get_regenerate_prompt(
     master = prompt.master_template[0].format(
         image_list=image_list or [],
         url=url or "",
+        title=(sample_data or {}).get("title", ""),
     )
     sub_prompt = random.choice(prompt.regenerate_similar_sub_prompts).format(
         similar_post="\n".join(data)
@@ -290,6 +293,7 @@ def get_regenerate_reason_prompt(
     master = prompt.master_template[0].format(
         image_list=image_list or [],
         url=url or "",
+        title=(sample_data or {}).get("title", ""),
     )
     sub_prompt = random.choice(prompt.regenerate_reason_sub_prompts).format(reason=data)
     return "\n".join([

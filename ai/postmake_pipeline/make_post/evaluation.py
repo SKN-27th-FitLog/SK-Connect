@@ -12,7 +12,10 @@ def evaluate_post_completion(result: dict) -> dict:
     """게시글 완성도를 검사하고 통과 여부와 실패 사유를 반환한다."""
     try:
         llm = get_llm()
-        post_text = str(result.get("post") or result.get("data", {}).get("content") or "").strip()
+        data = result.get("data") or {}
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        post_text = str(result.get("post") or data.get("content") or "").strip()
         if not post_text:
             return {"is_pass": False, "reason": "게시글 본문이 비어 있습니다."}
 
@@ -60,5 +63,7 @@ def evaluate_post_completion(result: dict) -> dict:
 
     except Exception as e:
         data = result.get("data") or [{}]
+        if isinstance(data, dict):
+            data = [data]
         logger.error(f"Error={e} | time={time.time()} | crawling_id={data[0].get('crawling_id')}")
         return {"is_pass": False, "reason": str(e)}

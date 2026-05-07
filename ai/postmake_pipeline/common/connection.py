@@ -37,7 +37,7 @@ class Connection(metaclass=Singleton):
 
 
 
-class PGVectorStore:
+class PGVectorStore(metaclass=Singleton):
     """vectorstore를 반환"""
     def __init__(self, collection_name: str = "post_vector"):
         model_kwargs = {}

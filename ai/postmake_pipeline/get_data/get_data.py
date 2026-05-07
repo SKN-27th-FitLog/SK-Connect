@@ -33,14 +33,48 @@ def search_post(row: dict) -> dict:
 def get_data():
     """analysis 테이블에서 게시글 생성 대상 row를 가져온다."""
     try:
-        query = "SELECT * FROM analysis WHERE created_dt < NOW() - INTERVAL '1 day' ORDER BY shop_id, created_dt DESC"
+        query = """
+        WITH last_post AS (
+            SELECT shop_id, MAX(created_at) AS last_post_created_at
+            FROM posts
+            WHERE shop_id IS NOT NULL
+            GROUP BY shop_id
+        ),
+        candidate_shop AS (
+            SELECT a.shop_id
+            FROM analysis AS a
+            LEFT JOIN last_post AS p
+                ON p.shop_id = a.shop_id
+            WHERE a.shop_id IS NOT NULL
+              AND a.created_dt < NOW() - INTERVAL '1 day'
+              AND (
+                  p.last_post_created_at IS NULL
+                  OR a.created_dt > p.last_post_created_at
+              )
+            GROUP BY a.shop_id
+            HAVING COUNT(*) >= 5
+               AND (
+                   COUNT(*) FILTER (WHERE a.sentimental = 'positive')::float
+                   / COUNT(*)
+               ) >= 0.7
+        )
+        SELECT a.*
+        FROM analysis AS a
+        JOIN candidate_shop AS c
+            ON c.shop_id = a.shop_id
+        LEFT JOIN last_post AS p
+            ON p.shop_id = a.shop_id
+        WHERE a.created_dt < NOW() - INTERVAL '1 day'
+          AND (
+              p.last_post_created_at IS NULL
+              OR a.created_dt > p.last_post_created_at
+          )
+        ORDER BY a.shop_id, a.created_dt DESC
+        """
         cursor = get_cursor(query)
         if not cursor:
             return None
         for row in cursor.fetchall():
-            post_data = search_post(row)
-            if post_data:
-                continue
             yield row
 
     except Exception as e:
