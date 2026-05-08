@@ -81,7 +81,9 @@ CREATE TABLE "crawling"(
     point FLOAT, --평점--
     author VARCHAR(100), --작성자--
     map_id BIGINT REFERENCES maps(map_id) ON DELETE SET NULL, --지도 고유 번호--
-    category_cd VARCHAR(6), --it/정보--
+    category_cd VARCHAR(6), --게시글 카테고리(스터디, 맛집, 운동...)--
+    information_cd VARCHAR(6), --it/정보--
+    shop_cd VARCHAR(6), --가게 카테고리(한식, 양식, 일식, 중식, ...)--
     keywords VARCHAR(100) --키워드--
 );
 
