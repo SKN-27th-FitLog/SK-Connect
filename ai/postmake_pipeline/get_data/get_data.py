@@ -1,6 +1,7 @@
-from common.logging_config import set_logging
-from common.connection import get_cursor
 import time
+
+from common.connection import get_cursor
+from common.logging_config import set_logging
 
 logger = set_logging()
 
@@ -47,16 +48,18 @@ def get_data():
                 ON p.shop_id = a.shop_id
             WHERE a.shop_id IS NOT NULL
               AND a.created_dt < NOW() - INTERVAL '1 day'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM posts AS today_post
+                  WHERE today_post.shop_id = a.shop_id
+                    AND today_post.created_at::date = CURRENT_DATE
+              )
               AND (
                   p.last_post_created_at IS NULL
                   OR a.created_dt > p.last_post_created_at
               )
             GROUP BY a.shop_id
             HAVING COUNT(*) >= 5
-               AND (
-                   COUNT(*) FILTER (WHERE a.sentimental = 'positive')::float
-                   / COUNT(*)
-               ) >= 0.7
         )
         SELECT a.*
         FROM analysis AS a
@@ -65,6 +68,12 @@ def get_data():
         LEFT JOIN last_post AS p
             ON p.shop_id = a.shop_id
         WHERE a.created_dt < NOW() - INTERVAL '1 day'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM posts AS today_post
+              WHERE today_post.shop_id = a.shop_id
+                AND today_post.created_at::date = CURRENT_DATE
+          )
           AND (
               p.last_post_created_at IS NULL
               OR a.created_dt > p.last_post_created_at
@@ -82,27 +91,36 @@ def get_data():
         return None
 
 
-def get_shop_data() -> list[dict]:
-    """get_data로 가져온 같은 shop_id의 analysis row들을 묶는다."""
+def iter_shop_data():
+    """get_data로 가져온 row들을 shop_id 단위로 순차 반환한다."""
     try:
         shop_data: list[dict] = []
         shop_id = None
-        data_iter = get_data()
-        while True:
-            data: dict = next(data_iter, None)
-            if not data:
-                break
-            elif shop_id is None:
+
+        for data in get_data() or []:
+            if shop_id is None:
                 shop_id = data["shop_id"]
                 shop_data.append(data)
                 continue
-            elif shop_id is not None:
-                if shop_id != data["shop_id"]:
-                    return shop_data
-                elif shop_id == data["shop_id"]:
-                    shop_data.append(data)
-                    continue
-        return shop_data
+
+            if shop_id != data["shop_id"]:
+                yield shop_data
+                shop_data = [data]
+                shop_id = data["shop_id"]
+                continue
+
+            shop_data.append(data)
+
+        if shop_data:
+            yield shop_data
+    except Exception as e:
+        logger.error(f"iter_shop_data | Error={e} | time={time.time()}")
+
+
+def get_shop_data() -> list[dict]:
+    """첫 번째 shop_id 묶음을 반환한다."""
+    try:
+        return next(iter_shop_data(), None)
     except Exception as e:
         logger.error(f"get_shop_data | Error={e} | time={time.time()}")
         return None

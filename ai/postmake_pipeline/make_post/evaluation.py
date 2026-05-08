@@ -1,4 +1,5 @@
 import json
+import re
 import time
 
 from common.llm_factory import get_llm
@@ -15,9 +16,18 @@ def evaluate_post_completion(result: dict) -> dict:
         data = result.get("data") or {}
         if isinstance(data, list):
             data = data[0] if data else {}
+
         post_text = str(result.get("post") or data.get("content") or "").strip()
         if not post_text:
             return {"is_pass": False, "reason": "게시글 본문이 비어 있습니다."}
+
+        banned_tokens = ["[장소 이름]", "[여기에 식당 이름]", "[참고]", "**[참고]**", "여기에", "xxxxx"]
+        found_banned_tokens = [token for token in banned_tokens if token in post_text]
+        if found_banned_tokens:
+            return {
+                "is_pass": False,
+                "reason": f"템플릿/placeholder 문구가 포함되어 있습니다: {', '.join(found_banned_tokens)}",
+            }
 
         prompt = ChatPromptTemplate.from_template(
             """
@@ -36,8 +46,9 @@ def evaluate_post_completion(result: dict) -> dict:
             - 지나치게 진부하거나 반복적인 표현이 없는가
             - 실제 사람이 작성한 것 같은 자연스러운 말투인가
             - 부정적인 내용으로 작성하지 않았는가
+            - '[장소 이름]', '[참고]', '여기에', 'xxxxx' 같은 placeholder가 없는가
 
-            반드시 아래 JSON 형식만 반환하세요.
+            반드시 아래 JSON 형식만 반환하세요. 코드블록(```json)을 붙이지 마세요.
             {{
               "is_pass": true 또는 false,
               "reason": "실패한 경우 구체적인 사유, 통과면 빈 문자열"
@@ -47,6 +58,14 @@ def evaluate_post_completion(result: dict) -> dict:
         response = llm.invoke(prompt.format(post=post_text))
         content = response.content if hasattr(response, "content") else str(response)
         content = content.strip()
+
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.IGNORECASE)
+            content = re.sub(r"\s*```$", "", content).strip()
+
+        json_match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+        if json_match:
+            content = json_match.group(0)
 
         try:
             parsed = json.loads(content)

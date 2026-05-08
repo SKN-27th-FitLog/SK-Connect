@@ -113,7 +113,7 @@ CREATE TABLE "menu"(
 CREATE TABLE "images"(
     image_id BIGSERIAL PRIMARY KEY, --이미지 고유 번호--
     image_url VARCHAR(500) NOT NULL, --이미지 URL--
-    table_name VARCHAR(20) NOT NULL, --테이블 이름--
+    table_cd VARCHAR(6) NOT NULL, --테이블 코드--
     table_id BIGINT NOT NULL --테이블 고유 번호--
 );
 
@@ -176,6 +176,8 @@ CREATE TABLE "analysis"(
     map_id BIGINT, --지도 고유 번호 (crawling과 동일 타입, FK 없음)--
     shop_id BIGINT, --가게 고유 번호 (FK 없음)--
     category_cd VARCHAR(6), --카테고리 코드 (crawling.category_cd와 동일 제약)--
+    information_cd VARCHAR(6), --정보성 글 분류 코드(맛집, IT,...)--
+    shop_cd VARCHAR(6), --shop테이블의 카테고리(한식, 일식, 양식, 중식, 카페..)--
     created_dt TIMESTAMP, --분석 테이블로 적재된 시각--
     sentimental VARCHAR(16), --positive / negative, 미분석 시 NULL--
     score FLOAT, --감성 점수--
@@ -190,8 +192,8 @@ COPY "maps" (map_id, name, category_cd, address_cd, address_detail, latitude, lo
 COPY "shop" (shop_id, map_id, shop_cd, rating) FROM '/docker-entrypoint-initdb.d/data/shop.csv' DELIMITER ',' CSV HEADER;
 COPY "crawling" (crawling_id, title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, keywords) FROM '/docker-entrypoint-initdb.d/data/crawling.csv' DELIMITER ',' CSV HEADER;
 COPY "menu" (menu_id, shop_id, name, price) FROM '/docker-entrypoint-initdb.d/data/menu.csv' DELIMITER ',' CSV HEADER;
-COPY "images" (image_id, image_url, table_name, table_id) FROM '/docker-entrypoint-initdb.d/data/images.csv' DELIMITER ',' CSV HEADER;
-COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
+COPY "images" (image_id, image_url, table_cd, table_id) FROM '/docker-entrypoint-initdb.d/data/images.csv' DELIMITER ',' CSV HEADER;
+COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, information_cd, shop_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
 
 -- 시드 COPY로 명시적 PK를 넣었으므로 시퀀스를 MAX에 맞춤 (다음 INSERT 시 충돌 방지)
 SELECT setval(pg_get_serial_sequence('maps', 'map_id'), COALESCE((SELECT MAX(map_id) FROM "maps"), 1));

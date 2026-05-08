@@ -1,5 +1,5 @@
 ﻿cd,name,cd_info,cd_upper
-TC00,table_id,테이블명,
+TC00,table_cd,테이블명,
 TC01,codeT,코드테이블,TC00
 TC02,users,유저테이블,TC00
 TC03,maps,지도테이블,TC00
@@ -27,7 +27,7 @@ CA04,일상,"패션, 반려동물, ....",CA00
 CA05,취미,"독서, 공연, 영화, 전시, 콘서트",CA00
 CA06,나눔,중고나눔,CA00
 CA07,기타,ETC,CA00
-IC00,정보,크롤링 정보,
+IC00,information_cd,크롤링 정보,
 IC01,맛집정보,크롤링된 맛집 정보,IC00
 IC02,IT정보,크롤링된 IT 정보,IC00
 SC00,shop_cd,shop테이블의 카테고리,
