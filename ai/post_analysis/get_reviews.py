@@ -43,6 +43,9 @@ def get_reviews():
     # df_crawling에서 df_analysis_created 값과 같은 crawling_id가 있으면 드랍 (불리언 인덱싱)
     df_crawling_drop = df_crawling[~df_crawling["crawling_id"].isin(df_analysis_created["crawling_id"])]
 
+    # 데이터 중에서 IC02인 데이터 제외 (IC02는 빼고 음식점 리뷰에 집중)
+    df_crawling_drop = df_crawling_drop[df_crawling_drop["category_cd"] != "IC02"]
+
     # df_crawling_drop 데이터를 analysis 테이블에 맞게 재설정 (컬럼별로 추가)
     df_analysis_new = pd.DataFrame()
     df_analysis_new["crawling_id"] = df_crawling_drop["crawling_id"]

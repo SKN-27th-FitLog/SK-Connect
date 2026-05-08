@@ -51,8 +51,8 @@ def analyze_sentimental():
     # 데이터 로드 
     df = get_analysis_data()
 
-    # 데이터 중에서 IC02인 데이터 제외 (IC02는 감성분석 불가능한 데이터)
-    df = df[df["category_cd"] != "IC02"]
+    # 데이터 중에서 IC02인 데이터 제외 (IC02는 감성분석 불가능한 데이터 )
+    df = df[df["category_cd"] != "IC02"] # 중복 처리긴 한데 남겨놓음 
 
     # 빈 칸이 있는 경우 오류 방지 
     df["sentimental"] = df["sentimental"].astype("object")
