@@ -11,7 +11,7 @@ from django.db import models
 class Maps(models.Model):
     map_id = models.BigAutoField(primary_key=True)
     name = models.TextField(blank=True, null=True)
-    category_cd = models.CharField(max_length=6, null=False)
+    category_cd = models.CharField(max_length=6, null=False) # CA01
     address_cd = models.CharField(max_length=6, null=False)
     address_detail = models.TextField(null=False)
     latitude = models.FloatField(null=False)

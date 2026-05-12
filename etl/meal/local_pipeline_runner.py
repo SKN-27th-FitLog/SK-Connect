@@ -8,6 +8,7 @@ import argparse
 from datetime import datetime
 from src.projects.crawl.crawl_service import CrawlService
 from src.projects.process.process_service import ProcessService
+from src.projects.recipe.recipe_service import RecipeService
 from src.projects.save.save_service import SaveService
 from src.core.config import settings
 from src.core.storage.path_builder import HivePathBuilder
@@ -77,7 +78,17 @@ async def run_and_consolidate(platform: str, category_cd: str):
         return None
 
     # ---------------------------------------------------------
-    # 단계 3: Save (DB 적재)
+    # 단계 3: Recipe 수집 (Stage3 NORMALIZED 메뉴 → 만개의레시피)
+    # ---------------------------------------------------------
+    try:
+        recipe_result = await RecipeService.run_recipe(category_cd)
+        logger.info(f"레시피 수집 완료: {recipe_result}")
+    except Exception as e:
+        logger.error(f"❌ Recipe 프로젝트 실행 중 오류 발생: {e}", exc_info=True)
+        # 레시피 수집 실패는 전체 파이프라인을 중단하지 않음
+
+    # ---------------------------------------------------------
+    # 단계 4: Save (DB 적재)
     # ---------------------------------------------------------
     try:
         SaveService.run_save(category_cd)
@@ -99,7 +110,8 @@ async def run_and_consolidate(platform: str, category_cd: str):
         ("raw", "raw_collection"),
         ("candidate", "candidate_parsing"),
         ("normalized", "validation_normalization"),
-        ("load", "load")
+        ("recipe", "recipe_collection"),
+        ("load", "load"),
     ]
 
     count = 0

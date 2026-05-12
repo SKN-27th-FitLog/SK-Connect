@@ -20,7 +20,7 @@ class Crawling(models.Model):
     point = models.FloatField(blank=True, null=True)
     author = models.CharField(max_length=100, blank=True, null=True)
     map = models.ForeignKey('places.Maps', on_delete=models.SET_NULL, blank=True, null=True, db_column='map_id')
-    category_cd = models.CharField(max_length=6, blank=True, null=True)
+    category_cd = models.CharField(max_length=6, blank=True, null=True) #IC
     keywords = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:

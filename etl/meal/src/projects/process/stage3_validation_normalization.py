@@ -16,6 +16,7 @@ from src.core.utils.content_hash import (
     build_content_hash,
     pick_fields,
 )
+from src.core.utils.menu_normalizer import MenuNormalizer
 
 class Stage3ValidationNormalization(BaseStage):
     """
@@ -32,6 +33,7 @@ class Stage3ValidationNormalization(BaseStage):
         super().__init__(self.NAME)
         self.code_repo = code_repository or CodeTableRepository()
         self.snapshot_repo = snapshot_repository or StoreRepository()
+        self.menu_normalizer = MenuNormalizer()
 
     def _normalize_address(self, full_address: str, entity_id: Optional[str] = None) -> tuple[str, str]:
         if entity_id and entity_id.startswith("LA") and len(entity_id) >= 4:
@@ -172,7 +174,7 @@ class Stage3ValidationNormalization(BaseStage):
                     canonical_url=shop_raw.get("canonical_url")
                 )
                 
-                menus = cand.get("menus", [])
+                menus = self._normalize_menus(cand.get("menus", []))
                 reviews = cand.get("reviews", [])
                 images = cand.get("images", [])
                 hash_fields = self._build_change_fields(
@@ -233,3 +235,14 @@ class Stage3ValidationNormalization(BaseStage):
         if hasattr(self.code_repo, "clear_cache"):
             self.code_repo.clear_cache()
         return normalized_data
+
+    def _normalize_menus(self, menus: Any) -> List[Dict[str, Any]]:
+        if not isinstance(menus, list):
+            return []
+
+        normalized_menus = []
+        for menu in menus:
+            if not isinstance(menu, dict):
+                continue
+            normalized_menus.append(self.menu_normalizer.normalize(menu))
+        return normalized_menus

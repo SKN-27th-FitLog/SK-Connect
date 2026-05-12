@@ -7,6 +7,7 @@ from kag_graph.news_classifier import NewsClassifier, NewsClassificationResult, 
 
 
 IT_NEWS_CLEANING_GLOB = "process=cleaning/category_cd=IC02/year=*/month=*/day=*/status=success/*.csv"
+
 MEAL_LEGACY_CLEANSING_GLOB = (
     "crawling=cleansing/service=*/year=*/month=*/day=*/stage=validation_normalization/"
     "batch_id=*/status=success/*.jsonl"
@@ -15,6 +16,14 @@ MEAL_PROCESS_CLEANSING_GLOB = (
     "process=cleansing/category_cd=*/year=*/month=*/day=*/status=success/"
     "validation_normalization_*.jsonl"
 )
+MEAL_RECIPE_GLOB = (
+    "process=recipe/category_cd=*/year=*/month=*/day=*/status=success/"
+    "recipe_collection_*.jsonl"
+)
+ADDRESS_CODE_UPPER = "LA00"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_ADDRESS_CODE_TABLE = PROJECT_ROOT / "database/data/codeT.csv"
+DEFAULT_MENU_INGREDIENT_TABLE = PROJECT_ROOT / "database/data/menu_ingredient.csv"
 
 NEWS_ARTICLE_CYPHER = """
 MERGE (article:NewsArticle {article_id: $article_id})
@@ -40,11 +49,29 @@ SET restaurant.name = $name,
 
 RESTAURANT_MENU_CYPHER = """
 MATCH (restaurant:Restaurant {restaurant_id: $restaurant_id})
-MERGE (menu:Menu {normalized_name: $menu_name})
-SET menu.name = $menu_name,
-    menu.price = $price,
+MERGE (menu:Menu {normalized_name: $normalized_name})
+SET menu.name = $canonical_name,
+    menu.canonical_name = $canonical_name,
     menu.menu_type = "dish"
-MERGE (restaurant)-[:SELLS]->(menu)
+MERGE (restaurant)-[s:SELLS]->(menu)
+SET s.raw_menu_name = $raw_menu_name,
+    s.display_menu_name = $display_menu_name,
+    s.price = $price,
+    s.recipe_search_keyword = $recipe_search_keyword,
+    s.menu_confidence = $menu_confidence,
+    s.menu_normalization_status = $menu_normalization_status,
+    s.normalization_method = $normalization_method
+"""
+
+MENU_CONTAINS_INGREDIENT_CYPHER = """
+MATCH (menu:Menu {normalized_name: $menu_name})
+MERGE (ingredient:Ingredient {normalized_name: $ingredient_name})
+SET ingredient.name = $ingredient_name
+MERGE (menu)-[c:CONTAINS]->(ingredient)
+SET c.source = $ingredient_source,
+    c.source_url = $source_url,
+    c.confidence = $ingredient_confidence,
+    c.fallback_used = $fallback_used
 """
 
 RESTAURANT_TAG_CYPHER = """
@@ -53,6 +80,19 @@ MERGE (tag:Tag {normalized_name: $tag_name})
 SET tag.name = $tag_name,
     tag.tag_type = "review_keyword"
 MERGE (restaurant)-[:HAS_TAG]->(tag)
+"""
+
+RESTAURANT_AREA_CYPHER = """
+MATCH (restaurant:Restaurant {restaurant_id: $restaurant_id})
+MERGE (area:Area {normalized_name: $address_name})
+SET area.area_id = $address_cd,
+    area.name = $address_name
+MERGE (restaurant)-[:LOCATED_IN]->(area)
+WITH restaurant, area
+OPTIONAL MATCH (concept:Concept {normalized_name: area.normalized_name})
+FOREACH (c IN CASE WHEN concept IS NOT NULL THEN [concept] ELSE [] END |
+  MERGE (restaurant)-[:RELATED_TO]->(c)
+)
 """
 
 NEWS_TECHNOLOGY_CYPHER = """
@@ -89,6 +129,11 @@ SET topic.name = $name,
     topic.topic_type = $kind,
     topic.topic_id = $identifier
 MERGE (article)-[:MENTIONS]->(topic)
+WITH article, topic
+OPTIONAL MATCH (concept:Concept {normalized_name: topic.normalized_name})
+FOREACH (c IN CASE WHEN concept IS NOT NULL THEN [concept] ELSE [] END |
+  MERGE (article)-[:RELATED_TO]->(c)
+)
 """
 
 
@@ -109,6 +154,67 @@ def find_meal_legacy_cleansing_success_files(root: Path) -> list[Path]:
 
 def find_meal_process_cleansing_success_files(root: Path) -> list[Path]:
     return _sorted_files(root, MEAL_PROCESS_CLEANSING_GLOB)
+
+
+def find_meal_recipe_success_files(root: Path) -> list[Path]:
+    return _sorted_files(root, MEAL_RECIPE_GLOB)
+
+
+def build_address_name_map(code_table_file: Path) -> dict[str, str]:
+    if not code_table_file.exists():
+        return {}
+
+    with code_table_file.open("r", encoding="utf-8-sig", newline="") as file:
+        return {
+            row["cd"].strip(): row["name"].strip()
+            for row in csv.DictReader(file)
+            if row.get("cd_upper", "").strip() == ADDRESS_CODE_UPPER
+            and row.get("cd", "").strip()
+            and row.get("name", "").strip()
+        }
+
+
+def build_recipe_ingredient_map(recipe_files: list[Path]) -> dict[str, list[dict]]:
+    """recipe_collection JSONL에서 키워드별 재료 목록을 반환.
+
+    반환 형식: {recipe_search_keyword: [{"ingredient_name": str, "recipe_url": str}]}
+    동일 키워드에서 여러 레시피가 있으면 재료명 기준으로 중복 제거(첫 번째 URL 유지).
+    """
+    keyword_map: dict[str, dict[str, str]] = {}  # keyword → {ingredient_name: recipe_url}
+    for file in recipe_files:
+        with file.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                record = json.loads(line)
+                keyword = record.get("recipe_search_keyword", "").strip()
+                recipe_url = record.get("recipe_url", "")
+                if not keyword:
+                    continue
+                seen = keyword_map.setdefault(keyword, {})
+                for ing in record.get("ingredients", []):
+                    name = ing.get("ingredient_name", "").strip()
+                    if name and name not in seen:
+                        seen[name] = recipe_url
+    return {
+        keyword: [{"ingredient_name": name, "recipe_url": url} for name, url in ings.items()]
+        for keyword, ings in keyword_map.items()
+    }
+
+
+def build_menu_ingredient_map(table_file: Path) -> dict[str, tuple[str, ...]]:
+    if not table_file.exists():
+        return {}
+
+    result: dict[str, list[str]] = {}
+    with table_file.open("r", encoding="utf-8-sig", newline="") as file:
+        for row in csv.DictReader(file):
+            menu = row.get("menu_name", "").strip()
+            ingredient = row.get("ingredient_name", "").strip()
+            if menu and ingredient:
+                result.setdefault(menu, []).append(ingredient)
+    return {menu: tuple(ingredients) for menu, ingredients in result.items()}
 
 
 def build_it_news_article_statements(csv_file: Path) -> list[GraphWriteStatement]:
@@ -142,20 +248,30 @@ def build_it_news_article_statements(csv_file: Path) -> list[GraphWriteStatement
     return statements
 
 
-def build_meal_restaurant_statements(jsonl_file: Path) -> list[GraphWriteStatement]:
+def build_meal_restaurant_statements(
+    jsonl_file: Path,
+    address_name_map: dict[str, str] | None = None,
+    menu_ingredient_map: dict[str, tuple[str, ...]] | None = None,
+    recipe_ingredient_map: dict[str, list[dict]] | None = None,
+) -> list[GraphWriteStatement]:
     statements: list[GraphWriteStatement] = []
+    area_name_map = address_name_map or {}
+    ingredient_map = menu_ingredient_map or {}
+    recipe_map = recipe_ingredient_map or {}
     with jsonl_file.open("r", encoding="utf-8") as file:
         for line in file:
             if not line.strip():
                 continue
-            statements.extend(_build_meal_record_statements(json.loads(line)))
+            statements.extend(_build_meal_record_statements(json.loads(line), area_name_map, ingredient_map, recipe_map))
     return statements
 
 
 def collect_legacy_once_statements(meal_root: Path, it_news_root: Path) -> list[GraphWriteStatement]:
     statements: list[GraphWriteStatement] = []
+    address_name_map = build_address_name_map(DEFAULT_ADDRESS_CODE_TABLE)
+    menu_ingredient_map = build_menu_ingredient_map(DEFAULT_MENU_INGREDIENT_TABLE)
     for meal_file in find_meal_legacy_cleansing_success_files(meal_root):
-        statements.extend(build_meal_restaurant_statements(meal_file))
+        statements.extend(build_meal_restaurant_statements(meal_file, address_name_map, menu_ingredient_map))
     for news_file in find_it_news_cleaning_success_files(it_news_root):
         statements.extend(build_it_news_article_statements(news_file))
     return _dedupe_by_name(statements)
@@ -163,8 +279,11 @@ def collect_legacy_once_statements(meal_root: Path, it_news_root: Path) -> list[
 
 def collect_current_hive_statements(meal_root: Path, it_news_root: Path) -> list[GraphWriteStatement]:
     statements: list[GraphWriteStatement] = []
+    address_name_map = build_address_name_map(DEFAULT_ADDRESS_CODE_TABLE)
+    menu_ingredient_map = build_menu_ingredient_map(DEFAULT_MENU_INGREDIENT_TABLE)
+    recipe_ingredient_map = build_recipe_ingredient_map(find_meal_recipe_success_files(meal_root))
     for meal_file in find_meal_process_cleansing_success_files(meal_root):
-        statements.extend(build_meal_restaurant_statements(meal_file))
+        statements.extend(build_meal_restaurant_statements(meal_file, address_name_map, menu_ingredient_map, recipe_ingredient_map))
     for news_file in find_it_news_cleaning_success_files(it_news_root):
         statements.extend(build_it_news_article_statements(news_file))
     return _dedupe_by_name(statements)
@@ -196,12 +315,17 @@ def _dedupe_by_name(statements: list[GraphWriteStatement]) -> list[GraphWriteSta
     return deduped
 
 
-def _build_meal_record_statements(record: dict[str, object]) -> list[GraphWriteStatement]:
+def _build_meal_record_statements(
+    record: dict[str, object],
+    address_name_map: dict[str, str],
+    menu_ingredient_map: dict[str, tuple[str, ...]],
+    recipe_ingredient_map: dict[str, list[dict]] | None = None,
+) -> list[GraphWriteStatement]:
     store = record.get("store")
     if not isinstance(store, dict):
         raise ValueError("meal record requires store object")
 
-    restaurant_id = _required_value(store, "entity_id")
+    restaurant_id = _restaurant_id_from_store(store)
     statements = [
         GraphWriteStatement(
             name=f"restaurant:{restaurant_id}",
@@ -216,7 +340,11 @@ def _build_meal_record_statements(record: dict[str, object]) -> list[GraphWriteS
         )
     ]
 
-    statements.extend(_build_menu_statements(restaurant_id, record.get("menus", [])))
+    area_statement = _build_area_statement(restaurant_id, store, address_name_map)
+    if area_statement is not None:
+        statements.append(area_statement)
+
+    statements.extend(_build_menu_statements(restaurant_id, record.get("menus", []), menu_ingredient_map, recipe_ingredient_map))
     statements.extend(_build_tag_statements(restaurant_id, record.get("reviews", [])))
     return statements
 
@@ -255,7 +383,46 @@ def _build_news_term_statements(
     ]
 
 
-def _build_menu_statements(restaurant_id: str, menus: object) -> list[GraphWriteStatement]:
+def _build_area_statement(
+    restaurant_id: str,
+    store: dict[str, object],
+    address_name_map: dict[str, str],
+) -> GraphWriteStatement | None:
+    address_cd = str(store.get("address_cd", "")).strip()
+    if not address_cd or address_cd == "UNKNOWN":
+        return None
+
+    address_name = address_name_map.get(address_cd, address_cd)
+    return GraphWriteStatement(
+        name=f"restaurant_area:{restaurant_id}:{address_cd}",
+        cypher=RESTAURANT_AREA_CYPHER,
+        params={
+            "restaurant_id": restaurant_id,
+            "address_cd": address_cd,
+            "address_name": address_name,
+        },
+    )
+
+
+def _restaurant_id_from_store(store: dict[str, object]) -> str:
+    canonical_url = str(store.get("canonical_url", "")).strip()
+    if canonical_url:
+        return canonical_url
+
+    name = str(store.get("name", "")).strip()
+    address = str(store.get("address_detail", "")).strip()
+    if name and address:
+        return f"{name}|{address}"
+
+    return _required_value(store, "entity_id")
+
+
+def _build_menu_statements(
+    restaurant_id: str,
+    menus: object,
+    menu_ingredient_map: dict[str, tuple[str, ...]],
+    recipe_ingredient_map: dict[str, list[dict]] | None = None,
+) -> list[GraphWriteStatement]:
     if not isinstance(menus, list):
         return []
 
@@ -264,22 +431,86 @@ def _build_menu_statements(restaurant_id: str, menus: object) -> list[GraphWrite
     for menu in menus:
         if not isinstance(menu, dict):
             continue
-        menu_name = str(menu.get("name", "")).strip()
-        if not menu_name or menu_name in seen:
+        raw_menu_name = _menu_text(menu, "raw_menu_name", "name")
+        if not raw_menu_name or raw_menu_name in seen:
             continue
-        seen.add(menu_name)
+        seen.add(raw_menu_name)
+        normalized_name = _menu_text(menu, "normalized_name", "canonical_name", "name")
+        canonical_name = _menu_text(menu, "canonical_name", "normalized_name", "name")
+        display_menu_name = _menu_text(menu, "display_menu_name", "name")
+        recipe_search_keyword = _nullable_menu_text(menu, "recipe_search_keyword")
         statements.append(
             GraphWriteStatement(
-                name=f"restaurant_menu:{restaurant_id}:{menu_name}",
+                name=f"restaurant_menu:{restaurant_id}:{raw_menu_name}",
                 cypher=RESTAURANT_MENU_CYPHER,
                 params={
                     "restaurant_id": restaurant_id,
-                    "menu_name": menu_name,
+                    "raw_menu_name": raw_menu_name,
+                    "display_menu_name": display_menu_name,
+                    "normalized_name": normalized_name,
+                    "canonical_name": canonical_name,
+                    "recipe_search_keyword": recipe_search_keyword,
+                    "menu_confidence": _float_or_none(menu.get("menu_confidence")),
+                    "menu_normalization_status": _menu_text(menu, "menu_normalization_status", default="UNSPECIFIED"),
+                    "normalization_method": _menu_text(menu, "normalization_method", default="UNSPECIFIED"),
                     "price": _int_or_zero(menu.get("price")),
                 },
             )
         )
+
+        # 재료 연결: 레시피 데이터 우선, 없으면 CSV 폴백
+        recipe_ingredients = (
+            (recipe_ingredient_map or {}).get(recipe_search_keyword or "", [])
+        )
+        if recipe_ingredients:
+            for ing in recipe_ingredients:
+                ingredient_name = ing["ingredient_name"]
+                statements.append(
+                    GraphWriteStatement(
+                        name=f"menu_ingredient:{normalized_name}:{ingredient_name}",
+                        cypher=MENU_CONTAINS_INGREDIENT_CYPHER,
+                        params={
+                            "menu_name": normalized_name,
+                            "ingredient_name": ingredient_name,
+                            "ingredient_source": "RECIPE_10000",
+                            "source_url": ing.get("recipe_url", ""),
+                            "ingredient_confidence": 0.9,
+                            "fallback_used": False,
+                        },
+                    )
+                )
+        else:
+            for ingredient_name in menu_ingredient_map.get(normalized_name, menu_ingredient_map.get(raw_menu_name, ())):
+                statements.append(
+                    GraphWriteStatement(
+                        name=f"menu_ingredient:{normalized_name}:{ingredient_name}",
+                        cypher=MENU_CONTAINS_INGREDIENT_CYPHER,
+                        params={
+                            "menu_name": normalized_name,
+                            "ingredient_name": ingredient_name,
+                            "ingredient_source": "CSV_FALLBACK",
+                            "source_url": "",
+                            "ingredient_confidence": 0.5,
+                            "fallback_used": True,
+                        },
+                    )
+                )
     return statements
+
+
+def _menu_text(menu: dict[str, object], *keys: str, default: str = "") -> str:
+    for key in keys:
+        value = str(menu.get(key, "")).strip()
+        if value:
+            return value
+    return default
+
+
+def _nullable_menu_text(menu: dict[str, object], key: str) -> str | None:
+    value = str(menu.get(key, "")).strip()
+    if not value:
+        return None
+    return value
 
 
 def _build_tag_statements(restaurant_id: str, reviews: object) -> list[GraphWriteStatement]:
