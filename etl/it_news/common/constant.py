@@ -74,6 +74,8 @@ class CrawlingColumn(str, Enum):
     AUTHOR = "author"
     MAP_ID = "map_id"
     CATEGORY_CD = "category_cd"
+    INFORMATION_CD = "information_cd"
+    SHOP_CD = "shop_cd"
     KEYWORDS = "keywords"
     # 클리닝 파이프라인 전용(스키마 외)
     STATE = "state"
@@ -81,5 +83,46 @@ class CrawlingColumn(str, Enum):
     ERROR = "error"  # 크롤 per-URL 실패 메시지
 
 
+class CategoryCdCode(str, Enum):
+    """``crawling.category_cd`` 등 — ``database/data/codeT.csv`` (`cd_upper` = ``CA00``)."""
+
+    GROUP = "CA00"
+    RESTAURANT = "CA01"
+    STUDY = "CA02"
+    EXERCISE = "CA03"
+    DAILY = "CA04"
+    HOBBY = "CA05"
+    FLEA_MARKET = "CA06"
+    ETC = "CA07"
+
+
+class InformationCdCode(str, Enum):
+    """``crawling.information_cd`` 등 — ``database/data/codeT.csv`` (`cd_upper` = ``IC00``)."""
+
+    GROUP = "IC00"
+    RESTAURANT_INFO = "IC01"
+    IT_INFO = "IC02"
+
+
+class ShopCdCode(str, Enum):
+    """``crawling.shop_cd`` / ``shop.shop_cd`` — ``database/data/codeT.csv`` (`cd_upper` = ``SC00``)."""
+
+    GROUP = "SC00"
+    KOREAN = "SC01"
+    JAPANESE = "SC02"
+    CHINESE = "SC03"
+    WESTERN = "SC04"
+    CAFE = "SC05"
+    FUSION = "SC06"
+
+
 class CodeTable(Enum):
-    IT_NEWS = "IC02"
+    """it_news 파이프라인 기본 적재값(`CategoryCdCode` / `InformationCdCode`와 동일 문자열).
+
+    - ``category_cd`` → ``CategoryCdCode.ETC`` (IT 크롤 글은 커뮤니티 카테고리상 기타).
+    - ``information_cd`` → ``InformationCdCode.IT_INFO``.
+    - ``shop_cd`` → 해당 없음 시 ``NULL`` (`ShopCdCode`는 맛집·가게 도메인 조회용).
+    """
+
+    CATEGORY_ETC = CategoryCdCode.ETC.value
+    INFORMATION_IT = InformationCdCode.IT_INFO.value
