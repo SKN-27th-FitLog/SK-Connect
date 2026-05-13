@@ -183,14 +183,14 @@ CREATE TABLE "analysis"(
     created_dt TIMESTAMP, --분석 테이블로 적재된 시각--
     sentimental VARCHAR(16), --positive / negative, 미분석 시 NULL--
     score FLOAT, --감성 점수--
-    keywords TEXT, --키워드 목록 (# 구분)--
+    keywords TEXT --키워드 목록 (# 구분)--
 );
 
 -- -------------------------------------------------------------------------------
 -- -- 해당 파일들은 2026년 4월 29일 기준 스냅샷 (테스트 용이하게 하기위한 용도) --
 -- COPY "maps" (map_id, name, category_cd, address_cd, address_detail, latitude, longitude) FROM '/docker-entrypoint-initdb.d/data/maps.csv' DELIMITER ',' CSV HEADER;
 -- COPY "shop" (shop_id, map_id, shop_cd, rating) FROM '/docker-entrypoint-initdb.d/data/shop.csv' DELIMITER ',' CSV HEADER;
--- COPY "crawling" (crawling_id, title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, keywords) FROM '/docker-entrypoint-initdb.d/data/crawling.csv' DELIMITER ',' CSV HEADER;
+-- COPY "crawling" (crawling_id, title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, information_cd, shop_cd, keywords) FROM '/docker-entrypoint-initdb.d/data/crawling.csv' DELIMITER ',' CSV HEADER;
 -- COPY "menu" (menu_id, shop_id, name, price) FROM '/docker-entrypoint-initdb.d/data/menu.csv' DELIMITER ',' CSV HEADER;
 -- COPY "images" (image_id, image_url, table_cd, table_id) FROM '/docker-entrypoint-initdb.d/data/images.csv' DELIMITER ',' CSV HEADER;
 -- COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, information_cd, shop_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
