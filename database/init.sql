@@ -184,22 +184,20 @@ CREATE TABLE "analysis"(
     sentimental VARCHAR(16), --positive / negative, 미분석 시 NULL--
     score FLOAT, --감성 점수--
     keywords TEXT, --키워드 목록 (# 구분)--
-    positive_kw TEXT, --긍정 키워드 (# 구분)--
-    negative_kw TEXT --부정 키워드 (# 구분)--
 );
 
--------------------------------------------------------------------------------
--- 해당 파일들은 2026년 4월 29일 기준 스냅샷 (테스트 용이하게 하기위한 용도) --
-COPY "maps" (map_id, name, category_cd, address_cd, address_detail, latitude, longitude) FROM '/docker-entrypoint-initdb.d/data/maps.csv' DELIMITER ',' CSV HEADER;
-COPY "shop" (shop_id, map_id, shop_cd, rating) FROM '/docker-entrypoint-initdb.d/data/shop.csv' DELIMITER ',' CSV HEADER;
-COPY "crawling" (crawling_id, title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, keywords) FROM '/docker-entrypoint-initdb.d/data/crawling.csv' DELIMITER ',' CSV HEADER;
-COPY "menu" (menu_id, shop_id, name, price) FROM '/docker-entrypoint-initdb.d/data/menu.csv' DELIMITER ',' CSV HEADER;
-COPY "images" (image_id, image_url, table_cd, table_id) FROM '/docker-entrypoint-initdb.d/data/images.csv' DELIMITER ',' CSV HEADER;
-COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, information_cd, shop_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
+-- -------------------------------------------------------------------------------
+-- -- 해당 파일들은 2026년 4월 29일 기준 스냅샷 (테스트 용이하게 하기위한 용도) --
+-- COPY "maps" (map_id, name, category_cd, address_cd, address_detail, latitude, longitude) FROM '/docker-entrypoint-initdb.d/data/maps.csv' DELIMITER ',' CSV HEADER;
+-- COPY "shop" (shop_id, map_id, shop_cd, rating) FROM '/docker-entrypoint-initdb.d/data/shop.csv' DELIMITER ',' CSV HEADER;
+-- COPY "crawling" (crawling_id, title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, keywords) FROM '/docker-entrypoint-initdb.d/data/crawling.csv' DELIMITER ',' CSV HEADER;
+-- COPY "menu" (menu_id, shop_id, name, price) FROM '/docker-entrypoint-initdb.d/data/menu.csv' DELIMITER ',' CSV HEADER;
+-- COPY "images" (image_id, image_url, table_cd, table_id) FROM '/docker-entrypoint-initdb.d/data/images.csv' DELIMITER ',' CSV HEADER;
+-- COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, information_cd, shop_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
 
--- 시드 COPY로 명시적 PK를 넣었으므로 시퀀스를 MAX에 맞춤 (다음 INSERT 시 충돌 방지)
-SELECT setval(pg_get_serial_sequence('maps', 'map_id'), COALESCE((SELECT MAX(map_id) FROM "maps"), 1));
-SELECT setval(pg_get_serial_sequence('shop', 'shop_id'), COALESCE((SELECT MAX(shop_id) FROM "shop"), 1));
-SELECT setval(pg_get_serial_sequence('crawling', 'crawling_id'), COALESCE((SELECT MAX(crawling_id) FROM "crawling"), 1));
-SELECT setval(pg_get_serial_sequence('menu', 'menu_id'), COALESCE((SELECT MAX(menu_id) FROM "menu"), 1));
-SELECT setval(pg_get_serial_sequence('images', 'image_id'), COALESCE((SELECT MAX(image_id) FROM "images"), 1));
+-- -- 시드 COPY로 명시적 PK를 넣었으므로 시퀀스를 MAX에 맞춤 (다음 INSERT 시 충돌 방지)
+-- SELECT setval(pg_get_serial_sequence('maps', 'map_id'), COALESCE((SELECT MAX(map_id) FROM "maps"), 1));
+-- SELECT setval(pg_get_serial_sequence('shop', 'shop_id'), COALESCE((SELECT MAX(shop_id) FROM "shop"), 1));
+-- SELECT setval(pg_get_serial_sequence('crawling', 'crawling_id'), COALESCE((SELECT MAX(crawling_id) FROM "crawling"), 1));
+-- SELECT setval(pg_get_serial_sequence('menu', 'menu_id'), COALESCE((SELECT MAX(menu_id) FROM "menu"), 1));
+-- SELECT setval(pg_get_serial_sequence('images', 'image_id'), COALESCE((SELECT MAX(image_id) FROM "images"), 1));
