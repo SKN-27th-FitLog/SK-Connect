@@ -21,7 +21,7 @@ class FailRepository:
             status="pending",
             dt=dt,
         )
-        retry_files = glob.glob(os.path.join(base_path, "batch_id=*", "status=pending", "retry_items.jsonl"))
+        retry_files = glob.glob(os.path.join(base_path, "retry_items.jsonl"))
 
         targets = []
         for file_path in retry_files:

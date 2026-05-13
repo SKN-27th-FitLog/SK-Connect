@@ -28,29 +28,40 @@ class SaveService:
         )
         
         # 2. 배치 폴더 목록 확보
-        batch_dirs = glob.glob(os.path.join(base_path, "batch_id=*", "status=success"))
-        if not batch_dirs:
+        normalized_files = glob.glob(os.path.join(base_path, "validation_normalization_*.jsonl"))
+        if not normalized_files:
             logger.info("No normalization success data found for today.")
             return {"message": "No normalized data found"}
 
         stage4 = get_stage(STAGE_LOAD)
         code_repo = get_repository("code_table")
         
+        files_by_batch: dict[str, list[str]] = {}
+        for file_path in normalized_files:
+            batch_id = HivePathBuilder.extract_batch_id_from_filename(file_path, "validation_normalization")
+            if batch_id:
+                files_by_batch.setdefault(batch_id, []).append(file_path)
+
         processed_batches = []
-        for bdir in batch_dirs:
-            batch_id = os.path.basename(os.path.dirname(bdir)).split("=")[-1]
+        for batch_id, batch_files in files_by_batch.items():
             logger.info(f"Processing Batch ID: {batch_id}")
             
             # 정규화된 JSONL 데이터 로드
             normalized_data = []
-            for file in glob.glob(os.path.join(bdir, "*.jsonl")):
+            for file in batch_files:
                 normalized_data.extend(JsonlWriter.read(file))
                 
             if not normalized_data:
                 continue
             
             run_attempt = BatchUtil.resolve_run_attempt(category_cd, batch_id, dt)
-            filename = HivePathBuilder.build_filename(extension="jsonl", dt=dt)
+            filename = HivePathBuilder.build_filename(
+                extension="jsonl",
+                dt=dt,
+                stage="load",
+                batch_id=batch_id,
+                run_attempt=run_attempt,
+            )
             
             # --- 3. 참조 무결성 재검증 (Load 전 필수 단계) ---
             valid_list, failures = [], []
@@ -91,7 +102,7 @@ class SaveService:
                     process="load", service="shop", category_cd=category_cd,
                     stage="load", batch_id=batch_id, status="success", dt=dt
                 )
-                filename_succ = f"{dt.strftime('%y%m%d%H%M%S')}_att{run_attempt}.jsonl"
+                filename_succ = filename
                 JsonlWriter.write(succ_path, filename_succ, load_successes)
                 
             if failures:
@@ -99,7 +110,14 @@ class SaveService:
                     process="load", service="shop", category_cd=category_cd,
                     stage="load", batch_id=batch_id, status="fail", dt=dt
                 )
-                filename_fail = f"{dt.strftime('%y%m%d%H%M%S')}_att{run_attempt}_fail.jsonl"
+                filename_fail = HivePathBuilder.build_filename(
+                    extension="jsonl",
+                    dt=dt,
+                    stage="load",
+                    batch_id=batch_id,
+                    run_attempt=run_attempt,
+                    suffix="fail",
+                )
                 JsonlWriter.write(fail_path, filename_fail, failures)
             
             processed_batches.append(batch_id)

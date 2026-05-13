@@ -2,4 +2,11 @@ langgraph
 langchain_ollama
 langchain_community
 langchain_core
+langchain_huggingface
 
+langchain_postgres
+psycopg2-binary
+
+
+scipy
+sentence-transformers

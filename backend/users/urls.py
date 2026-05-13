@@ -1,6 +1,7 @@
 from django.urls import path
-from .views import social_login
+from .views import social_login, refresh_token_view
 
 urlpatterns = [
-    path("auth/login/", social_login),  # 구글/네이버/카카오 통합 로그인 엔드포인트
+    path("auth/login/", social_login),          # 소셜 로그인
+    path("auth/token/refresh/", refresh_token_view),  # 토큰 재발급
 ]
