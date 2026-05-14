@@ -193,7 +193,7 @@ COPY "shop" (shop_id, map_id, shop_cd, rating) FROM '/docker-entrypoint-initdb.d
 -- COPY "crawling" (crawling_id, title, content, thread, article_url, created_at, view_count, comment_count, point, author, map_id, category_cd, information_cd, shop_cd, keywords) FROM '/docker-entrypoint-initdb.d/data/crawling.csv' DELIMITER ',' CSV HEADER;
 COPY "menu" (menu_id, shop_id, name, price) FROM '/docker-entrypoint-initdb.d/data/menu.csv' DELIMITER ',' CSV HEADER;
 COPY "images" (image_id, image_url, table_cd, table_id) FROM '/docker-entrypoint-initdb.d/data/images.csv' DELIMITER ',' CSV HEADER;
-COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, information_cd, shop_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
+COPY "analysis" (crawling_id, title, content, article_url, map_id, shop_id, category_cd, information_cd, shop_cd, created_dt, sentimental, score, keywords) FROM '/docker-entrypoint-initdb.d/data/analysis.csv' DELIMITER ',' CSV HEADER;
 
 -- -- 시드 COPY로 명시적 PK를 넣었으므로 시퀀스를 MAX에 맞춤 (다음 INSERT 시 충돌 방지)
 SELECT setval(pg_get_serial_sequence('maps', 'map_id'), COALESCE((SELECT MAX(map_id) FROM "maps"), 1));
