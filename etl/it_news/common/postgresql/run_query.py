@@ -22,6 +22,8 @@ _CRAWLING_INSERT_ORDER: tuple[CrawlingColumn, ...] = (
     CrawlingColumn.AUTHOR,
     CrawlingColumn.MAP_ID,
     CrawlingColumn.CATEGORY_CD,
+    CrawlingColumn.INFORMATION_CD,
+    CrawlingColumn.SHOP_CD,
     CrawlingColumn.KEYWORDS,
 )
 CRAWLING_INSERT_COLS: tuple[str, ...] = tuple(c.value for c in _CRAWLING_INSERT_ORDER)
@@ -41,31 +43,37 @@ USING (
     author          varchar(100),
     map_id          bigint,
     category_cd     varchar(6),
+    information_cd  varchar(6),
+    shop_cd         varchar(6),
     keywords        varchar(100)
   )
 ) AS s
 ON c.thread = s.thread
 WHEN MATCHED THEN
   UPDATE SET
-    title         = s.title,
-    content       = s.content,
-    article_url   = s.article_url,
-    created_at    = s.created_at,
-    view_count    = s.view_count,
-    comment_count = s.comment_count,
-    point         = s.point,
-    author        = s.author,
-    map_id        = s.map_id,
-    category_cd   = s.category_cd,
-    keywords      = s.keywords
+    title           = s.title,
+    content         = s.content,
+    article_url     = s.article_url,
+    created_at      = s.created_at,
+    view_count      = s.view_count,
+    comment_count   = s.comment_count,
+    point           = s.point,
+    author          = s.author,
+    map_id          = s.map_id,
+    category_cd     = s.category_cd,
+    information_cd  = s.information_cd,
+    shop_cd         = s.shop_cd,
+    keywords        = s.keywords
 WHEN NOT MATCHED THEN
   INSERT (
     title, content, thread, article_url, created_at,
-    view_count, comment_count, point, author, map_id, category_cd, keywords
+    view_count, comment_count, point, author, map_id, category_cd,
+    information_cd, shop_cd, keywords
   )
   VALUES (
     s.title, s.content, s.thread, s.article_url, s.created_at,
-    s.view_count, s.comment_count, s.point, s.author, s.map_id, s.category_cd, s.keywords
+    s.view_count, s.comment_count, s.point, s.author, s.map_id, s.category_cd,
+    s.information_cd, s.shop_cd, s.keywords
   );"""
 
 #####################################################################################################################

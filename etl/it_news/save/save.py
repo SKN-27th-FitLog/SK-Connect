@@ -65,14 +65,14 @@ def save_threads(
     ##############################
     if not df_success.empty:
         path_success = build_csv_path(
-            Stage.SAVE, CodeTable.IT_NEWS, save_file_prefix, Status.SUCCESS, run_time
+            Stage.SAVE, CodeTable.CATEGORY_ETC, save_file_prefix, Status.SUCCESS, run_time
         )
         save_csv(df_success, path_success)
         logger.info("저장: 성공 CSV %s (%d행)", path_success.resolve(), len(df_success))
 
     if not df_fail.empty:
         path_fail = build_csv_path(
-            Stage.SAVE, CodeTable.IT_NEWS, save_file_prefix, Status.FAIL, run_time
+            Stage.SAVE, CodeTable.CATEGORY_ETC, save_file_prefix, Status.FAIL, run_time
         )
         save_csv(df_fail, path_fail)
         logger.info("저장: 실패 CSV %s (%d행)", path_fail.resolve(), len(df_fail))
