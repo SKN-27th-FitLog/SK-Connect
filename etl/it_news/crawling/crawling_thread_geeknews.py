@@ -223,11 +223,23 @@ def crawling_thread_geeknews(
 
     # 저장할 데이터들이 있을 때만 파일 저장 실행 
     if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLING, CodeTable.CATEGORY_ETC, Service.GEEKNEWS.service, Status.SUCCESS, run_time)
+        path_success = build_csv_path(
+            Stage.CRAWLING,
+            CodeTable.INFORMATION_IT.value,
+            Service.GEEKNEWS.service,
+            Status.SUCCESS,
+            run_time,
+        )
         save_csv(df_success, path_success)
 
     if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLING, CodeTable.CATEGORY_ETC, Service.GEEKNEWS.service, Status.FAIL, run_time)
+        path_fail = build_csv_path(
+            Stage.CRAWLING,
+            CodeTable.INFORMATION_IT.value,
+            Service.GEEKNEWS.service,
+            Status.FAIL,
+            run_time,
+        )
         save_csv(df_fail, path_fail)
 
     return df_success, df_fail

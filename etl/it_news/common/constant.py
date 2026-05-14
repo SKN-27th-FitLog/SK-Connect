@@ -19,7 +19,7 @@ class PathConst:
     '''저장경로 지정 시 폴더명 표시 '''
     DIR = "" #"etl/it_news"
     STAGE_KEY = "process"
-    CODE_TABLE_KEY = "category_cd"
+    CODE_TABLE_KEY = "information_cd"
     YEAR_KEY = "year"
     MONTH_KEY = "month"
     DAY_KEY = "day"
@@ -119,8 +119,8 @@ class ShopCdCode(str, Enum):
 class CodeTable(Enum):
     """it_news 파이프라인 기본 적재값(`CategoryCdCode` / `InformationCdCode`와 동일 문자열).
 
-    - ``category_cd`` → ``CategoryCdCode.ETC`` (IT 크롤 글은 커뮤니티 카테고리상 기타).
-    - ``information_cd`` → ``InformationCdCode.IT_INFO``.
+    - ``category_cd`` (행 데이터) → ``CategoryCdCode.ETC`` (IT 크롤 글은 커뮤니티 카테고리상 기타).
+    - ``information_cd`` (행·``build_csv_path`` 세그먼트) → ``InformationCdCode.IT_INFO``.
     - ``shop_cd`` → 해당 없음 시 ``NULL`` (`ShopCdCode`는 맛집·가게 도메인 조회용).
     """
 

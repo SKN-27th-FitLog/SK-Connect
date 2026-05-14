@@ -250,7 +250,7 @@ def _validate_success_thread_columns(df: pd.DataFrame) -> pd.DataFrame:
 def get_crawling_success_for_cleaning(service: Service) -> pd.DataFrame:
     """클리닝용: 크롤 산출(`process=raw`, …/status=success)에서 **한 소스** `{service}_*.csv`만 수집.
 
-    - 크롤이 `build_csv_path(Stage.CRAWLING, …, service=…, …)` 로 쓴 경로와 동일한 트리를 읽는다.
+    - 크롤이 `build_csv_path(Stage.CRAWLING, information_cd=…, service=…, …)` 로 쓴 경로와 동일한 트리를 읽는다.
     - 호출부에서 `Service` 열거를 돌리며 소스마다 1회 호출한 뒤 `concat` 하면 됨.
     - 행에 `_page_service`를 붙여 소스를 구분한다(`utils.collect_crawling_success_datas`).
     """

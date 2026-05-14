@@ -3,10 +3,16 @@ import logging
 
 import pandas as pd
 
-from common.constant import CodeTable, CrawlingColumn, Stage, Status
+from common.constant import CrawlingColumn, Stage, Status
 from common.postgresql.run_query import insert_crawling_batch, fetch_crawling_dataframe
 from common.preprocess import get_cleaning_success_for_save
-from common.utils import get_last_success_date, get_run_time, build_csv_path, save_csv
+from common.utils import (
+    build_csv_path,
+    get_last_success_date,
+    get_run_time,
+    information_cd_for_path,
+    save_csv,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +71,22 @@ def save_threads(
     ##############################
     if not df_success.empty:
         path_success = build_csv_path(
-            Stage.SAVE, CodeTable.CATEGORY_ETC, save_file_prefix, Status.SUCCESS, run_time
+            Stage.SAVE,
+            information_cd_for_path(df_success),
+            save_file_prefix,
+            Status.SUCCESS,
+            run_time,
         )
         save_csv(df_success, path_success)
         logger.info("저장: 성공 CSV %s (%d행)", path_success.resolve(), len(df_success))
 
     if not df_fail.empty:
         path_fail = build_csv_path(
-            Stage.SAVE, CodeTable.CATEGORY_ETC, save_file_prefix, Status.FAIL, run_time
+            Stage.SAVE,
+            information_cd_for_path(df_fail),
+            save_file_prefix,
+            Status.FAIL,
+            run_time,
         )
         save_csv(df_fail, path_fail)
         logger.info("저장: 실패 CSV %s (%d행)", path_fail.resolve(), len(df_fail))

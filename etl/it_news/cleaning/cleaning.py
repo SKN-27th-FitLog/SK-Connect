@@ -2,8 +2,8 @@ import logging
 
 import pandas as pd
 
-from common.constant import CodeTable, Service, Stage, Status
-from common.utils import build_csv_path, get_run_time, save_csv
+from common.constant import Service, Stage, Status
+from common.utils import build_csv_path, get_run_time, information_cd_for_path, save_csv
 from common.preprocess import (
     cleaning_data_in_df,
     get_crawling_success_for_cleaning,
@@ -56,14 +56,22 @@ def cleaning_threads(
     ##############################
     if not df_success.empty:
         path_success = build_csv_path(
-            Stage.CLEANING, CodeTable.CATEGORY_ETC, output_csv_prefix, Status.SUCCESS, run_time
+            Stage.CLEANING,
+            information_cd_for_path(df_success),
+            output_csv_prefix,
+            Status.SUCCESS,
+            run_time,
         )
         save_csv(df_success, path_success)
         logger.info("클리닝: 성공 CSV %s (%d행)", path_success.resolve(), len(df_success))
 
     if not df_fail.empty:
         path_fail = build_csv_path(
-            Stage.CLEANING, CodeTable.CATEGORY_ETC, output_csv_prefix, Status.FAIL, run_time
+            Stage.CLEANING,
+            information_cd_for_path(df_fail),
+            output_csv_prefix,
+            Status.FAIL,
+            run_time,
         )
         save_csv(df_fail, path_fail)
         logger.info("클리닝: 실패 CSV %s (%d행)", path_fail.resolve(), len(df_fail))

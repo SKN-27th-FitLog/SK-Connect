@@ -24,12 +24,12 @@ def save_csv(df: pd.DataFrame, path: Path) -> Path:
 
 def build_csv_path(
     stage: Stage,
-    category_cd: CodeTable,
+    information_cd: str,
     service: str,
     status: Status,
     run_time: datetime,
 ) -> Path:
-    """CSV 저장 경로 생성"""
+    """CSV 저장 경로 생성 (`PathConst.CODE_TABLE_KEY` = ``information_cd``)."""
 
     file_name = f"{service}_{format_hhmmss(run_time)}.csv"
 
@@ -37,7 +37,7 @@ def build_csv_path(
         Path(PathConst.DIR)
         / f"{PathConst.STAGE_KEY}={stage.value}"
     ) / (
-        f"{PathConst.CODE_TABLE_KEY}={category_cd.value}"
+        f"{PathConst.CODE_TABLE_KEY}={information_cd}"
     ) / (
         f"{PathConst.YEAR_KEY}={run_time.year:04d}"
     ) / (
@@ -47,6 +47,24 @@ def build_csv_path(
     ) / (
         f"{PathConst.STATUS_KEY}={status.value}"
     ) / file_name
+
+
+def information_cd_for_path(df: pd.DataFrame) -> str:
+    """``crawling.information_cd``와 동일한 열에서 경로 세그먼트용 코드 문자열을 고른다.
+
+    열이 없거나 값이 비면 ``CodeTable.INFORMATION_IT``; 여러 값이면 mode(동률이면 첫 mode).
+    """
+    col = CrawlingColumn.INFORMATION_CD.value
+    if df.empty or col not in df.columns:
+        return CodeTable.INFORMATION_IT.value
+    s = df[col].dropna()
+    if s.empty:
+        return CodeTable.INFORMATION_IT.value
+    mode = s.astype(str).mode()
+    if mode.empty:
+        return CodeTable.INFORMATION_IT.value
+    return str(mode.iloc[0])
+
 
 # 폴더 이름에서 인자를 추출하는 함수 
 def parse_segment_int(dirname: str, key: str) -> int | None:
@@ -99,15 +117,15 @@ def _iter_code_table_success_csv_paths(
     *,
     filename_prefix: str | None = None,
 ) -> Iterator[Path]:
-    """`build_csv_path`와 동일: `process=…/category_cd=…/year/…/day/…/status=success/*.csv`.
+    """`build_csv_path`와 동일: `process=…/information_cd=…/year/…/day/…/status=success/*.csv`.
 
     `filename_prefix`가 있으면 `{prefix}_`로 시작하는 CSV만(크롤 `geeknews_`, `pytorch_` 등).
     `None`이면 success 폴더의 모든 `*.csv`(save 단계: 클리닝 산출 통합).
     """
     if not process_root.is_dir():
         return
-    for _cat in _iter_keyed_subdirs(process_root, PathConst.CODE_TABLE_KEY):
-        for year_dir in _iter_keyed_subdirs(_cat, PathConst.YEAR_KEY):
+    for _information_cd_dir in _iter_keyed_subdirs(process_root, PathConst.CODE_TABLE_KEY):
+        for year_dir in _iter_keyed_subdirs(_information_cd_dir, PathConst.YEAR_KEY):
             yyyy = parse_segment_int(year_dir.name, PathConst.YEAR_KEY)
             if yyyy is None:
                 continue
