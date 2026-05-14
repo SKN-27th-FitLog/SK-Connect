@@ -1,4 +1,5 @@
-# 패키지 
+# 패키지
+import html
 import pandas as pd
 import re
 from functools import lru_cache
@@ -102,6 +103,63 @@ def cleaning_continuous_spaces(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+##############################################################
+# 게시글 URL → 제목 텍스트 앵커 HTML
+##############################################################
+def _article_url_to_anchor_cell(
+    title: object,
+    url: object,
+    *,
+    max_article_url_len: int = 500,
+) -> str:
+    """제목·URL을 ``<a href="원본주소">제목</a>`` 로 만든다. URL은 의미 변경 없이 ``href``용으로만 이스케이프.
+
+    DB ``crawling.article_url`` 이 varchar(500) 이라 전체 문자열이 넘치면 표시 제목만 잘라 맞춘다.
+    """
+    if url is None or (isinstance(url, float) and pd.isna(url)):
+        return ""
+    raw_u = str(url).strip()
+    if not raw_u:
+        return ""
+
+    if title is None or (isinstance(title, float) and pd.isna(title)):
+        link_label = ""
+    else:
+        link_label = str(title).strip()
+
+    esc_u = html.escape(raw_u, quote=True)
+    prefix = '<a href="'
+    mid = '">'
+    suffix = "</a>"
+    fixed_len = len(prefix) + len(esc_u) + len(mid) + len(suffix)
+    budget = max_article_url_len - fixed_len
+
+    if budget <= 0:
+        # 주소만으로 한계 초과 시 원 문자열을 가능한 만큼만 반환
+        return raw_u[:max_article_url_len]
+
+    esc_t = html.escape(link_label, quote=True)
+    if len(esc_t) <= budget:
+        visible = esc_t
+    elif budget <= 1:
+        visible = "…"
+    else:
+        visible = esc_t[: budget - 1] + "…"
+
+    return f"{prefix}{esc_u}{mid}{visible}{suffix}"
+
+
+def wrap_article_url_as_html_anchor(df: pd.DataFrame) -> pd.DataFrame:
+    """``article_url`` 컬럼 값을 같은 행 ``title`` 로 링크 텍스트를 둔 ``<a>`` HTML 한 줄로 치환."""
+    url_c = CrawlingColumn.ARTICLE_URL.value
+    title_c = CrawlingColumn.TITLE.value
+    if url_c not in df.columns or title_c not in df.columns:
+        return df
+
+    out = df.copy()
+    pairs = zip(out[title_c].tolist(), out[url_c].tolist(), strict=True)
+    out[url_c] = [_article_url_to_anchor_cell(t, u) for t, u in pairs]
+    return out
 
 
 ##############################################################
@@ -146,6 +204,7 @@ def cleaning_data_in_df(df: pd.DataFrame) -> pd.DataFrame:
             part = cleaning_special_characters(df.loc[ok].copy())
             part = cleaning_continuous_spaces(part)
             part = cleaning_continuous_newlines(part)
+            part = wrap_article_url_as_html_anchor(part)
             df.loc[ok, part.columns] = part
         except (OSError, ValueError, TypeError, re.error):
             df.loc[ok, c_state] = Status.FAIL.value
