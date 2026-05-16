@@ -1,21 +1,28 @@
 # 로그 
 import logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 패키지
 import pandas as pd
 from kiwipiepy import Kiwi
 
+# 모듈
+from common.postgresql.run_query import get_analysis_data, merge_analysis_data
+
 #########################################
 
-def main():
+def analyze_keywords():
 
     # 형태소 분석기
     kiwi = Kiwi()
 
-    # 데이터 로드 
-    data = pd.read_csv("analysis.csv")
-    df = pd.DataFrame(data)
+    # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )
+    df = get_analysis_data()
+
+    # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
+    df = df[df["keywords"].isnull()]
+    
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
     df["keywords"] = df["keywords"].astype("object")
 
@@ -29,17 +36,16 @@ def main():
             if token.tag.startswith("N") or token.tag.startswith("V") or token.tag.startswith("VA")
         ]
 
-        df.at[index, "keywords"] = "#".join(keywords)
-        print(keywords)
+        df.at[index, "keywords"] = "#".join(keywords).strip()
+        logger.info(f"keywords: {keywords}")
 
-    df.to_csv("analysis_keywords.csv", index=False)
-    
-    print("완료")
+    # 처리 결과 데이터를 다시 analysis 테이블에 업데이트 
+    merge_analysis_data(df)
+
+    logger.info("데이터 적용 완료")
 
 
 
 ########################################################
 if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
-
-    main() 
+    analyze_keywords() 

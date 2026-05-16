@@ -1,6 +1,7 @@
 # 로그 
 import logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 패키지
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -8,13 +9,18 @@ import torch
 import torch.nn.functional as F
 import pandas as pd
 
+# 모듈
+from common.postgresql.run_query import get_analysis_data, merge_analysis_data
+
 # 사용할 모델 명 
 MODEL_NAME = "sangrimlee/bert-base-multilingual-cased-nsmc"
 
 # 토크나이저 로드
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
 # 모델 로드
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+
 
 def predict_sentiment(text: str) -> dict:
     inputs = tokenizer(
@@ -40,11 +46,14 @@ def predict_sentiment(text: str) -> dict:
     }
 
 
-def main():
+def analyze_sentimental():
 
     # 데이터 로드 
-    data = pd.read_csv("analysis.csv")
-    df = pd.DataFrame(data)
+    df = get_analysis_data()
+
+    # 데이터 중에서 IC02인 데이터 제외 (IC02는 감성분석 불가능한 데이터 )
+    df = df[df["category_cd"] != "IC02"] # 중복 처리긴 한데 남겨놓음 
+
     # 빈 칸이 있는 경우 오류 방지 
     df["sentimental"] = df["sentimental"].astype("object")
     df["score"] = df["score"].astype("float64")
@@ -54,19 +63,18 @@ def main():
     for index, row in df.iterrows():
         text = row["content"]
         result = predict_sentiment(text)
-        print(result)
+        logger.info(result)
         df.at[index, "sentimental"] = result["sentimental"]
         df.at[index, "score"] = result["score"]
 
-    df.to_csv("analysis_sentimental.csv", index=False)
-    
-    print("완료")
+    # 처리 결과 데이터를 다시 analysis 테이블에 업데이트 
+    merge_analysis_data(df)
+
+    logger.info("데이터 적용 완료")
 
 
 
 
 ########################################################
 if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
-
-    main()
+    analyze_sentimental()
