@@ -19,14 +19,26 @@ FOR (n:NewsArticle) REQUIRE n.article_id IS UNIQUE;
 CREATE CONSTRAINT topic_normalized_name IF NOT EXISTS
 FOR (n:Topic) REQUIRE n.normalized_name IS UNIQUE;
 
+CREATE CONSTRAINT topic_canonical_name IF NOT EXISTS
+FOR (n:Topic) REQUIRE n.canonical_name IS UNIQUE;
+
 CREATE CONSTRAINT technology_normalized_name IF NOT EXISTS
 FOR (n:Technology) REQUIRE n.normalized_name IS UNIQUE;
+
+CREATE CONSTRAINT technology_canonical_name IF NOT EXISTS
+FOR (n:Technology) REQUIRE n.canonical_name IS UNIQUE;
 
 CREATE CONSTRAINT company_normalized_name IF NOT EXISTS
 FOR (n:Company) REQUIRE n.normalized_name IS UNIQUE;
 
+CREATE CONSTRAINT company_canonical_name IF NOT EXISTS
+FOR (n:Company) REQUIRE n.canonical_name IS UNIQUE;
+
 CREATE CONSTRAINT event_normalized_name IF NOT EXISTS
 FOR (n:Event) REQUIRE n.normalized_name IS UNIQUE;
+
+CREATE CONSTRAINT event_canonical_name IF NOT EXISTS
+FOR (n:Event) REQUIRE n.canonical_name IS UNIQUE;
 
 CREATE CONSTRAINT concept_normalized_name IF NOT EXISTS
 FOR (n:Concept) REQUIRE n.normalized_name IS UNIQUE;
