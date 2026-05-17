@@ -170,6 +170,41 @@ $env:PYTHONPATH="C:\dev\Project\SK-Connect\kag\src"
 4 passed
 ```
 
+### 4. KAG 레시피 재료 선택 정책 테스트
+파일:
+
+```text
+kag/tests/test_recipe_ingredient_policy.py
+kag/tests/test_hive_importer.py
+```
+
+검증 내용:
+
+- 같은 `recipe_search_keyword`에 여러 레시피가 있어도 KAG 재료는 첫 번째로 재료가 있는 레시피만 사용한다.
+- 빈 재료 목록을 가진 레시피는 건너뛰고 다음 유효 레시피를 사용한다.
+- 재료가 주재료인지 부재료인지는 현재 판별하지 않는다.
+- 레시피 재료가 있으면 CSV 폴백 재료는 사용하지 않는다.
+
+실행 명령:
+
+```powershell
+cd C:\dev\Project\SK-Connect
+$env:PYTHONPATH="C:\dev\Project\SK-Connect\kag\src"
+.\.venv\Scripts\python.exe -m pytest `
+  kag\tests\test_recipe_ingredient_policy.py `
+  kag\tests\test_hive_importer.py::test_build_recipe_ingredient_map_uses_first_recipe_ingredients_by_keyword `
+  kag\tests\test_hive_importer.py::test_build_meal_restaurant_statements_uses_recipe_ingredients_over_csv `
+  kag\tests\test_hive_importer.py::test_build_meal_restaurant_statements_falls_back_to_csv_when_no_recipe `
+  kag\tests\test_hive_importer.py::test_collect_current_hive_statements_reads_recipe_files_from_meal_root `
+  -v --basetemp=.pytest_tmp
+```
+
+확인된 결과:
+
+```text
+5 passed
+```
+
 ## 실제 실행 검증 절차
 
 ### 1. 의존성 설치

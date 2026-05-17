@@ -24,6 +24,10 @@ ADDRESS_CODE_UPPER = "LA00"
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ADDRESS_CODE_TABLE = PROJECT_ROOT / "database/data/codeT.csv"
 DEFAULT_MENU_INGREDIENT_TABLE = PROJECT_ROOT / "database/data/menu_ingredient.csv"
+INGREDIENT_SOURCE_RECIPE = "RECIPE_10000"
+INGREDIENT_SOURCE_CSV_FALLBACK = "CSV_FALLBACK"
+INGREDIENT_CONFIDENCE_RECIPE = 0.9
+INGREDIENT_CONFIDENCE_CSV_FALLBACK = 0.5
 
 NEWS_ARTICLE_CYPHER = """
 MERGE (article:NewsArticle {article_id: $article_id})
@@ -178,7 +182,7 @@ def build_recipe_ingredient_map(recipe_files: list[Path]) -> dict[str, list[dict
     """recipe_collection JSONL에서 키워드별 재료 목록을 반환.
 
     반환 형식: {recipe_search_keyword: [{"ingredient_name": str, "recipe_url": str}]}
-    동일 키워드에서 여러 레시피가 있으면 재료명 기준으로 중복 제거(첫 번째 URL 유지).
+    동일 키워드에서 여러 레시피가 있으면 첫 번째로 재료가 있는 레시피만 사용한다.
     """
     keyword_map: dict[str, dict[str, str]] = {}  # keyword → {ingredient_name: recipe_url}
     for file in recipe_files:
@@ -198,9 +202,18 @@ def build_recipe_ingredient_map(recipe_files: list[Path]) -> dict[str, list[dict
                     if name and name not in seen:
                         seen[name] = recipe_url
     return {
-        keyword: [{"ingredient_name": name, "recipe_url": url} for name, url in ings.items()]
+        keyword: _first_recipe_ingredients(ings)
         for keyword, ings in keyword_map.items()
     }
+
+
+def _first_recipe_ingredients(ingredient_urls: dict[str, str]) -> list[dict[str, str]]:
+    first_recipe_url = next(iter(ingredient_urls.values()), "")
+    return [
+        {"ingredient_name": name, "recipe_url": url}
+        for name, url in ingredient_urls.items()
+        if url == first_recipe_url
+    ]
 
 
 def build_menu_ingredient_map(table_file: Path) -> dict[str, tuple[str, ...]]:
@@ -472,9 +485,9 @@ def _build_menu_statements(
                         params={
                             "menu_name": normalized_name,
                             "ingredient_name": ingredient_name,
-                            "ingredient_source": "RECIPE_10000",
+                            "ingredient_source": INGREDIENT_SOURCE_RECIPE,
                             "source_url": ing.get("recipe_url", ""),
-                            "ingredient_confidence": 0.9,
+                            "ingredient_confidence": INGREDIENT_CONFIDENCE_RECIPE,
                             "fallback_used": False,
                         },
                     )
@@ -488,9 +501,9 @@ def _build_menu_statements(
                         params={
                             "menu_name": normalized_name,
                             "ingredient_name": ingredient_name,
-                            "ingredient_source": "CSV_FALLBACK",
+                            "ingredient_source": INGREDIENT_SOURCE_CSV_FALLBACK,
                             "source_url": "",
-                            "ingredient_confidence": 0.5,
+                            "ingredient_confidence": INGREDIENT_CONFIDENCE_CSV_FALLBACK,
                             "fallback_used": True,
                         },
                     )

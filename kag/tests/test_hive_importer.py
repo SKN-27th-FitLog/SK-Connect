@@ -603,7 +603,7 @@ def test_find_meal_recipe_success_files_matches_recipe_process_partition(tmp_pat
     assert files == [success_file]
 
 
-def test_build_recipe_ingredient_map_groups_ingredients_by_keyword(tmp_path: Path):
+def test_build_recipe_ingredient_map_uses_first_recipe_ingredients_by_keyword(tmp_path: Path):
     recipe_file = tmp_path / "recipe_collection.jsonl"
     records = [
         {
@@ -629,7 +629,7 @@ def test_build_recipe_ingredient_map_groups_ingredients_by_keyword(tmp_path: Pat
 
     result = build_recipe_ingredient_map([recipe_file])
 
-    assert {i["ingredient_name"] for i in result["제육볶음"]} == {"돼지고기", "고추장", "대파"}
+    assert {i["ingredient_name"] for i in result["제육볶음"]} == {"돼지고기", "고추장"}
     assert {i["ingredient_name"] for i in result["된장찌개"]} == {"된장", "두부"}
     # 첫 번째 레시피 URL이 돼지고기에 연결되어 있어야 함
     pork = next(i for i in result["제육볶음"] if i["ingredient_name"] == "돼지고기")
