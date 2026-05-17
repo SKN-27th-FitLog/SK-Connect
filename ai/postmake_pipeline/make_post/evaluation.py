@@ -15,12 +15,16 @@ def evaluate_post_completion(result: dict) -> dict:
         llm = get_llm()
         data = result.get("data") or {}
         if isinstance(data, list):
-            data = data[0] if data else {}
+            selected_data = {}
+            if data:
+                selected_data = data[0]
+            data = selected_data
 
         post_text = str(result.get("post") or data.get("content") or "").strip()
         if not post_text:
             return {"is_pass": False, "reason": "게시글 본문이 비어 있습니다."}
 
+        # LLM 평가 전에 명확한 템플릿 잔여 문구는 로컬에서 빠르게 차단한다.
         banned_tokens = ["[장소 이름]", "[여기에 식당 이름]", "[참고]", "**[참고]**", "여기에", "xxxxx"]
         found_banned_tokens = [token for token in banned_tokens if token in post_text]
         if found_banned_tokens:
@@ -56,9 +60,12 @@ def evaluate_post_completion(result: dict) -> dict:
             """
         )
         response = llm.invoke(prompt.format(post=post_text))
-        content = response.content if hasattr(response, "content") else str(response)
+        content = str(response)
+        if hasattr(response, "content"):
+            content = response.content
         content = content.strip()
 
+        # 모델이 JSON 코드블록으로 감싸거나 앞뒤 설명을 붙인 경우에도 파싱 가능하게 정리한다.
         if content.startswith("```"):
             content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.IGNORECASE)
             content = re.sub(r"\s*```$", "", content).strip()

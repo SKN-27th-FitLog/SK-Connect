@@ -119,9 +119,10 @@ class Create_Prompt:
     def _format_image_urls(image_list: Optional[list]) -> str:
         urls = []
         for image in image_list or []:
+            url = None
             if isinstance(image, dict):
                 url = image.get("image_url") or image.get("url")
-            else:
+            elif image is not None:
                 url = str(image)
             if url:
                 urls.append(str(url))
@@ -137,12 +138,32 @@ class Create_Prompt:
             ("title", sample_data.get("title")),
             ("content", cls._clip_text(sample_data.get("content"))),
             ("keywords", sample_data.get("keywords")),
-            ("positive_kw", sample_data.get("positive_kw")),
-            ("negative_kw", sample_data.get("negative_kw")),
             ("sentimental", sample_data.get("sentimental")),
             ("score", sample_data.get("score")),
         ]
         return "\n".join(f"- {key}: {value}" for key, value in fields if value not in (None, ""))
+
+    @staticmethod
+    def _format_keyword_stats(keyword_stats: Optional[list[dict]]) -> str:
+        if not keyword_stats:
+            return ""
+        lines = []
+        for data in keyword_stats:
+            lines.append(
+                "- {keyword} | batch_count={batch_count} | average_score={average_score} | final_weight={final_weight}".format(
+                    keyword=data.get("keyword"),
+                    batch_count=data.get("batch_count"),
+                    average_score=data.get("average_score"),
+                    final_weight=data.get("final_weight"),
+                )
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_negative_keywords(negative_keywords: Optional[list[str]]) -> str:
+        if not negative_keywords:
+            return ""
+        return ", ".join(negative_keywords[:5])
 
     @classmethod
     def _master_prompt(cls, prompt: "Create_Prompt", image_list: Optional[list], url: Optional[str], sample_data: Optional[dict]) -> str:
@@ -159,6 +180,8 @@ class Create_Prompt:
         image_list: Optional[list] = None,
         url: Optional[str] = None,
         sample_data: Optional[dict] = None,
+        keyword_stats: Optional[list[dict]] = None,
+        negative_keywords: Optional[list[str]] = None,
     ) -> str:
         try:
             prompt = cls()
@@ -166,6 +189,15 @@ class Create_Prompt:
                 cls._master_prompt(prompt, image_list, url, sample_data),
                 "# [KEYWORDS]",
                 ", ".join(keyword),
+                "# [KEYWORD PRIORITY]",
+                cls._format_keyword_stats(keyword_stats),
+                "# [KEYWORD PRIORITY RULE]",
+                "final_weight가 높은 키워드를 우선 반영하되, 숫자나 점수 자체를 본문에 쓰지 마세요.\n"
+                "메뉴명이나 대상어가 붙은 키워드는 해당 메뉴/대상에 대한 평가로만 사용하고, 일반 맛 평가처럼 섞어 쓰지 마세요.",
+                "# [AVOID KEYWORDS]",
+                cls._format_negative_keywords(negative_keywords),
+                "# [AVOID KEYWORD RULE]",
+                "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
                 "# [RANDOM SOURCE SAMPLE]",
                 cls._format_sample_data(sample_data),
                 "# [SOURCE SAMPLE RULE]",
@@ -190,6 +222,8 @@ class Create_Prompt:
         image_list: Optional[list] = None,
         url: Optional[str] = None,
         sample_data: Optional[dict] = None,
+        keyword_stats: Optional[list[dict]] = None,
+        negative_keywords: Optional[list[str]] = None,
     ) -> str:
         try:
             prompt = cls()
@@ -200,6 +234,15 @@ class Create_Prompt:
                 cls._master_prompt(prompt, image_list, url, sample_data),
                 "# [KEYWORDS]",
                 ", ".join(keyword or []),
+                "# [KEYWORD PRIORITY]",
+                cls._format_keyword_stats(keyword_stats),
+                "# [KEYWORD PRIORITY RULE]",
+                "final_weight가 높은 키워드를 우선 반영하되, 숫자나 점수 자체를 본문에 쓰지 마세요.\n"
+                "메뉴명이나 대상어가 붙은 키워드는 해당 메뉴/대상에 대한 평가로만 사용하고, 일반 맛 평가처럼 섞어 쓰지 마세요.",
+                "# [AVOID KEYWORDS]",
+                cls._format_negative_keywords(negative_keywords),
+                "# [AVOID KEYWORD RULE]",
+                "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
                 "# [RANDOM SOURCE SAMPLE]",
                 cls._format_sample_data(sample_data),
                 sub_prompt,
@@ -219,6 +262,8 @@ class Create_Prompt:
         image_list: Optional[list] = None,
         url: Optional[str] = None,
         sample_data: Optional[dict] = None,
+        keyword_stats: Optional[list[dict]] = None,
+        negative_keywords: Optional[list[str]] = None,
     ) -> str:
         try:
             prompt = cls()
@@ -227,6 +272,15 @@ class Create_Prompt:
                 cls._master_prompt(prompt, image_list, url, sample_data),
                 "# [KEYWORDS]",
                 ", ".join(keyword or []),
+                "# [KEYWORD PRIORITY]",
+                cls._format_keyword_stats(keyword_stats),
+                "# [KEYWORD PRIORITY RULE]",
+                "final_weight가 높은 키워드를 우선 반영하되, 숫자나 점수 자체를 본문에 쓰지 마세요.\n"
+                "메뉴명이나 대상어가 붙은 키워드는 해당 메뉴/대상에 대한 평가로만 사용하고, 일반 맛 평가처럼 섞어 쓰지 마세요.",
+                "# [AVOID KEYWORDS]",
+                cls._format_negative_keywords(negative_keywords),
+                "# [AVOID KEYWORD RULE]",
+                "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
                 "# [RANDOM SOURCE SAMPLE]",
                 cls._format_sample_data(sample_data),
                 sub_prompt,
