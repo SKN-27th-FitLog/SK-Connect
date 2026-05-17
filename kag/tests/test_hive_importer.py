@@ -40,7 +40,7 @@ def test_find_meal_legacy_cleansing_success_files_uses_crawling_partition(tmp_pa
     success_file = root / "crawling=cleansing/service=SC01/year=2026/month=05/day=05/stage=validation_normalization/batch_id=20260505_SC01_001/status=success/260505083633_att1.jsonl"
     success_file.parent.mkdir(parents=True)
     success_file.write_text("{}\n", encoding="utf-8")
-    ignored = root / "process=cleansing/category_cd=SC01/year=2026/month=05/day=05/status=success/validation_normalization_20260505_SC01_001_260505083633_att1.jsonl"
+    ignored = root / "process=cleaning/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=05/status=success/validation_normalization_20260505_SC01_001_260505083633_att1.jsonl"
     ignored.parent.mkdir(parents=True)
     ignored.write_text("{}\n", encoding="utf-8")
 
@@ -51,7 +51,7 @@ def test_find_meal_legacy_cleansing_success_files_uses_crawling_partition(tmp_pa
 
 def test_find_meal_process_cleansing_success_files_uses_current_hive_partition(tmp_path: Path):
     root = tmp_path / "meal"
-    success_file = root / "process=cleansing/category_cd=SC01/year=2026/month=05/day=05/status=success/validation_normalization_20260505_SC01_001_260505083633_att1.jsonl"
+    success_file = root / "process=cleaning/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=05/status=success/validation_normalization_20260505_SC01_001_260505083633_att1.jsonl"
     success_file.parent.mkdir(parents=True)
     success_file.write_text("{}\n", encoding="utf-8")
     ignored = root / "crawling=cleansing/service=SC01/year=2026/month=05/day=05/stage=validation_normalization/batch_id=20260505_SC01_001/status=success/260505083633_att1.jsonl"
@@ -276,7 +276,7 @@ def test_collect_current_hive_statements_reads_it_news_cleaning_and_meal_process
     news_file = it_root / "process=cleaning/category_cd=IC02/year=2026/month=05/day=05/status=success/it_news.csv"
     news_file.parent.mkdir(parents=True)
     _write_news_csv(news_file)
-    meal_file = meal_root / "process=cleansing/category_cd=SC01/year=2026/month=05/day=05/status=success/validation_normalization_20260505_SC01_001_260505083633_att1.jsonl"
+    meal_file = meal_root / "process=cleaning/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=05/status=success/validation_normalization_20260505_SC01_001_260505083633_att1.jsonl"
     meal_file.parent.mkdir(parents=True)
     _write_meal_jsonl(meal_file)
 
@@ -591,10 +591,10 @@ class FakeDriver:
 
 def test_find_meal_recipe_success_files_matches_recipe_process_partition(tmp_path: Path):
     root = tmp_path / "meal"
-    success_file = root / "process=recipe/category_cd=SC01/year=2026/month=05/day=12/status=success/recipe_collection_20260512_SC01_001_260512120000_att1.jsonl"
+    success_file = root / "process=recipe/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=12/status=success/recipe_collection_20260512_SC01_001_260512120000_att1.jsonl"
     success_file.parent.mkdir(parents=True)
     success_file.write_text("{}\n", encoding="utf-8")
-    ignored = root / "process=cleansing/category_cd=SC01/year=2026/month=05/day=12/status=success/validation_normalization_20260512_SC01_001_260512120000_att1.jsonl"
+    ignored = root / "process=cleaning/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=12/status=success/validation_normalization_20260512_SC01_001_260512120000_att1.jsonl"
     ignored.parent.mkdir(parents=True)
     ignored.write_text("{}\n", encoding="utf-8")
 
@@ -718,7 +718,7 @@ def test_collect_current_hive_statements_reads_recipe_files_from_meal_root(tmp_p
     it_root = tmp_path / "it"
     meal_root = tmp_path / "meal"
 
-    meal_file = meal_root / "process=cleansing/category_cd=SC01/year=2026/month=05/day=12/status=success/validation_normalization_20260512_SC01_001_260512120000_att1.jsonl"
+    meal_file = meal_root / "process=cleaning/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=12/status=success/validation_normalization_20260512_SC01_001_260512120000_att1.jsonl"
     meal_file.parent.mkdir(parents=True)
     record = {
         "store": {
@@ -741,7 +741,7 @@ def test_collect_current_hive_statements_reads_recipe_files_from_meal_root(tmp_p
     }
     meal_file.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    recipe_file = meal_root / "process=recipe/category_cd=SC01/year=2026/month=05/day=12/status=success/recipe_collection_20260512_SC01_001_260512120000_att1.jsonl"
+    recipe_file = meal_root / "process=recipe/category_cd=CA01/shop_cd=SC01/year=2026/month=05/day=12/status=success/recipe_collection_20260512_SC01_001_260512120000_att1.jsonl"
     recipe_file.parent.mkdir(parents=True)
     recipe_record = {
         "recipe_search_keyword": "제육볶음",

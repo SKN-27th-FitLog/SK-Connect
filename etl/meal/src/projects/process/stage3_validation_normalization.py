@@ -10,6 +10,7 @@ from src.core.models.models import StoreModel
 from src.core.repository.store_repository import StoreRepository
 from src.core.policy.fail_record import build_fail_record
 from src.core.policy.reason_code import ReasonCode
+from src.core.constants import RESTAURANT_CATEGORY_CD
 from src.core.utils.content_hash import (
     HASH_FIELDS_VERSION,
     HASH_VERSION,
@@ -136,6 +137,7 @@ class Stage3ValidationNormalization(BaseStage):
         }
 
     def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
+        shop_cd = category_cd
         normalized_data = []
         failures = []
         now = datetime.now()
@@ -187,7 +189,8 @@ class Stage3ValidationNormalization(BaseStage):
                     "batch_id": batch_id,
                     "run_attempt": run_attempt,
                     "stage": self.stage_name,
-                    "category_cd": category_cd,
+                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "shop_cd": shop_cd,
                     "store": store.model_dump(),
                     "menus": menus,
                     "reviews": reviews,

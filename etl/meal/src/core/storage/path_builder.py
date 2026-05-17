@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from src.core.config import settings
+from src.core.constants import RESTAURANT_CATEGORY_CD, SHOP_CODE_PREFIX
 
 
 class HivePathBuilder:
@@ -9,7 +10,7 @@ class HivePathBuilder:
     Hive-style path builder.
 
     Format:
-    process={raw|cleansing|save|failcheck}/category_cd={category_cd}/
+    process={raw|cleaning|save|failcheck}/category_cd={category_cd}/shop_cd={shop_cd}/
     year=YYYY/month=MM/day=DD/status={success|fail}/
 
     stage and batch_id are intentionally kept out of the directory partitions.
@@ -17,8 +18,8 @@ class HivePathBuilder:
     """
 
     PROCESS_ALIASES = {
-        "candidate": "cleansing",
-        "normalized": "cleansing",
+        "candidate": "cleaning",
+        "normalized": "cleaning",
         "load": "save",
         "retry": "failcheck",
         "reprocess": "failcheck",
@@ -29,6 +30,12 @@ class HivePathBuilder:
     @staticmethod
     def _normalize_process(process: str) -> str:
         return HivePathBuilder.PROCESS_ALIASES.get(process, process)
+
+    @staticmethod
+    def _category_and_shop_partitions(category_cd: str) -> tuple[str, str | None]:
+        if str(category_cd).startswith(SHOP_CODE_PREFIX):
+            return RESTAURANT_CATEGORY_CD, category_cd
+        return category_cd, None
 
     @staticmethod
     def build_path(
@@ -42,14 +49,19 @@ class HivePathBuilder:
     ) -> str:
         """Build a full Hive path for a batch/status partition."""
         process_partition = HivePathBuilder._normalize_process(process)
+        category_partition, shop_partition = HivePathBuilder._category_and_shop_partitions(category_cd)
         parts = [
             settings.LAKE_ROOT_PATH,
             f"process={process_partition}",
-            f"category_cd={category_cd}",
+            f"category_cd={category_partition}",
+        ]
+        if shop_partition:
+            parts.append(f"shop_cd={shop_partition}")
+        parts.extend([
             f"year={dt.strftime('%Y')}",
             f"month={dt.strftime('%m')}",
             f"day={dt.strftime('%d')}",
-        ]
+        ])
         if process_partition == "save":
             parts.append(f"save={service}")
         parts.append(f"status={status}")
@@ -66,14 +78,19 @@ class HivePathBuilder:
     ) -> str:
         """Build the path for a process/category/date/status partition."""
         process_partition = HivePathBuilder._normalize_process(process)
+        category_partition, shop_partition = HivePathBuilder._category_and_shop_partitions(category_cd)
         parts = [
             settings.LAKE_ROOT_PATH,
             f"process={process_partition}",
-            f"category_cd={category_cd}",
+            f"category_cd={category_partition}",
+        ]
+        if shop_partition:
+            parts.append(f"shop_cd={shop_partition}")
+        parts.extend([
             f"year={dt.strftime('%Y')}",
             f"month={dt.strftime('%m')}",
             f"day={dt.strftime('%d')}",
-        ]
+        ])
         if process_partition == "save":
             parts.append(f"save={service}")
         parts.append(f"status={status}")

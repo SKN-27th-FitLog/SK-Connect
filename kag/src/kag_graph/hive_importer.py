@@ -13,11 +13,11 @@ MEAL_LEGACY_CLEANSING_GLOB = (
     "batch_id=*/status=success/*.jsonl"
 )
 MEAL_PROCESS_CLEANSING_GLOB = (
-    "process=cleansing/category_cd=*/year=*/month=*/day=*/status=success/"
+    "process=cleaning/category_cd=CA01/shop_cd=*/year=*/month=*/day=*/status=success/"
     "validation_normalization_*.jsonl"
 )
 MEAL_RECIPE_GLOB = (
-    "process=recipe/category_cd=*/year=*/month=*/day=*/status=success/"
+    "process=recipe/category_cd=CA01/shop_cd=*/year=*/month=*/day=*/status=success/"
     "recipe_collection_*.jsonl"
 )
 ADDRESS_CODE_UPPER = "LA00"

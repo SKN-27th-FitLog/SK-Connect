@@ -1,4 +1,5 @@
 import logging
+from html import escape
 from typing import Any, Dict, List
 
 from sqlalchemy import text
@@ -17,6 +18,7 @@ from src.core.constants import (
     QUERY_TOUCH_SHOP_CHECKED_AT,
     QUERY_UPDATE_MAP_COORDINATES,
     QUERY_UPDATE_SHOP_RATING,
+    RESTAURANT_CATEGORY_CD,
 )
 from src.core.policy.exceptions import UndefinedCodeException
 from src.core.policy.fail_record import build_fail_record
@@ -31,6 +33,7 @@ class Stage4Load(BaseStage):
     CRAWLING_ARTICLE_URL_MAX_LENGTH = 500
     CRAWLING_AUTHOR_MAX_LENGTH = 100
     CRAWLING_KEYWORDS_MAX_LENGTH = 100
+    IMAGE_URL_MAX_LENGTH = 500
 
     def __init__(self, db=None, code_repository: CodeTableRepository | None = None):
         super().__init__(self.NAME)
@@ -38,9 +41,9 @@ class Stage4Load(BaseStage):
         self.code_repo = code_repository or CodeTableRepository()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def _validate_required_codes(self, store: Dict[str, Any], category_cd: str):
+    def _validate_required_codes(self, store: Dict[str, Any], shop_cd: str):
         addr_cd = store.get("address_cd")
-        shop_cd = store.get("shop_cd")
+        store_shop_cd = store.get("shop_cd")
 
         if not addr_cd or addr_cd == "UNKNOWN" or not self.code_repo.get_address_info(addr_cd):
             raise UndefinedCodeException(
@@ -50,20 +53,20 @@ class Stage4Load(BaseStage):
                 detail=f"address_cd is missing, UNKNOWN, or invalid in CodeTable: {addr_cd}",
             )
 
+        if not store_shop_cd or not self.code_repo.get_shop_code(store_shop_cd):
+            raise UndefinedCodeException(
+                reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
+                stage=self.NAME,
+                entity_type="store",
+                detail=f"shop_cd is missing or invalid in CodeTable: {store_shop_cd}",
+            )
+
         if not shop_cd or not self.code_repo.get_shop_code(shop_cd):
             raise UndefinedCodeException(
                 reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
                 stage=self.NAME,
                 entity_type="store",
-                detail=f"shop_cd is missing or invalid in CodeTable: {shop_cd}",
-            )
-
-        if not category_cd or not self.code_repo.get_shop_code(category_cd):
-            raise UndefinedCodeException(
-                reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
-                stage=self.NAME,
-                entity_type="store",
-                detail=f"category_cd is missing or invalid in CodeTable: {category_cd}",
+                detail=f"input shop_cd is missing or invalid in CodeTable: {shop_cd}",
             )
 
     def _build_change_plan(self, record: Dict[str, Any]) -> Dict[str, bool]:
@@ -99,10 +102,10 @@ class Stage4Load(BaseStage):
                 "point": float(store.get("rating", 0.0)),
             })
 
-    def _load_map_and_shop(self, session: Session, store: Dict[str, Any], record: Dict[str, Any], category_cd: str) -> str:
+    def _load_map_and_shop(self, session: Session, store: Dict[str, Any], record: Dict[str, Any], shop_cd: str) -> str:
         map_params = {
             "name": store["name"],
-            "category_cd": category_cd,
+            "category_cd": RESTAURANT_CATEGORY_CD,
             "address_cd": store["address_cd"],
             "address_detail": store["address_detail"],
             "latitude": float(store.get("latitude", 0.0)),
@@ -132,13 +135,13 @@ class Stage4Load(BaseStage):
         session: Session,
         store: Dict[str, Any],
         record: Dict[str, Any],
-        category_cd: str,
+        shop_cd: str,
         change_plan: Dict[str, bool],
     ) -> tuple[str, str]:
         if not change_plan["store"] and record.get("existing_store_id") and record.get("existing_map_id"):
             return str(record["existing_store_id"]), str(record["existing_map_id"])
 
-        return self._load_map_and_shop(session, store, record, category_cd)
+        return self._load_map_and_shop(session, store, record, shop_cd)
 
     def _load_menus(self, session: Session, menus: List[Dict[str, Any]], shop_id: str):
         for menu in menus:
@@ -153,7 +156,7 @@ class Stage4Load(BaseStage):
             img_url = img.get("url", "") if isinstance(img, dict) else img
             if img_url:
                 session.execute(text(QUERY_INSERT_IMAGE), {
-                    "image_url": img_url,
+                    "image_url": self._build_image_tag(img_url),
                     "table_name": "shop",
                     "table_id": int(shop_id),
                 })
@@ -172,6 +175,38 @@ class Stage4Load(BaseStage):
             text = str(keywords)
         return self._limit_text(text, self.CRAWLING_KEYWORDS_MAX_LENGTH)
 
+    def _build_anchor_tag(self, url: Any, label: Any) -> str:
+        raw_url = str(url or "").strip()
+        if not raw_url:
+            return ""
+
+        escaped_url = escape(raw_url, quote=True)
+        prefix = f'<a href="{escaped_url}">'
+        suffix = "</a>"
+        label_budget = self.CRAWLING_ARTICLE_URL_MAX_LENGTH - len(prefix) - len(suffix)
+        if label_budget <= 0:
+            return self._limit_text(raw_url, self.CRAWLING_ARTICLE_URL_MAX_LENGTH)
+
+        escaped_label = escape(str(label or raw_url).strip(), quote=False)
+        visible_label = self._limit_text(escaped_label, label_budget)
+        return f"{prefix}{visible_label}</a>"
+
+    def _build_image_tag(self, image_url: Any, alt_text: Any = "식당 이미지") -> str:
+        raw_url = str(image_url or "").strip()
+        if not raw_url:
+            return ""
+
+        escaped_url = escape(raw_url, quote=True)
+        prefix = f'<img src="{escaped_url}" alt="'
+        suffix = '"/>'
+        alt_budget = self.IMAGE_URL_MAX_LENGTH - len(prefix) - len(suffix)
+        if alt_budget <= 0:
+            return self._limit_text(raw_url, self.IMAGE_URL_MAX_LENGTH)
+
+        escaped_alt = escape(str(alt_text or "식당 이미지").strip(), quote=True)
+        visible_alt = self._limit_text(escaped_alt, alt_budget)
+        return f"{prefix}{visible_alt}{suffix}"
+
     def _load_crawling_and_reviews(
         self,
         session: Session,
@@ -183,9 +218,9 @@ class Stage4Load(BaseStage):
         session.execute(text(QUERY_INSERT_CRAWLING), {
             "title": self._limit_text(f"Crawl - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
             "content": store.get("description", ""),
-            "article_url": self._limit_text(store.get("canonical_url", ""), self.CRAWLING_ARTICLE_URL_MAX_LENGTH),
+            "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
             "map_id": int(map_id),
-            "category_cd": category_cd,
+            "category_cd": RESTAURANT_CATEGORY_CD,
             "author": "System",
             "keywords": "",
             "point": float(store.get("rating", 0.0)),
@@ -195,9 +230,9 @@ class Stage4Load(BaseStage):
             session.execute(text(QUERY_INSERT_CRAWLING), {
                 "title": self._limit_text(f"Review - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
                 "content": review.get("content", ""),
-                "article_url": self._limit_text(store.get("canonical_url", ""), self.CRAWLING_ARTICLE_URL_MAX_LENGTH),
+                "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
                 "map_id": int(map_id),
-                "category_cd": category_cd,
+                "category_cd": RESTAURANT_CATEGORY_CD,
                 "author": self._limit_text(review.get("author", "Anonymous"), self.CRAWLING_AUTHOR_MAX_LENGTH),
                 "keywords": self._join_keywords(review.get("keywords", [])),
                 "point": float(review.get("rating", 0.0)),
@@ -232,6 +267,7 @@ class Stage4Load(BaseStage):
         category_cd: str,
         run_attempt: int = 1,
     ) -> List[Dict[str, Any]]:
+        shop_cd = category_cd
         results = []
         loaded_count = 0
         with self.db.get_session() as session:
@@ -240,7 +276,7 @@ class Stage4Load(BaseStage):
                 change_plan = self._build_change_plan(record)
 
                 try:
-                    self._validate_required_codes(store, category_cd)
+                    self._validate_required_codes(store, shop_cd)
 
                     if change_plan["touch_only"]:
                         with session.begin_nested():
@@ -250,7 +286,8 @@ class Stage4Load(BaseStage):
                             "batch_id": batch_id,
                             "run_attempt": run_attempt,
                             "stage": self.NAME,
-                            "category_cd": category_cd,
+                            "category_cd": RESTAURANT_CATEGORY_CD,
+                            "shop_cd": shop_cd,
                             "entity_id": store.get("entity_id", "unknown"),
                             "entity_type": "store",
                             "status": "success",
@@ -264,7 +301,7 @@ class Stage4Load(BaseStage):
                             session,
                             store,
                             record,
-                            category_cd,
+                            shop_cd,
                             change_plan,
                         )
 
@@ -292,7 +329,7 @@ class Stage4Load(BaseStage):
                                     store,
                                     record.get("reviews", []),
                                     map_id,
-                                    category_cd,
+                                    RESTAURANT_CATEGORY_CD,
                                 )
                         except Exception as e:
                             self.logger.error(f"Reviews partial failure for {store.get('name')}: {e}")
@@ -308,7 +345,8 @@ class Stage4Load(BaseStage):
                         "batch_id": batch_id,
                         "run_attempt": run_attempt,
                         "stage": self.NAME,
-                        "category_cd": category_cd,
+                        "category_cd": RESTAURANT_CATEGORY_CD,
+                        "shop_cd": shop_cd,
                         "entity_id": store.get("entity_id", "unknown"),
                         "entity_type": "store",
                         "status": status,

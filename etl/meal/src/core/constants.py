@@ -12,6 +12,8 @@ QUERY_SELECT_ALL_CODES = 'SELECT cd, name, cd_info, cd_upper FROM "codeT"'
 QUERY_SELECT_ALL_ADDRESS_CODES = 'SELECT cd as address_cd, name FROM "codeT" WHERE cd_upper = \'LA00\''
 QUERY_SELECT_ALL_SHOP_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'SC00\''
 QUERY_SELECT_PROCESSED_URLS = 'SELECT article_url FROM crawling WHERE article_url IS NOT NULL'
+RESTAURANT_CATEGORY_CD = "CA01"
+SHOP_CODE_PREFIX = "SC"
 
 # ---------------------------------------------------------
 # 2. Store / Data Queries (설계안 17, 20장 - 정규화 적재)
@@ -153,9 +155,11 @@ STATUS_FAIL = "fail"
 
 # 4.1 find success loaded dedup keys
 QUERY_FIND_SUCCESS_LOADED_DEDUP_KEYS = """
-    SELECT name, address_cd
-    FROM maps
-    WHERE category_cd = :category_cd
+    SELECT m.name, m.address_cd
+    FROM maps m
+    JOIN shop s ON s.map_id = m.map_id
+    WHERE m.category_cd = :category_cd
+      AND s.shop_cd = :shop_cd
 """
 
 # 4.2 find update targets
@@ -172,6 +176,7 @@ QUERY_FIND_UPDATE_TARGETS = """
             JOIN maps m ON m.map_id = s.map_id
             LEFT JOIN crawling c ON c.map_id = m.map_id
             WHERE m.category_cd = :category_cd
+              AND s.shop_cd = :shop_cd
             GROUP BY s.shop_id, m.map_id, m.address_cd, m.category_cd
             HAVING
                 (ARRAY_AGG(c.article_url ORDER BY c.created_at DESC)
