@@ -1,3 +1,5 @@
+"""PostgreSQL에서 `crawling` / `analysis` 테이블을 읽고 MERGE하는 유틸."""
+
 # 패키지
 import pandas as pd
 import psycopg
@@ -6,7 +8,7 @@ import numpy as np
 
 
 # 모듈
-from common.constant import AnalysisColumn
+from common.constant import AnalysisColumn, MergeAnalysisConfig, PostgreSqlTable
 from common.postgresql.connection import PostgreDB
 
 
@@ -21,9 +23,10 @@ def get_crawling_data() -> pd.DataFrame:
     """
 
     db = PostgreDB()
+    table = PostgreSqlTable.CRAWLING.value
     # 컬럼값 까지 확인 
     with db.conn.cursor() as cur:
-        cur.execute("SELECT * FROM crawling")
+        cur.execute(f"SELECT * FROM {table}")
         columns = [col.name for col in cur.description]
         rows = cur.fetchall()
     
@@ -41,8 +44,9 @@ def get_analysis_data() -> pd.DataFrame:
     """
 
     db = PostgreDB()
+    table = PostgreSqlTable.ANALYSIS.value
     with db.conn.cursor() as cur:
-        cur.execute("SELECT * FROM analysis")
+        cur.execute(f"SELECT * FROM {table}")
         columns = [col.name for col in cur.description]
         rows = cur.fetchall()
 
@@ -54,47 +58,16 @@ def get_analysis_data() -> pd.DataFrame:
     ##############################################
 
 def merge_analysis_data(df: pd.DataFrame) -> None:
-    """ 
-    준비된 데이터를 analysis 테이블 스키마에 맞춰서 한번에 MERGE 하는 함수  
+    """DataFrame 행을 JSONB 레코드로 직렬화해 `analysis`에 UPSERT(MERGE)한다.
+
+    ``NaN`` / ``pd.NA``는 ``None``으로 바꾸고, ``created_dt``는 ISO-like 문자열,
+    bigint 후보 컬럼은 Nullable 정수로 맞춘 뒤 실행한다.
+
+    Args:
+        df: ``crawling_id``가 포함된 업서트 대상. 컬럼은 스키마에 맞게 전달한다.
     """
     # crawling 테이블과 analysis 테이블을 한번에 merge 하는 함수 
-    MERGE_ANALYSIS_SQL = r"""
-    MERGE INTO analysis AS a
-    USING (
-    SELECT * FROM jsonb_to_recordset(%s::jsonb) AS s (
-        crawling_id   bigint,
-        title         varchar(500),
-        content       text,
-        article_url   varchar(500),
-        map_id        bigint,
-        shop_id       bigint,
-        category_cd   varchar(6),
-        created_dt    timestamp,
-        sentimental   varchar(50),
-        score         double precision,
-        keywords      text,
-        positive_kw   text,
-        negative_kw   text
-    )
-    ) AS x
-    ON a.crawling_id = x.crawling_id
-    WHEN MATCHED THEN
-    UPDATE SET
-        title = x.title, content = x.content, article_url = x.article_url,
-        map_id = x.map_id, shop_id = x.shop_id, category_cd = x.category_cd,
-        created_dt = x.created_dt, sentimental = x.sentimental, score = x.score,
-        keywords = x.keywords, positive_kw = x.positive_kw, negative_kw = x.negative_kw
-    WHEN NOT MATCHED THEN
-    INSERT (
-        crawling_id, title, content, article_url, map_id, shop_id,
-        category_cd, created_dt, sentimental, score, keywords, positive_kw, negative_kw
-    )
-    VALUES (
-        x.crawling_id, x.title, x.content, x.article_url, x.map_id, x.shop_id,
-        x.category_cd, x.created_dt, x.sentimental, x.score, x.keywords,
-        x.positive_kw, x.negative_kw
-    );
-    """
+    MERGE_ANALYSIS_SQL = MergeAnalysisConfig.MERGE_SQL
 
     db = PostgreDB()
 
@@ -102,13 +75,14 @@ def merge_analysis_data(df: pd.DataFrame) -> None:
     clean = df.replace({np.nan: None, pd.NA: None})
     clean = clean.where(pd.notnull(clean), None)
 
+    created = AnalysisColumn.CREATED_DT.value
     # 시간값인 경우 형식 변환 
-    if "created_dt" in clean.columns:
-        s = pd.to_datetime(clean["created_dt"], errors="coerce")
-        clean["created_dt"] = s.dt.strftime("%Y-%m-%dT%H:%M:%S").where(s.notna(), None)
+    if created in clean.columns:
+        s = pd.to_datetime(clean[created], errors="coerce")
+        clean[created] = s.dt.strftime(MergeAnalysisConfig.CREATED_DT_STRFTIME).where(s.notna(), None)
 
     # bigint 컬럼값 정수로 처리 
-    for col in ("crawling_id", "map_id", "shop_id"):
+    for col in MergeAnalysisConfig.BIGINT_COLUMN_NAMES:
         if col in clean.columns:
             clean[col] = pd.to_numeric(clean[col], errors="coerce").astype("Int64")
     

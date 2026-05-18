@@ -1,3 +1,5 @@
+"""PostgreSQL 연결(Singleton) 및 간단 쿼리 헬퍼."""
+
 # 패키지
 from dotenv import load_dotenv
 import psycopg
@@ -5,6 +7,7 @@ import os
 import logging
 
 # 모듈
+from common.constant import PostgresEnvKey, PostgreSqlTable
 from common.singleton import Singleton
 
 load_dotenv()
@@ -14,13 +17,20 @@ load_dotenv()
 # conn 설정
 ##############################
 class PostgreDB(metaclass=Singleton):
-    def __init__(self, DB_CONFIG:dict=None):
+    """`.env`의 ``PG*`` 변수로 `psycopg` 연결을 맺는다 (프로세스당 단일 커넥션)."""
 
-        user = os.getenv('PGUSER')
-        password = os.getenv('PGPASSWORD')
-        host = os.getenv('PGHOST')
-        port = os.getenv('PGPORT')
-        database = os.getenv('PGDATABASE')
+    def __init__(self, DB_CONFIG: dict | None = None):
+        """환경변수 URI로 DB에 접속해 `autocommit` 연결을 연다.
+
+        Args:
+            DB_CONFIG: 예약. 향후 설정 인젝션용.
+        """
+
+        user = os.getenv(PostgresEnvKey.USER.value)
+        password = os.getenv(PostgresEnvKey.PASSWORD.value)
+        host = os.getenv(PostgresEnvKey.HOST.value)
+        port = os.getenv(PostgresEnvKey.PORT.value)
+        database = os.getenv(PostgresEnvKey.DATABASE.value)
 
         # PostgreSQL 연결 설정
         DB_URI = f"postgresql://{user}:{password}@{host}:{port}/{database}"
@@ -70,6 +80,6 @@ if __name__ == "__main__":
     logger.info(db.test_conn())
 
     # 쿼리 테스트 
-    query = "SELECT * FROM crawling LIMIT 5;"
+    query = f"SELECT * FROM {PostgreSqlTable.CRAWLING.value} LIMIT 5;"
     result = db.run_query(query)
     logger.info(result)

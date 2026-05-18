@@ -1,4 +1,6 @@
-# 로그 
+"""OpenAI LLM으로 본문과 감성에 맞는 키워드 문자열을 추출해 `analysis`에 반영한다."""
+
+# 로그
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -11,32 +13,42 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 # 모듈
+from common.constant import AnalysisColumn, AnalyzeKeywordsByLlmConfig
 from common.postgresql.run_query import get_analysis_data, merge_analysis_data
 
 class Keywords(BaseModel):
+    """LangChain `PydanticOutputParser`용 스키마: 키워드 문장들을 한 문자열(`#` 구분)로 받는다."""
+
     keywords: str = Field(default="", description="2~3단어 정도의 짧은 문장들을 #으로 연결한 하나의 스트링 값")
 
 
-def analyze_keywords_by_llm():
+def analyze_keywords_by_llm() -> None:
+    """빈 본문을 제외한 뒤, 감성·본문을 입력으로 체인을 돌려 `keywords`를 채우고 DB에 MERGE한다."""
 
     # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )
     df = get_analysis_data()
 
+    content_col = AnalysisColumn.CONTENT.value
+    kw_col = AnalysisColumn.KEYWORDS.value
+    sent_col = AnalysisColumn.SENTIMENTAL.value
+    title_col = AnalysisColumn.TITLE.value
+
     # content가 비어있는 경우 오류가 나기 때문에 제외 
-    c = df["content"].replace({"": pd.NA, "-": pd.NA, "N/A": pd.NA})
+    empty_map = {k: pd.NA for k in AnalyzeKeywordsByLlmConfig.CONTENT_EMPTY_PLACEHOLDERS}
+    c = df[content_col].replace(empty_map)
     df = df[c.notna() & c.astype(str).str.strip().ne("")]
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
-    df = df[df["keywords"].isnull()]
+    df = df[df[kw_col].isnull()]
     
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
-    df["keywords"] = df["keywords"].astype("object")
+    df[kw_col] = df[kw_col].astype(AnalyzeKeywordsByLlmConfig.DTYPE_OBJECT)
 
     # # 테스트를 위해 4개 열만 처리 
     # df = df.head(6)
 
     # 체인 구성 
-    llm = ChatOpenAI(model="gpt-5.4-mini")
+    llm = ChatOpenAI(model=AnalyzeKeywordsByLlmConfig.OPENAI_MODEL)
 
     parser = PydanticOutputParser(pydantic_object=Keywords)
 
@@ -62,7 +74,7 @@ def analyze_keywords_by_llm():
 4. 추출된 문장들은 #으로 연결한 하나의 스트링 값으로 제공되어야 합니다. (예시: #음식이 맛있어요#가격이 저렴해요#사장님이 친절해요)
 
 """,
-    input_variables=["content", "sentimental"],
+    input_variables=[content_col, sent_col],
     partial_variables={
         "format_instruction": parser.get_format_instructions()
     })
@@ -73,12 +85,12 @@ def analyze_keywords_by_llm():
     for index, row in df.iterrows():
         try:
             result = chain.invoke(
-                {"content": row["content"], "sentimental": row["sentimental"]}
+                {content_col: row[content_col], sent_col: row[sent_col]}
             )
-            df.at[index, "keywords"] = result.keywords
+            df.at[index, kw_col] = result.keywords
             logger.info(f"keywords: {result.keywords}")
         except Exception as e:
-            logger.exception("행 %s 처리 실패 (index=%s)", row["title"], index)
+            logger.exception("행 %s 처리 실패 (index=%s)", row[title_col], index)
             continue
 
 
