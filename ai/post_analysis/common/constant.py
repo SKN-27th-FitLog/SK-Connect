@@ -175,6 +175,29 @@ class GetReviewsConfig:
     ISOFORMAT_TIMESPEC = "seconds"
 
 
+class PostAnalysisLambdaStep(str, Enum):
+    """Lambda 응답·로그에 쓰는 배치 단계 식별자."""
+
+    GET_REVIEWS = "get_reviews"
+    ANALYZE_SENTIMENTAL = "analyze_sentimental"
+    ANALYZE_KEYWORDS_BY_LLM = "analyze_keywords_by_llm"
+
+
+class PostAnalysisLambdaEventKey:
+    """Lambda ``event`` dict 키 이름."""
+
+    # ``analyze_keywords_by_llm`` 청크 실행용(양의 정수만 허용; 없으면 기존과 같이 전체)
+    MAX_KEYWORD_ROWS = "max_keyword_rows"
+
+
+class PostAnalysisLambdaResponseField:
+    """``lambda_handler`` 반환 시 ``body`` dict 필드 이름."""
+
+    STEP = "step"
+    OK = "ok"
+    ERROR = "error"
+
+
 class MergeAnalysisConfig:
     """`merge_analysis_data`에서 쓰는 SQL·타입 정규화 상수."""
 
