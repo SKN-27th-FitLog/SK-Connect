@@ -22,8 +22,12 @@ class Keywords(BaseModel):
     keywords: str = Field(default="", description="2~3단어 정도의 짧은 문장들을 #으로 연결한 하나의 스트링 값")
 
 
-def analyze_keywords_by_llm() -> None:
-    """빈 본문을 제외한 뒤, 감성·본문을 입력으로 체인을 돌려 `keywords`를 채우고 DB에 MERGE한다."""
+def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
+    """빈 본문을 제외한 뒤, 감성·본문을 입력으로 체인을 돌려 `keywords`를 채우고 DB에 MERGE한다.
+
+    Args:
+        max_rows: 처리할 최대 행 수. ``None``이면 필터 후 전체. Lambda 등에서 타임아웃 방지용 청크에 사용.
+    """
 
     # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )
     df = get_analysis_data()
@@ -44,8 +48,8 @@ def analyze_keywords_by_llm() -> None:
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
     df[kw_col] = df[kw_col].astype(AnalyzeKeywordsByLlmConfig.DTYPE_OBJECT)
 
-    # # 테스트를 위해 4개 열만 처리 
-    # df = df.head(6)
+    if max_rows is not None and max_rows > 0:
+        df = df.head(max_rows)
 
     # 체인 구성 
     llm = ChatOpenAI(model=AnalyzeKeywordsByLlmConfig.OPENAI_MODEL)
