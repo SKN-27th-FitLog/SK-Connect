@@ -12,8 +12,16 @@ from get_data.get_another import get_image
 import time
 import os
 import random
+import re
+from urllib.parse import urlparse
 
 logger = set_logging()
+
+INITIAL_SIMILARITY_DISTANCE_THRESHOLD = 0.18
+REGENERATED_SIMILARITY_DISTANCE_THRESHOLD = 0.12
+RESERVED_URL_HOSTS = {"example.com", "www.example.com", "example.org", "www.example.org", "example.net", "www.example.net"}
+RESERVED_URL_SUFFIXES = (".example.com", ".example.org", ".example.net", ".example", ".test", ".invalid", ".localhost")
+HTTP_URL_PATTERN = re.compile(r"https?://[^\s<>\")\]]+")
 
 
 def get_embeddings():
@@ -32,6 +40,46 @@ def get_connection():
     return Connection().get_connection()
 
 
+def _clean_external_url(url: Optional[str]) -> Optional[str]:
+    text = str(url or "").strip()
+    if not text or any(char.isspace() for char in text):
+        return None
+
+    parse_target = text if "://" in text else f"https://{text}"
+    parsed = urlparse(parse_target)
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower().rstrip(".")
+
+    if scheme and scheme not in {"http", "https"}:
+        return None
+    if not host:
+        return None
+    if host in RESERVED_URL_HOSTS or any(host.endswith(suffix) for suffix in RESERVED_URL_SUFFIXES):
+        return None
+    return text
+
+
+def _strip_reserved_urls(content: str) -> str:
+    def replace(match: re.Match) -> str:
+        return match.group(0) if _clean_external_url(match.group(0)) else ""
+
+    return HTTP_URL_PATTERN.sub(replace, content)
+
+
+def _select_article_url(data: Optional[list[dict]], sample_data: Optional[dict]) -> Optional[str]:
+    candidates = []
+    if sample_data:
+        candidates.append(sample_data.get('article_url'))
+    if data:
+        candidates.append(data[0].get('article_url'))
+
+    for candidate in candidates:
+        clean_url = _clean_external_url(candidate)
+        if clean_url:
+            return clean_url
+    return None
+
+
 def _extract_image_urls(image_list: Optional[list]) -> list[str]:
     """DB 조회 결과 또는 문자열 목록에서 실제 이미지 URL만 추출한다."""
     urls = []
@@ -41,19 +89,21 @@ def _extract_image_urls(image_list: Optional[list]) -> list[str]:
             url = image.get('image_url') or image.get('url')
         elif image is not None:
             url = str(image)
-        if url:
-            urls.append(str(url))
+        clean_url = _clean_external_url(url)
+        if clean_url:
+            urls.append(clean_url)
     return urls
 
 
 def _ensure_media(post: str, image_list: Optional[list], url: Optional[str]) -> str:
     """LLM 응답에 이미지 URL과 원문 URL이 빠졌으면 본문 끝에 보강한다."""
-    content = str(post or "").strip()
+    content = _strip_reserved_urls(str(post or "")).strip()
     image_urls = _extract_image_urls(image_list)
     if image_urls and not any(image_url in content for image_url in image_urls):
         content = f"{content}\n\n{image_urls[0]}"
-    if url and str(url) not in content:
-        content = f"{content}\n\n{url}"
+    clean_url = _clean_external_url(url)
+    if clean_url and clean_url not in content:
+        content = f"{content}\n\n{clean_url}"
     return content
 
 
@@ -84,12 +134,9 @@ def make_post(state: State) -> State:
 
         # 여러 리뷰 중 하나를 샘플로 골라 프롬프트에 넣어 게시글의 구체성을 높인다.
         sample_data = None
-        url = None
         if state['data']:
             sample_data = random.choice(state['data'])
-            url = state['data'][0].get('article_url')
-        if sample_data:
-            url = sample_data.get('article_url')
+        url = _select_article_url(state.get('data'), sample_data)
         prompt = Create_Prompt.get_prompt(
             state['keyword'],
             image_list,
@@ -136,26 +183,34 @@ def make_title(state: State) -> State:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
         return state
 
-def embedding(state: State, similarity_distance_threshold: float = 0.25) -> State:
+def embedding(state: State, similarity_distance_threshold: float = INITIAL_SIMILARITY_DISTANCE_THRESHOLD) -> State:
     """생성 게시글과 기존 벡터 문서의 유사도를 조회한다."""
     try:
         logger.info(f"embedding start | shop_id={state['data'][0].get('shop_id')}")
         vectorstore = get_vectorstore()
         results = vectorstore.similarity_search_with_score(state['post'], k=5)
+        retry_count = state.get('retry_count', 0)
+        threshold = similarity_distance_threshold
+        if retry_count > 0:
+            threshold = REGENERATED_SIMILARITY_DISTANCE_THRESHOLD
 
         # PGVector cosine score는 distance라서 값이 낮을수록 기존 글과 더 유사하다.
         similar_results = [
             document
             for document, score in results
-            if score <= similarity_distance_threshold
+            if score <= threshold
         ]
         state['similar_post'] = None
-        if similar_results:
+        if similar_results and retry_count == 0:
             state['similar_post'] = get_similar_post(similar_results)
         best_score = min((score for _, score in results), default=None)
+        top_scores = [round(score, 4) for _, score in results]
         logger.info(
             f"embedding end | shop_id={state['data'][0].get('shop_id')} | "
-            f"similar_count={len(state.get('similar_post') or [])} | best_score={best_score}"
+            f"similar_count={len(similar_results)} | "
+            f"similar_prompt_count={len(state.get('similar_post') or [])} | "
+            f"best_score={best_score} | threshold={threshold} | "
+            f"retry_count={retry_count} | top_scores={top_scores}"
         )
         return state
     except Exception as e:
@@ -172,13 +227,9 @@ def regenerate_post(state: State) -> State:
         llm = get_llm()
         image_list = get_image(state['data'])
         sample_data = state.get('sample_data')
-        url = None
         if not sample_data and state['data']:
             sample_data = random.choice(state['data'])
-        if state['data']:
-            url = state['data'][0].get('article_url')
-        if sample_data:
-            url = sample_data.get('article_url')
+        url = _select_article_url(state.get('data'), sample_data)
 
         # 실패 사유가 있으면 품질 보정 프롬프트를, 유사 게시글이 있으면 중복 회피 프롬프트를 우선한다.
         prompt = Create_Prompt.get_prompt(
@@ -250,8 +301,8 @@ def evaluate_post(state: State) -> State:
 def route_after_embedding(state: State) -> str:
     """유사 게시글이 발견되면 바로 재생성으로 보내 중복을 줄인다."""
     if state.get('similar_post'):
-        if state.get('retry_count', 0) >= 2:
-            return "end"
+        if state.get('retry_count', 0) > 0:
+            return "evaluate_post"
         return "regenerate_post"
     return "evaluate_post"
 

@@ -9,6 +9,61 @@ from langchain_core.prompts import ChatPromptTemplate
 logger = set_logging()
 
 
+# 한 source row에서 평가에 넣을 최대 글자 수 (프롬프트 비용/길이 제어)
+_MAX_SOURCE_CHARS_PER_ROW = 600
+# 평가 프롬프트에 같이 보낼 source row 최대 개수
+_MAX_SOURCE_ROWS = 12
+
+
+def _find_local_quality_issue(post_text: str) -> str | None:
+    """LLM 평가 전에 명확한 비문/어색한 연결 표현을 빠르게 차단한다."""
+    awkward_phrase = "갈 때까지도"
+    for match in re.finditer(re.escape(awkward_phrase), post_text):
+        before = post_text[:match.start()].rstrip()
+        previous_word = before.split()[-1] if before.split() else ""
+        if (
+            not previous_word
+            or previous_word in {"그리고", "또", "또한", "그래도"}
+            or previous_word.endswith((".", "!", "?", "。", "！", "？"))
+        ):
+            return (
+                "'갈 때까지도'는 목적지나 재방문 맥락 없이 쓰여 어색합니다. "
+                "'다시 갈 때까지' 또는 '돌아오는 길에도'처럼 고쳐야 합니다."
+            )
+    return None
+
+
+def _collect_source_texts(result: dict) -> list[str]:
+    """평가 시 grounding 근거로 사용할 원본 리뷰 본문들을 모은다."""
+    data = result.get("data") or []
+    if isinstance(data, dict):
+        data = [data]
+
+    source_texts: list[str] = []
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        content = str(row.get("content") or "").strip()
+        if not content:
+            continue
+        if len(content) > _MAX_SOURCE_CHARS_PER_ROW:
+            content = content[:_MAX_SOURCE_CHARS_PER_ROW] + "..."
+        source_texts.append(content)
+        if len(source_texts) >= _MAX_SOURCE_ROWS:
+            break
+    return source_texts
+
+
+def _build_sources_block(source_texts: list[str]) -> str:
+    """프롬프트에 넣을 source 블록 문자열을 만든다."""
+    if not source_texts:
+        return "(원본 리뷰 없음)"
+    lines = []
+    for idx, text in enumerate(source_texts, start=1):
+        lines.append(f"[{idx}] {text}")
+    return "\n".join(lines)
+
+
 def evaluate_post_completion(result: dict) -> dict:
     """게시글 완성도를 검사하고 통과 여부와 실패 사유를 반환한다."""
     try:
@@ -33,33 +88,62 @@ def evaluate_post_completion(result: dict) -> dict:
                 "reason": f"템플릿/placeholder 문구가 포함되어 있습니다: {', '.join(found_banned_tokens)}",
             }
 
+        local_quality_issue = _find_local_quality_issue(post_text)
+        if local_quality_issue:
+            return {
+                "is_pass": False,
+                "reason": local_quality_issue,
+            }
+
+        # 원본 리뷰(grounding 근거)를 모아 LLM 평가에 함께 넘긴다.
+        source_texts = _collect_source_texts(result)
+        sources_block = _build_sources_block(source_texts)
+
         prompt = ChatPromptTemplate.from_template(
             """
             # [SYSTEM ROLE]
-            당신은 게시글 완성도 검사를 담당하는 전문가입니다.
-            아래 게시글 본문을 보고 완성도를 평가하세요.
+            당신은 게시글 완성도와 사실성(grounding)을 함께 검사하는 전문가입니다.
+            아래 게시글 본문(POST)을 [SOURCES]의 원본 리뷰들에 비추어 평가하세요.
+
+            [SOURCES]
+            게시글이 근거로 삼아야 하는 원본 리뷰 모음입니다.
+            게시글의 사실(메뉴명, 재료, 평가 포인트 등)은 이 안에서 직접적으로 등장하거나
+            자연스럽게 추론 가능해야 합니다.
+            {sources}
 
             [POST]
             평가해야 하는 게시글 내용입니다.
             {post}
 
             [EVALUATION RULES]
-            아래 조건을 모두 만족하면 통과입니다.
-            - 문장이 자연스럽고 맥락이 이어지는가
-            - 최소 3문장 이상이며 내용이 충분한가
-            - 지나치게 진부하거나 반복적인 표현이 없는가
-            - 실제 사람이 작성한 것 같은 자연스러운 말투인가
-            - 부정적인 내용으로 작성하지 않았는가
-            - '[장소 이름]', '[참고]', '여기에', 'xxxxx' 같은 placeholder가 없는가
+            아래 조건을 **모두 만족**하면 통과입니다. 하나라도 어기면 fail.
+            1. 문장이 자연스럽고 맥락이 이어지는가
+            2. 최소 3문장 이상이며 내용이 충분한가
+            3. 지나치게 진부하거나 반복적인 표현이 없는가
+            4. 실제 사람이 작성한 것 같은 자연스러운 말투인가
+            5. 부정적인 내용으로 작성하지 않았는가
+            6. '[장소 이름]', '[참고]', '여기에', 'xxxxx' 같은 placeholder가 없는가
+            7. **(GROUNDING)** POST에 등장하는 메뉴명, 재료, 고유명사, 특정 수식어가
+               [SOURCES]에 등장하거나 자연스럽게 추론 가능해야 한다.
+               - SOURCES에 한 번도 나오지 않는 고유명사·메뉴명·재료명·지명이 POST에 나오면 fail.
+            8. **(MEANING)** 일반 독자가 쉽게 의미를 파악할 수 없는 다음 표현이 있으면 fail:
+               - 흔하지 않은 한자어/줄임말 (예: "오신" 같은 단어가 풀이 없이 등장)
+               - 사전 의미가 모호하거나 문맥상 어색하게 잘려있는 단어
+               - 추상적 한 글자/두 글자 한자어가 음식·서비스 평가 맥락에서 단독으로 쓰인 경우
+               단, SOURCES에 같은 표현이 그대로 등장한다면 통과로 본다.
 
-            반드시 아래 JSON 형식만 반환하세요. 코드블록(```json)을 붙이지 마세요.
+            [실패 사유 작성 가이드]
+            - rule 7 위반: "SOURCES에 없는 표현: <단어>" 형태로 명시
+            - rule 8 위반: "독자가 의미를 알기 어려운 표현: <단어>" 형태로 명시
+
+            반드시 아래 JSON 형식만 반환하세요. 코드블록을 붙이지 마세요.
             {{
               "is_pass": true 또는 false,
               "reason": "실패한 경우 구체적인 사유, 통과면 빈 문자열"
             }}
             """
         )
-        response = llm.invoke(prompt.format(post=post_text))
+        response = llm.invoke(prompt.format(post=post_text, sources=sources_block))
         content = str(response)
         if hasattr(response, "content"):
             content = response.content
