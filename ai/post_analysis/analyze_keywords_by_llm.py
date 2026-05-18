@@ -54,7 +54,11 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
     df = df[df[kw_col].isnull()]
-    
+
+    if df.empty:
+        logger.info("모든 row에 키워드가 존재합니다. 처리할 데이터가 없습니다.")
+        return
+
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
     df[kw_col] = df[kw_col].astype(AnalyzeKeywordsByLlmConfig.DTYPE_OBJECT)
 
