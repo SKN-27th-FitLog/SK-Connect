@@ -56,6 +56,7 @@ class AnalysisColumn(str, Enum):
     MAP_ID = "map_id"
     SHOP_ID = "shop_id"
     CATEGORY_CD = "category_cd"
+    INFORMATION_CD = "information_cd"
     CREATED_DT = "created_dt"
     SENTIMENTAL = "sentimental"
     SCORE = "score"
@@ -75,6 +76,7 @@ class AnalysisColumn(str, Enum):
                 cls.MAP_ID,
                 cls.SHOP_ID,
                 cls.CATEGORY_CD,
+                cls.INFORMATION_CD,
                 cls.CREATED_DT,
                 cls.SENTIMENTAL,
                 cls.SCORE,
@@ -86,9 +88,16 @@ class AnalysisColumn(str, Enum):
 
 
 class CodeTable(str, Enum):
-    """공통 도메인 코드 (`category_cd` 등)."""
+    """코드 테이블 문자열 참조(database/data/codeT, etl/it_news 규격과 동일).
 
-    IT_NEWS = "IC02"
+    - ``CATEGORY_ETC`` (**CA07**): ``category_cd`` 축. IT 크롤 스트림에
+      ``etl.it_news.common.constant.CategoryCdCode.ETC`` / ``CodeTable.CATEGORY_ETC`` 와 동일.
+    - ``INFORMATION_IT_INFO`` (**IC02**): ``information_cd`` 축 IT 정보글.
+      ``etl.it_news.common.constant.InformationCdCode.IT_INFO`` 와 동일.
+    """
+
+    CATEGORY_ETC = "CA07"
+    INFORMATION_IT_INFO = "IC02"
 
 
 class SentimentLabel(str, Enum):

@@ -10,7 +10,8 @@
 | article_url   | str             | crawling.article_url                     |
 | map_id        | int             | crawling.map_id                          |
 | shop_id       | int             | shop.map_id                              |
-| category_cd   | codetable       | crawling.category_cd (IC01)              |
+| category_cd      | 코드(CA**)      | 카테고리 축 예: 맛집 **CA01** (`CategoryCdCode.RESTAURANT`). IT 크롤은 **CA07** (`CategoryCdCode.ETC`). |
+| information_cd   | 코드(IC**)      | 정보 축 예: 맛집 정보 **IC01**. IT 정보 **IC02** (`InformationCdCode.IT_INFO`). |
 | created_dt    | datetime        | 2016-04-25 15:55:02                      |
 | sentimental   | enum            | positive / negative                      |
 | score         | float           | 0.3356                                   |
@@ -21,6 +22,7 @@
 
 # get_reviews()
  - crawling 테이블에서 Analysis 테이블로 컬럼 값을 가져오고 가져온 시간을 created_dt 컬럼에 기록함
+ - **크롤 `category_cd` 가 CA07**(IT 크롬 스트림, `CategoryCdCode.ETC`)인 행은 analysis 적재에서 제외(식점 리뷰 파이프라인 우선).
  1) crawling 테이블에서 Analysis 테이블로 데이터를 MERGE 한다. 
  2) created_dt 컬럼값은 가져온 시점의 시간으로 결정한다. 
 
@@ -51,7 +53,7 @@ sequenceDiagram
     participant BERT as BERT Model
     participant DB as Analysis
 
-    Func->>DB: Analysis 테이블 조회 요청<br/>조건: sentimental IS NULL AND category_cd = 'IC01'
+    Func->>DB: Analysis 테이블 조회<br/>요약: sentimental/score 결측, information_cd≠IC02(IT 정보)
     DB-->>Func: 감성분석 대상 글 반환
 
     Func->>BERT: content 컬럼 감성분석 요청
@@ -82,7 +84,7 @@ sequenceDiagram
 ```
 
 # classify_keywords()
- - Analysis 테이블에서 키워드 추출이 완료된 IC01인 글을 가져와 키워드 분류 한다.
+ - Analysis 테이블에서 키워드 추출이 완료된 행 중, **information_cd가 IC02(IT 정보)가 아닌 글**을 가져와 키워드 분류 한다.
  1) positive_kw IS NULL AND negative_kw IS NULL인 글 SELECT
  2) LLM 또는 Bert모델에게 keywords 기반 키워드 분류를 요청한다. (긍정/부정 라벨링 작업)
  3) 키워드를 분류해서 긍정 키워드는 positive_kw, 부정 키워드는 negative_kw에 분류한다. 
@@ -96,7 +98,7 @@ sequenceDiagram
     participant DB as Analysis 
 
 
-    Func->>DB: Analysis 테이블 조회 요청<br/>조건: positive_kw IS NULL AND negative_kw IS NULL AND category_cd = 'IC01'
+    Func->>DB: Analysis 테이블 조회 요청<br/>조건: positive_kw IS NULL AND negative_kw IS NULL AND information_cd ≠ IC02
     DB-->>Func: 키워드 분류 대상 글 반환
 
     Func->>Model: keywords 기반 키워드 감성 분류 요청<br/>(긍정/부정 라벨링)

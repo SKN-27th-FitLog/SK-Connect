@@ -71,25 +71,50 @@ def predict_sentiment(text: str) -> dict:
 
 
 def analyze_sentimental() -> None:
-    """IT 뉴스 카테고리를 제외한 `analysis` 행에 대해 감성·점수를 계산해 MERGE한다."""
+    """``information_cd`` 가 IT 정보(IC02)가 아닌 행만 대상으로, ``sentimental`` 또는 ``score`` 가 NULL인 행만 계산해 MERGE한다."""
 
     content_col = AnalysisColumn.CONTENT.value
-    cat_col = AnalysisColumn.CATEGORY_CD.value
+    info_col = AnalysisColumn.INFORMATION_CD.value
     sent_col = AnalysisColumn.SENTIMENTAL.value
     score_col = AnalysisColumn.SCORE.value
 
-    # 데이터 로드 
+    required = (content_col, sent_col, score_col, info_col)
+
+    # 데이터 로드
     df = get_analysis_data()
 
-    # 데이터 중에서 IC02인 데이터 제외 (IC02는 감성분석 불가능한 데이터 )
-    df = df[df[cat_col] != CodeTable.IT_NEWS.value] # 중복 처리긴 한데 남겨놓음 
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(
+            "analysis 데이터에 감성 분석에 필요한 컬럼이 없습니다: "
+            + ", ".join(missing)
+        )
 
-    # 빈 칸이 있는 경우 오류 방지 
+    # information_cd 기준 IC02(IT 정보글) 제외 — category_cd(CA*) 축과 별개
+    df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
+
+    # sentimental · score 둘 다 채워진 행은 스킵 (재전체 처리 방지)
+    needs_mask = df[sent_col].isna() | df[score_col].isna()
+    pending = int(needs_mask.sum())
+
+    if pending == 0:
+        logger.info(
+            "감성·점수가 모두 채워져 처리할 행이 없습니다. "
+            "(information_cd≠IC02(IT 정보) 제외 후 sentimental/score 결측 행 0건)"
+        )
+        return
+
+    df = df.loc[needs_mask].copy()
+    logger.info(
+        "감성 분석 대상 %s건 (sentimental 또는 score 중 NULL인 행)",
+        pending,
+    )
+
+    # 빈 칸이 있는 경우 오류 방지
     df[sent_col] = df[sent_col].astype(AnalyzeSentimentalConfig.DTYPE_OBJECT)
     df[score_col] = df[score_col].astype(AnalyzeSentimentalConfig.DTYPE_SCORE)
 
-    # for문으로 content 컬럼 값을 가져와서 predict_sentiment 함수로 감성분석 진행 
-    # 감성분석 결과를 sentimental, score 컬럼에 적용한다. 
+    # for문으로 content 컬럼 값을 가져와서 predict_sentiment 함수로 감성분석 진행
     sk = SentimentResultKey
     for index, row in df.iterrows():
         text = row[content_col]
@@ -98,10 +123,10 @@ def analyze_sentimental() -> None:
         df.at[index, sent_col] = result[sk.SENTIMENTAL.value]
         df.at[index, score_col] = result[sk.SCORE.value]
 
-    # 처리 결과 데이터를 다시 analysis 테이블에 업데이트 
+    # 처리 결과 데이터를 다시 analysis 테이블에 업데이트
     merge_analysis_data(df)
 
-    logger.info("데이터 적용 완료")
+    logger.info("데이터 적용 완료 (%s건)", pending)
 
 
 

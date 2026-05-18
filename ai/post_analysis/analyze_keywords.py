@@ -13,6 +13,7 @@ from kiwipiepy import Kiwi
 from common.constant import (
     AnalysisColumn,
     AnalyzeKeywordsConfig,
+    CodeTable,
     KiwiPosTagPrefix,
     KeywordFormat,
 )
@@ -22,7 +23,10 @@ from common.postgresql.run_query import get_analysis_data, merge_analysis_data
 
 
 def analyze_keywords() -> None:
-    """`keywords`가 비어 있는 행만 조회해 명사·동사 계열 토큰을 `#`로 잇고 MERGE로 반영한다."""
+    """`keywords`가 비어 있는 행만 조회해 명사·동사 계열 토큰을 `#`로 잇고 MERGE로 반영한다.
+
+    ``information_cd`` 가 IC02(IT 정보)인 행은 제외한다.
+    """
 
     # 형태소 분석기
     kiwi = Kiwi()
@@ -32,6 +36,13 @@ def analyze_keywords() -> None:
 
     kw_col = AnalysisColumn.KEYWORDS.value
     content_col = AnalysisColumn.CONTENT.value
+    info_col = AnalysisColumn.INFORMATION_CD.value
+
+    if info_col not in df.columns:
+        raise ValueError(
+            "analysis 데이터에 Kiwi 키워드 추출에 필요한 컬럼이 없습니다: " + info_col
+        )
+    df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
     df = df[df[kw_col].isnull()]

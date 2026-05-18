@@ -29,15 +29,26 @@ class KeywordClassification(BaseModel):
 def classify_sentimental_keywords() -> None:
     """미분류 행만 대상으로 LLM 체인을 실행하고 `positive_kw`·`negative_kw`를 MERGE한다."""
     kw_col = AnalysisColumn.KEYWORDS.value
-    cat_col = AnalysisColumn.CATEGORY_CD.value
+    info_col = AnalysisColumn.INFORMATION_CD.value
     pos_col = AnalysisColumn.POSITIVE_KW.value
     neg_col = AnalysisColumn.NEGATIVE_KW.value
 
     # 데이터 로드 (해당 부분 이제 DB 읽어서 처리해도 됨)
     df = get_analysis_data()
 
-    # 데이터 중에서 IC02인 데이터 제외 (IC02는 키워드 분류 불가능한 데이터)
-    df = df[df[cat_col] != CodeTable.IT_NEWS.value]
+    missing_cols = [
+        c
+        for c in (kw_col, info_col, pos_col, neg_col)
+        if c not in df.columns
+    ]
+    if missing_cols:
+        raise ValueError(
+            "analysis 데이터에 키워드 분류에 필요한 컬럼이 없습니다: "
+            + ", ".join(missing_cols)
+        )
+
+    # IT 정보(IC02, information_cd) 글 제외 — category_cd 축과 별개
+    df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # 이미 데이터가 존재하는 row 는 제외 
     df = df[df[pos_col].isnull() & df[neg_col].isnull()]
