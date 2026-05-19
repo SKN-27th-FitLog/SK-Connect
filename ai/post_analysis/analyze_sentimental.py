@@ -2,73 +2,23 @@
 
 # 로그
 import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # 패키지
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import torch.nn.functional as F
 import pandas as pd
 
 # 모듈
+from common.bert_tokenizer import BertTokenizer
 from common.constant import (
     AnalysisColumn,
     AnalyzeSentimentalConfig,
     CodeTable,
-    SentimentLabel,
     SentimentResultKey,
 )
 from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
 
-# 사용할 모델 명 
-MODEL_NAME = AnalyzeSentimentalConfig.MODEL_NAME
-
-# 토크나이저 로드
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
-# 모델 로드
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-
-
-def predict_sentiment(text: str) -> dict:
-    """단일 텍스트에 대해 긍·부정 확률을 구하고 대표 라벨·점수 dict를 반환한다.
-
-    Args:
-        text: 리뷰 본문 등 분류 대상 문자열.
-
-    Returns:
-        `SentimentResultKey` 값을 키로 하는 라벨·신뢰도·각 클래스 확률.
-    """
-    inputs = tokenizer(
-        text,
-        return_tensors="pt",
-        truncation=True,
-        padding=True,
-        max_length=AnalyzeSentimentalConfig.MAX_SEQUENCE_LENGTH
-    )
-
-    with torch.no_grad():
-        outputs = model(**inputs)
-        probs = F.softmax(outputs.logits, dim=-1)[0]
-
-    negative_score = probs[0].item()
-    positive_score = probs[1].item()
-    dec = AnalyzeSentimentalConfig.SCORE_DECIMAL_PLACES
-    sk = SentimentResultKey
-    label = (
-        SentimentLabel.POSITIVE.value
-        if positive_score >= negative_score
-        else SentimentLabel.NEGATIVE.value
-    )
-
-    return {
-        sk.SENTIMENTAL.value: label,
-        sk.SCORE.value: round(max(positive_score, negative_score), dec),
-        sk.POSITIVE_SCORE.value: round(positive_score, dec),
-        sk.NEGATIVE_SCORE.value: round(negative_score, dec),
-    }
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def analyze_sentimental() -> None:
@@ -112,11 +62,13 @@ def analyze_sentimental() -> None:
     df[sent_col] = df[sent_col].astype(AnalyzeSentimentalConfig.DTYPE_OBJECT)
     df[score_col] = df[score_col].astype(AnalyzeSentimentalConfig.DTYPE_SCORE)
 
-    # for문으로 content 컬럼 값을 가져와서 predict_sentiment 함수로 감성분석 진행
+    # Singleton: 최초 1회만 토크나이저·모델 로드 (`common/bert_tokenizer.py`)
+    classifier = BertTokenizer()
     sk = SentimentResultKey
+    # for문으로 content 컬럼 값을 가져와서 predict_sentiment로 감성분석 진행
     for index, row in df.iterrows():
         text = row[content_col]
-        result = predict_sentiment(text)
+        result = classifier.predict_sentiment(text)
         logger.info(result)
         df.at[index, sent_col] = result[sk.SENTIMENTAL.value]
         df.at[index, score_col] = result[sk.SCORE.value]
@@ -125,8 +77,6 @@ def analyze_sentimental() -> None:
     merge_analysis_data(df)
 
     logger.info("데이터 적용 완료 (%s건)", pending)
-
-
 
 
 ########################################################

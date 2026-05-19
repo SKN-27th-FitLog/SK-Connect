@@ -1,14 +1,16 @@
 """Hugging Face `transformers` 기반 감성 분류기 헬퍼."""
 
 # 패키지
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from torch.nn import functional as F
 import torch
+from torch.nn import functional as F
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+# 모듈
 from common.constant import AnalyzeSentimentalConfig, SentimentLabel, SentimentResultKey
+from common.singleton import Singleton
 
 
-class BertTokenizer:
+class BertTokenizer(metaclass=Singleton):
     """토크나이저·분류 모델을 로드하고 문장 단위 감성 추론을 수행한다.
 
     기본 모델명은 `AnalyzeSentimentalConfig.MODEL_NAME`과 동일하다.
@@ -22,7 +24,9 @@ class BertTokenizer:
         """
         name = model_name or AnalyzeSentimentalConfig.MODEL_NAME
         self.model_name = name
+        # 토크나이저 로드
         self.tokenizer = AutoTokenizer.from_pretrained(name)
+        # 모델 로드
         self.model = AutoModelForSequenceClassification.from_pretrained(name)
 
     def tokenize(self, text: str) -> dict:
