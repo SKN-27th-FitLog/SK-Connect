@@ -28,7 +28,7 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
     IC02(IT 정보, ``information_cd``) 행은 제외한다.
 
     Args:
-        max_rows: 처리할 최대 행 수. ``None``이면 필터 후 전체. Lambda 등에서 타임아웃 방지용 청크에 사용.
+        max_rows: 처리할 최대 행 수. ``None``이면 필터 후 전체. 실행 시간·메모리를 줄이기 위한 청크 처리용.
     """
 
     # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )

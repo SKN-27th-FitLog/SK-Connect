@@ -51,12 +51,6 @@ class ItNewsFilePrefix:
     DEFAULT = "it_news"
 
 
-class CrawlSourceToken:
-    """크롤 소스 선택 시 ``Service`` slug 외의 특수 값(전체 실행)."""
-
-    ALL = "all"
-
-
 class Service(Enum):
     '''크롤링 대상 페이지 URL 주소를 정의하는 클래스'''
     GEEKNEWS = ("https://news.hada.io/new", "geeknews")
@@ -138,19 +132,3 @@ class CodeTable(Enum):
 
     CATEGORY_ETC = CategoryCdCode.ETC.value
     INFORMATION_IT = InformationCdCode.IT_INFO.value
-
-
-class ItNewsLambdaEventKey:
-    """Lambda ``event`` dict 키 이름."""
-
-    SOURCE = "source"
-    SAVE_FILE_PREFIX = "save_file_prefix"
-    OUTPUT_CSV_PREFIX = "output_csv_prefix"
-
-
-class ItNewsLambdaDefaults:
-    """Lambda에서 해당 키가 없을 때 쓰는 기본값."""
-
-    SOURCE = CrawlSourceToken.ALL
-    SAVE_FILE_PREFIX = ItNewsFilePrefix.DEFAULT
-    OUTPUT_CSV_PREFIX = ItNewsFilePrefix.DEFAULT
