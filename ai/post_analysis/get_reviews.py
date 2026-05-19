@@ -10,7 +10,7 @@ from datetime import datetime
 
 # 모듈
 from common.constant import AnalysisColumn, CodeTable, CrawlingColumn, GetReviewsConfig
-from common.postgresql.run_query import get_crawling_data, get_analysis_data, merge_analysis_data
+from postgresql.run_query import get_crawling_data, get_analysis_data, merge_analysis_data
 
 
 

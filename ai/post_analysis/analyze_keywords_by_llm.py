@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 # 모듈
 from common.constant import AnalysisColumn, AnalyzeKeywordsByLlmConfig, CodeTable
-from common.postgresql.run_query import get_analysis_data, merge_analysis_data
+from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 class Keywords(BaseModel):
     """LangChain `PydanticOutputParser`용 스키마: 키워드 문장들을 한 문자열(`#` 구분)로 받는다."""

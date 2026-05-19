@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 # 모듈
 from common.constant import AnalysisColumn, ClassifyKeywordsConfig, CodeTable
-from common.postgresql.run_query import get_analysis_data, merge_analysis_data
+from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 class KeywordClassification(BaseModel):
     """LangChain 출력 파싱용: 하나의 키워드 문자열을 긍·부정 두 줄로 분리한다."""

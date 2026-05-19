@@ -17,7 +17,7 @@ from common.constant import (
     KiwiPosTagPrefix,
     KeywordFormat,
 )
-from common.postgresql.run_query import get_analysis_data, merge_analysis_data
+from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 #########################################
 

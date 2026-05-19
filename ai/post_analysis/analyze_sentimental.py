@@ -19,7 +19,7 @@ from common.constant import (
     SentimentLabel,
     SentimentResultKey,
 )
-from common.postgresql.run_query import get_analysis_data, merge_analysis_data
+from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 # 사용할 모델 명 
 MODEL_NAME = AnalyzeSentimentalConfig.MODEL_NAME
