@@ -4,9 +4,6 @@
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-# 환경변수 
-from dotenv import load_dotenv
-load_dotenv()
 
 # 패키지
 import pandas as pd
@@ -16,6 +13,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 # 모듈
+import common.env  # noqa: F401 — OpenAI·DB 환경변수
 from common.constant import AnalysisColumn, ClassifyKeywordsConfig, CodeTable
 from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
@@ -27,8 +25,19 @@ class KeywordClassification(BaseModel):
     negative_kw: str = Field(default="", description="부정 키워드, #로 구분")
 
 
-def classify_sentimental_keywords() -> None:
-    """미분류 행만 대상으로 LLM 체인을 실행하고 `positive_kw`·`negative_kw`를 MERGE한다."""
+def classify_sentimental_keywords(max_rows: int | None = None) -> None:
+    """미분류 행만 대상으로 LLM 체인을 실행하고 `positive_kw`·`negative_kw`를 MERGE한다.
+
+    Args:
+        max_rows: 이번 실행에서 LLM에 넘길 최대 행 수.
+            ``None``(기본)이면 필터 후 **제한 없이** 전량 처리한다.
+            값을 지정하면 상위 N건만 처리한다.
+
+            지정하는 경우:
+            - **테스트**: 전량 LLM 호출·비용·시간을 줄이기 위해 (테스트 코드에서 ``max_rows=N`` 전달)
+            - **운영**: 네트워크 환경에서 **batch 청크** 단위로 끊어 실행할 때
+              (남은 행은 MERGE 반영 후 다음 호출에서 이어서 처리)
+    """
     kw_col = AnalysisColumn.KEYWORDS.value
     info_col = AnalysisColumn.INFORMATION_CD.value
     pos_col = AnalysisColumn.POSITIVE_KW.value
@@ -53,8 +62,17 @@ def classify_sentimental_keywords() -> None:
     # 이미 데이터가 존재하는 row 는 제외 
     df = df[df[pos_col].isnull() & df[neg_col].isnull()]
 
-    # 테스트를 위해 4개 열만 처리 
-    df = df.head(ClassifyKeywordsConfig.PREVIEW_MAX_ROWS)
+    pending = len(df)
+    if pending == 0:
+        logger.info("키워드 분류 대상 행이 없습니다.")
+        return
+
+    # max_rows 분기 — 기본(None)은 제한 없음. 값이 있을 때만 LLM 호출 상한 적용.
+    # 테스트: 전량 LLM 요청 방지 (예: classify_sentimental_keywords(max_rows=4))
+    # 운영: batch 단위 청크 실행 시 동일 인자로 반복 호출
+    if max_rows is not None and max_rows > 0:
+        df = df.head(max_rows)
+        logger.info("LLM 처리 상한 적용: %s건 처리 (max_rows=%s)", len(df), max_rows)
 
     # 체인 구성 
     llm = ChatOpenAI(model=ClassifyKeywordsConfig.OPENAI_MODEL)

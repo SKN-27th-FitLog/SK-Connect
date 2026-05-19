@@ -140,7 +140,11 @@ class AnalyzeKeywordsConfig:
 
 
 class AnalyzeKeywordsByLlmConfig:
-    """LLM 키워드 추출 배치(`analyze_keywords_by_llm`) 설정."""
+    """LLM 키워드 추출 배치(`analyze_keywords_by_llm`) 설정.
+
+    LLM 호출 상한은 ``analyze_keywords_by_llm(max_rows=...)`` 인자로 제어한다.
+    기본(``None``)은 제한 없음. 테스트·batch 청크 시에만 값을 넘긴다.
+    """
 
     OPENAI_MODEL = "gpt-5.4-mini"
     DTYPE_OBJECT = "object"
@@ -158,10 +162,13 @@ class AnalyzeSentimentalConfig:
 
 
 class ClassifyKeywordsConfig:
-    """감성 키워드 양분 배치(`classify_keywords`) 설정."""
+    """감성 키워드 양분 배치(`classify_keywords`) 설정.
+
+    LLM 호출 상한은 ``classify_sentimental_keywords(max_rows=...)`` 인자로 제어한다.
+    기본(``None``)은 제한 없음. 테스트·batch 청크 시에만 값을 넘긴다.
+    """
 
     OPENAI_MODEL = "gpt-5.4-nano"
-    PREVIEW_MAX_ROWS = 4
 
 
 class GetReviewsConfig:

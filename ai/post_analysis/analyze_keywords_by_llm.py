@@ -13,6 +13,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 # 모듈
+import common.env  # noqa: F401 — OpenAI·DB 환경변수
 from common.constant import AnalysisColumn, AnalyzeKeywordsByLlmConfig, CodeTable
 from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
@@ -29,7 +30,14 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
     IC02(IT 정보, ``information_cd``) 행은 제외한다.
 
     Args:
-        max_rows: 처리할 최대 행 수. ``None``이면 필터 후 전체. 실행 시간·메모리를 줄이기 위한 청크 처리용.
+        max_rows: 이번 실행에서 LLM에 넘길 최대 행 수.
+            ``None``(기본)이면 필터 후 **제한 없이** 전량 처리한다.
+            값을 지정하면 상위 N건만 처리한다.
+
+            지정하는 경우:
+            - **테스트**: 전량 LLM 호출·비용·시간을 줄이기 위해 (테스트 코드에서 ``max_rows=N`` 전달)
+            - **운영**: 네트워크 환경에서 **batch 청크** 단위로 끊어 실행할 때
+              (남은 행은 MERGE 반영 후 다음 호출에서 이어서 처리)
     """
 
     # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )
@@ -60,8 +68,12 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
     df[kw_col] = df[kw_col].astype(AnalyzeKeywordsByLlmConfig.DTYPE_OBJECT)
 
+    # max_rows 분기 — 기본(None)은 제한 없음. 값이 있을 때만 LLM 호출 상한 적용.
+    # 테스트: 전량 LLM 요청 방지 (예: analyze_keywords_by_llm(max_rows=4))
+    # 운영: batch 단위 청크 실행 시 동일 인자로 반복 호출
     if max_rows is not None and max_rows > 0:
         df = df.head(max_rows)
+        logger.info("LLM 처리 상한 적용: %s건 처리 (max_rows=%s)", len(df), max_rows)
 
     # 체인 구성 
     llm = ChatOpenAI(model=AnalyzeKeywordsByLlmConfig.OPENAI_MODEL)
@@ -96,8 +108,7 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
     })
     chain = prompt | llm | parser
 
-    # for문으로 content 컬럼 값을 가져와서 predict_sentiment 함수로 감성분석 진행 
-    # 감성분석 결과를 sentimental, score 컬럼에 적용한다. 
+    # for문으로 content·sentimental을 LLM에 넘겨 keywords 추출
     for index, row in df.iterrows():
         try:
             result = chain.invoke(

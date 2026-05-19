@@ -4,13 +4,11 @@
 import os
 
 import psycopg
-from dotenv import load_dotenv
 
 # 모듈
+import common.env  # noqa: F401 — `.env` 로드
 from common.singleton import Singleton
 from postgresql.config import PostgresEnvKey
-
-load_dotenv()
 
 
 ##############################
