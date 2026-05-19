@@ -1,5 +1,6 @@
 pandas==3.0.2
 psycopg[binary]==3.3.4
+python-dotenv==1.2.2
 
 # 형태소 분석기
 kiwipiepy==0.23.1
@@ -8,5 +9,4 @@ torch==2.11.0
 transformers==5.7.0
 
 langchain==1.2.15
-langchain_openai
-dotenv==0.9.9
+langchain-openai==1.2.1
