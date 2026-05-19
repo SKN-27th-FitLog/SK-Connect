@@ -10,9 +10,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
+    # 커넥션 설정
     db = PostgreDB()
+
+    # 연결 테스트
     logger.info(db.test_conn())
 
+    # 쿼리 테스트
     query = f"SELECT * FROM {PostgreSqlTable.CRAWLING.value} LIMIT 5;"
     result = db.run_query(query)
     logger.info(result)
