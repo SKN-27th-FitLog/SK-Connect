@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 # 모듈
 from common.constant import AnalysisColumn, AnalyzeKeywordsByLlmConfig, CodeTable
+from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 class Keywords(BaseModel):
@@ -46,10 +47,7 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
     df = df[c.notna() & c.astype(str).str.strip().ne("")]
 
     if info_col not in df.columns:
-        raise ValueError(
-            "analysis 데이터에 LLM 키워드 추출에 필요한 컬럼이 없습니다: "
-            + info_col
-        )
+        raise ValueError(PostAnalysisErrors.LlmKeywords.missing_columns(info_col))
     df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)

@@ -19,6 +19,7 @@ from common.constant import (
     SentimentLabel,
     SentimentResultKey,
 )
+from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 # 사용할 모델 명 
@@ -85,10 +86,7 @@ def analyze_sentimental() -> None:
 
     missing = [c for c in required if c not in df.columns]
     if missing:
-        raise ValueError(
-            "analysis 데이터에 감성 분석에 필요한 컬럼이 없습니다: "
-            + ", ".join(missing)
-        )
+        raise ValueError(PostAnalysisErrors.Sentiment.missing_columns(missing))
 
     # information_cd 기준 IC02(IT 정보글) 제외 — category_cd(CA*) 축과 별개
     df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]

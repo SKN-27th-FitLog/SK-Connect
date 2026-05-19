@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 # 모듈
 from common.constant import AnalysisColumn, ClassifyKeywordsConfig, CodeTable
+from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 class KeywordClassification(BaseModel):
@@ -43,8 +44,7 @@ def classify_sentimental_keywords() -> None:
     ]
     if missing_cols:
         raise ValueError(
-            "analysis 데이터에 키워드 분류에 필요한 컬럼이 없습니다: "
-            + ", ".join(missing_cols)
+            PostAnalysisErrors.ClassifyKeywords.missing_columns(missing_cols)
         )
 
     # IT 정보(IC02, information_cd) 글 제외 — category_cd 축과 별개

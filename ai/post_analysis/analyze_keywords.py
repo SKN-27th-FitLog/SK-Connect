@@ -17,6 +17,7 @@ from common.constant import (
     KiwiPosTagPrefix,
     KeywordFormat,
 )
+from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_analysis_data, merge_analysis_data
 
 #########################################
@@ -39,9 +40,7 @@ def analyze_keywords() -> None:
     info_col = AnalysisColumn.INFORMATION_CD.value
 
     if info_col not in df.columns:
-        raise ValueError(
-            "analysis 데이터에 Kiwi 키워드 추출에 필요한 컬럼이 없습니다: " + info_col
-        )
+        raise ValueError(PostAnalysisErrors.KiwiKeywords.missing_columns(info_col))
     df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
