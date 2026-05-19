@@ -63,6 +63,9 @@ def merge_analysis_data(df: pd.DataFrame) -> None:
     ``NaN`` / ``pd.NA``는 ``None``으로 바꾸고, ``created_dt``는 ISO-like 문자열,
     bigint 후보 컬럼은 Nullable 정수로 맞춘 뒤 실행한다.
 
+    ``WHEN MATCHED`` 구간은 ``COALESCE(x.col, a.col)``로 기존 값을 보존하므로,
+    단계별로 일부 컬럼만 담긴 DataFrame을 MERGE해도 NULL 덮어쓰기를 방지한다.
+
     Args:
         df: ``crawling_id``가 포함된 업서트 대상. 컬럼은 스키마에 맞게 전달한다.
     """

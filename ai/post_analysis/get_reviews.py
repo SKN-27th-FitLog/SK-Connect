@@ -36,6 +36,7 @@ def get_reviews() -> None:
     map_c, map_a = CrawlingColumn.MAP_ID.value, AnalysisColumn.MAP_ID.value
     shop_a = AnalysisColumn.SHOP_ID.value
     cat_c, cat_a = CrawlingColumn.CATEGORY_CD.value, AnalysisColumn.CATEGORY_CD.value
+    info_a = AnalysisColumn.INFORMATION_CD.value
     created_a = AnalysisColumn.CREATED_DT.value
 
     # 현재 시간 가져오기
@@ -69,6 +70,8 @@ def get_reviews() -> None:
     df_analysis_new[map_a] = df_crawling_drop[map_c]
     df_analysis_new[shop_a] = df_crawling_drop[map_c] # 맵이랑 샵id 동일 (나중에는 직접 쿼리로 찾아서 붙여야 함 )
     df_analysis_new[cat_a] = df_crawling_drop[cat_c]
+    # CA07(IT) 제외 후 적재되는 식당 리뷰 → information_cd=IC01 (맛집 정보)
+    df_analysis_new[info_a] = CodeTable.INFORMATION_RESTAURANT.value
     df_analysis_new[created_a] = now
 
     #################################################

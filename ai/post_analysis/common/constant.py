@@ -94,9 +94,12 @@ class CodeTable(str, Enum):
       ``etl.it_news.common.constant.CategoryCdCode.ETC`` / ``CodeTable.CATEGORY_ETC`` 와 동일.
     - ``INFORMATION_IT_INFO`` (**IC02**): ``information_cd`` 축 IT 정보글.
       ``etl.it_news.common.constant.InformationCdCode.IT_INFO`` 와 동일.
+    - ``INFORMATION_RESTAURANT`` (**IC01**): ``information_cd`` 축 맛집·리뷰 정보글.
+      ``etl.it_news.common.constant.InformationCdCode.RESTAURANT_INFO`` 와 동일.
     """
 
     CATEGORY_ETC = "CA07"
+    INFORMATION_RESTAURANT = "IC01"
     INFORMATION_IT_INFO = "IC02"
 
 
