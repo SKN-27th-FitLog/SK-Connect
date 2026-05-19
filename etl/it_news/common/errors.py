@@ -52,3 +52,7 @@ class EtlErrors:
         @classmethod
         def connection_failed(cls, detail: str) -> str:
             return f"Connection failed: {detail}"
+
+        @classmethod
+        def missing_env_var(cls, key: str) -> str:
+            return f"필수 환경변수가 설정되지 않았습니다: {key} (etl/it_news/.env 확인)"
