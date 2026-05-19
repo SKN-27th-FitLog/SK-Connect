@@ -27,20 +27,11 @@ from bs4 import BeautifulSoup
 
 # 모듈
 from common.constant import CodeTable
-from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status
-from common.utils import (
-    build_csv_path,
-    coalesce_last_created_at,
-    get_last_success_date,
-    get_run_time,
-    save_csv,
-)
+from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service
+from common.crawling_http import run_crawl_and_save, user_agent_headers
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
-
-
-def _user_agent_headers() -> dict[str, str]:
-    return {C_Constant.USER_AGENT_HEADER: C_Constant.USER_AGENT}
 
 
 
@@ -61,7 +52,7 @@ def get_article_list() -> list[str]:
         # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
         while True:
             url = Service.PYTORCH.url + f"?page={page_num}"
-            response = requests.get(url, headers=_user_agent_headers())
+            response = requests.get(url, headers=user_agent_headers())
             soup = BeautifulSoup(response.text, "html.parser")
 
             # Discourse 토픽 목록: tr.topic-list-item … td.main-link 안의 a.title(클래스명 title; CrawlingColumn.TITLE 컬럼과 무관)
@@ -92,12 +83,12 @@ def parse_article(url:str) -> dict:
     '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 '''
 
     # HTML 파싱
-    response = requests.get(url, headers=_user_agent_headers())
+    response = requests.get(url, headers=user_agent_headers())
     soup = BeautifulSoup(response.text, "html.parser")
 
     # JSON API: SSR HTML에 없는 조회수·작성자를 한 번의 요청으로 처리
     json_resp = requests.get(
-        url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX, headers=_user_agent_headers()
+        url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX, headers=user_agent_headers()
     )
     json_resp.raise_for_status()
     topic_data = json_resp.json()
@@ -186,54 +177,14 @@ def crawling_thread_pytorch(
     last_created_at: Optional[object] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
-    if run_time is None:
-        run_time = get_run_time()
-
-    threshold = coalesce_last_created_at(last_created_at)
-
-    article_urls = get_article_list()
-    success_rows: list[dict] = []
-    fail_rows: list[dict] = []
-
-    for url in tqdm(article_urls, desc="pytorch 게시글 파싱", unit="개"):
-        try:
-            success_rows.append(parse_article(url))
-        except Exception as e:
-            c = CrawlingColumn
-            fail_rows.append({c.ARTICLE_URL.value: url, c.ERROR.value: str(e)})
-        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
-
-    df_success = pd.DataFrame(success_rows)
-    df_fail = pd.DataFrame(fail_rows)
-
-    # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링
-    if success_rows:
-        t = pd.Timestamp(threshold)
-        ca = CrawlingColumn.CREATED_AT.value
-        df_success = df_success[df_success[ca] > t].copy()
-
-    # 저장할 데이터들이 있을 때만 파일 저장 실행
-    if not df_success.empty:
-        path_success = build_csv_path(
-            Stage.CRAWLING,
-            CodeTable.INFORMATION_IT.value,
-            Service.PYTORCH.service,
-            Status.SUCCESS,
-            run_time,
-        )
-        save_csv(df_success, path_success)
-
-    if not df_fail.empty:
-        path_fail = build_csv_path(
-            Stage.CRAWLING,
-            CodeTable.INFORMATION_IT.value,
-            Service.PYTORCH.service,
-            Status.FAIL,
-            run_time,
-        )
-        save_csv(df_fail, path_fail)
-
-    return df_success, df_fail
+    return run_crawl_and_save(
+        service=Service.PYTORCH,
+        article_urls=get_article_list(),
+        parse_article=parse_article,
+        tqdm_desc="pytorch 게시글 파싱",
+        run_time=run_time,
+        last_created_at=last_created_at,
+    )
 
 
 

@@ -3,16 +3,17 @@ import logging
 
 import pandas as pd
 
-from common.constant import CrawlingColumn, Stage, Status
-from common.postgresql.run_query import insert_crawling_batch, fetch_crawling_dataframe
+from common.constant import CrawlingColumn, ItNewsFilePrefix, Stage, Status
+from common.errors import EtlErrors
 from common.preprocess import get_cleaning_success_for_save
 from common.utils import (
     build_csv_path,
-    get_last_success_date,
     get_run_time,
     information_cd_for_path,
     save_csv,
 )
+from postgresql.run_query import fetch_crawling_dataframe, insert_crawling_batch
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 ####################################
 def save_threads(
     *,
-    save_file_prefix: str = "it_news",
+    save_file_prefix: str = ItNewsFilePrefix.DEFAULT,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """diagram 3단계: 전처리 CSV 로드·필터 → 저장 → success/fail CSV."""
 
@@ -62,7 +63,7 @@ def save_threads(
         insert_crawling_batch(df)
         df_success, df_fail = df, pd.DataFrame()
     except Exception:
-        logger.exception("save: crawling 일괄 MERGE·INSERT 실패 — 전부 fail 처리")
+        logger.exception(EtlErrors.Save.merge_insert_failed())
         df_success, df_fail = pd.DataFrame(), df
 
 

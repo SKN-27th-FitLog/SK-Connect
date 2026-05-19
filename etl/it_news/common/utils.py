@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 # 모듈
-from common.constant import CodeTable, CrawlingColumn, CrawlingConstant, PathConst, Service, Stage, Status
-from common.postgresql.connection import PostgreDB
+from common.constant import CodeTable, CrawlingColumn, CrawlingConstant, PathConst, Stage, Status
 
 ###############################################################
 # 데이터 파일 저장 관련 
@@ -257,35 +256,3 @@ def coalesce_last_created_at(last_created_at: object | None) -> datetime:
     if pd.notna(ts):
         return ts.to_pydatetime()
     return default_last_collected_at()
-
-
-def get_last_success_date(service: Service | None = None) -> datetime:
-    """`crawling` 테이블에서 워터마크로 쓸 `MAX(created_at)`(없으면 `default_last_collected_at()`).
-
-    * ``service is None`` (기본)
-        * **전체** `crawling`에 대해 `SELECT MAX(created_at)`. 소스(스레드 접두)를 가리지 않는다.
-    * ``service is Service.GEEKNEWS | Service.PYTORCH``
-        * ``thread``가 ``{service.service}_`` **접두**에 맞는 행만 대상으로 `MAX(created_at)`.
-        * geeknews / pytorch 를 **각각** 두어, 한 쪽만 DB에 쌓여도 다른 쪽의 더 이른 `created_at`이
-          “이미 반영됨”으로 잘못 제외되지 않게 한다.
-        * 그 접두의 행이 없으면 `default_last_collected_at()`(최초 90일 워터마크)과 동일.
-
-    그 밖의 ``Service`` 는 지원하지 않는다(``ValueError``).
-    """
-    if service is None:
-        conn = PostgreDB()
-        max_rows = conn.run_query("SELECT MAX(created_at) FROM crawling")
-        raw = max_rows[0][0] if max_rows else None
-    elif service in (Service.GEEKNEWS, Service.PYTORCH):
-        pat = f"^{service.service}_"
-        conn = PostgreDB()
-        max_rows = conn.run_query_lst(
-            "SELECT MAX(created_at) FROM crawling WHERE thread ~ %s",
-            (pat,),
-        )
-        raw = max_rows[0][0] if max_rows else None
-    else:
-        raise ValueError("get_last_success_date: GEEKNEWS / PYTORCH만 service로 지정 가능 (전체는 None)")
-    if raw is None:
-        return default_last_collected_at()
-    return raw

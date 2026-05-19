@@ -2,7 +2,7 @@ import logging
 
 import pandas as pd
 
-from common.constant import Service, Stage, Status
+from common.constant import ItNewsFilePrefix, Service, Stage, Status
 from common.utils import build_csv_path, get_run_time, information_cd_for_path, save_csv
 from common.preprocess import (
     cleaning_data_in_df,
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 ##############################################################
 def cleaning_threads(
     *,
-    output_csv_prefix: str = "it_news",
+    output_csv_prefix: str = ItNewsFilePrefix.DEFAULT,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """diagram 2단계: 성공 CSV 로드·concat → 전처리 → success/fail CSV."""
 

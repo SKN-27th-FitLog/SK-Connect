@@ -5,7 +5,8 @@ import logging
 
 from cleaning.cleaning import cleaning_threads
 from common.constant import Service
-from common.utils import get_last_success_date, get_run_time
+from common.utils import get_run_time
+from postgresql.watermark import get_last_success_date
 from crawling.crawling_thread_geeknews import crawling_thread_geeknews
 from crawling.crawling_thread_pytorch import crawling_thread_pytorch
 from save.save import save_threads

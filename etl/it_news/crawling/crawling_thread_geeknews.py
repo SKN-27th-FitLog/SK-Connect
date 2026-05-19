@@ -26,21 +26,13 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 # 모듈
-from common.constant import CodeTable
-from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status
-from common.utils import (
-    build_csv_path,
-    coalesce_last_created_at,
-    get_last_success_date,
-    get_run_time,
-    korean_relative_time,
-    save_csv,
-)
+from common.constant import CodeTable, CrawlingColumn, CrawlingConstant as C_Constant, Service
+from common.crawling_http import run_crawl_and_save, user_agent_headers
+from common.errors import EtlErrors
+from common.utils import korean_relative_time
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
-
-def _user_agent_headers() -> dict[str, str]:
-    return {C_Constant.USER_AGENT_HEADER: C_Constant.USER_AGENT}
 
 #########################################################################
 # 게시글 전체 목록 주회 
@@ -59,7 +51,7 @@ def get_article_list() -> list[str]:
         # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
         while True:
             url = Service.GEEKNEWS.url + f"?page={page_num}"
-            response = requests.get(url, headers=_user_agent_headers())
+            response = requests.get(url, headers=user_agent_headers())
             soup = BeautifulSoup(response.text, "html.parser")
 
             # 긱뉴스(하다) 목록: 각 행의 GN 토픽 링크는 div.topicdesc 내 a[href^='topic?id=']
@@ -90,7 +82,7 @@ def parse_article(url:str) -> dict:
     '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
 
     # 게시글 1개 soup 
-    response = requests.get(url, headers=_user_agent_headers())
+    response = requests.get(url, headers=user_agent_headers())
     soup = BeautifulSoup(response.text, "html.parser")
 
     c = CrawlingColumn
@@ -157,7 +149,7 @@ def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
             return dt
 
     # 모든 span을 순회했는데도 작성일자를 찾을 수 없으면 예외 발생 
-    raise ValueError("작성일자를 찾을 수 없습니다.")
+    raise ValueError(EtlErrors.Crawl.created_at_not_found())
 
 
 # 댓글 수 슬라이싱
@@ -193,56 +185,14 @@ def crawling_thread_geeknews(
     last_created_at: Optional[object] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
-    if run_time is None:
-        run_time = get_run_time()
-
-    threshold = coalesce_last_created_at(last_created_at)
-
-    article_urls = get_article_list()
-    success_rows: list[dict] = []
-    fail_rows: list[dict] = []
-
-    for url in tqdm(article_urls, desc="geeknews 게시글 파싱", unit="개"):
-        try:
-            success_rows.append(parse_article(url))
-        except Exception as e:
-            c = CrawlingColumn
-            fail_rows.append(
-                {c.ARTICLE_URL.value: url, c.ERROR.value: str(e)}
-            )
-        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
-
-    df_success = pd.DataFrame(success_rows)
-    df_fail = pd.DataFrame(fail_rows)
-
-    # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링 
-    if success_rows:
-        t = pd.Timestamp(threshold)
-        ca = CrawlingColumn.CREATED_AT.value
-        df_success = df_success[df_success[ca] > t].copy()
-
-    # 저장할 데이터들이 있을 때만 파일 저장 실행 
-    if not df_success.empty:
-        path_success = build_csv_path(
-            Stage.CRAWLING,
-            CodeTable.INFORMATION_IT.value,
-            Service.GEEKNEWS.service,
-            Status.SUCCESS,
-            run_time,
-        )
-        save_csv(df_success, path_success)
-
-    if not df_fail.empty:
-        path_fail = build_csv_path(
-            Stage.CRAWLING,
-            CodeTable.INFORMATION_IT.value,
-            Service.GEEKNEWS.service,
-            Status.FAIL,
-            run_time,
-        )
-        save_csv(df_fail, path_fail)
-
-    return df_success, df_fail
+    return run_crawl_and_save(
+        service=Service.GEEKNEWS,
+        article_urls=get_article_list(),
+        parse_article=parse_article,
+        tqdm_desc="geeknews 게시글 파싱",
+        run_time=run_time,
+        last_created_at=last_created_at,
+    )
 
 
 

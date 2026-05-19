@@ -16,11 +16,12 @@ from common.constant import (
     Stage,
     Status,
 )
+from common.errors import EtlErrors
 from common.utils import (
     collect_crawling_success_datas,
     collect_save_stage_success_datas,
-    get_last_success_date,
 )
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ def _validate_success_thread_columns(df: pd.DataFrame) -> pd.DataFrame:
         CrawlingColumn.CREATED_AT.value not in df.columns
         or CrawlingColumn.THREAD.value not in df.columns
     ):
-        logger.warning("성공 CSV 로드: created_at/thread 컬럼 없음 — 중단")
+        logger.warning(EtlErrors.Preprocess.missing_columns_on_load())
         return pd.DataFrame()
     return df
 
@@ -262,7 +263,7 @@ def get_crawling_success_for_cleaning(service: Service) -> pd.DataFrame:
     )
     root = _crawling_raw_root(Stage.CRAWLING)
     if not root.is_dir():
-        logger.warning("get_crawling_success_for_cleaning: process=raw 루트 없음 %s", root.resolve())
+        logger.warning(EtlErrors.Preprocess.raw_root_missing(root.resolve()))
         return pd.DataFrame()
 
     thread_lst, _rows = collect_crawling_success_datas(
@@ -271,10 +272,7 @@ def get_crawling_success_for_cleaning(service: Service) -> pd.DataFrame:
         min_run_folder_date=min_run_folder_date,
     )
     if not thread_lst:
-        logger.warning(
-            "get_crawling_success_for_cleaning: 조건에 맞는 성공 CSV 없음 (service=%s)",
-            service.service,
-        )
+        logger.warning(EtlErrors.Preprocess.no_crawling_csv(service.service))
         return pd.DataFrame()
 
     df = pd.concat(thread_lst, ignore_index=True)
@@ -296,14 +294,14 @@ def get_cleaning_success_for_save(
 
     root = _crawling_raw_root(Stage.CLEANING)
     if not root.is_dir():
-        logger.warning("get_cleaning_success_for_save: process=cleaning 루트 없음 %s", root.resolve())
+        logger.warning(EtlErrors.Preprocess.cleaning_root_missing(root.resolve()))
         return pd.DataFrame()
 
     thread_lst = collect_save_stage_success_datas(
         root, min_run_folder_date=min_run_folder_date
     )
     if not thread_lst:
-        logger.warning("get_cleaning_success_for_save: 조건에 맞는 성공 CSV 없음 (cleaning 산출)")
+        logger.warning(EtlErrors.Preprocess.no_cleaning_csv())
         return pd.DataFrame()
 
     df = pd.concat(thread_lst, ignore_index=True)
