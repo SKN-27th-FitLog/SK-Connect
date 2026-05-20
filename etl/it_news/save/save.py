@@ -24,7 +24,14 @@ def save_threads(
     *,
     save_file_prefix: str = ItNewsFilePrefix.DEFAULT,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """diagram 3단계: 전처리 CSV 로드·필터 → 저장 → success/fail CSV."""
+    """save 단계 진입: cleaning success CSV → DB MERGE → save CSV.
+
+    Note:
+        함수 유형: F — 단계 오케스트레이션
+        안전성: Level 2 — DB MERGE·CSV 쓰기
+        불변 규칙: DB에 이미 있는 `thread`는 적재 전 제외
+        부작용: `crawling` MERGE; 실패 시 전 배치를 fail CSV로 기록
+    """
 
 
     ##############################

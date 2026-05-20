@@ -30,7 +30,13 @@ logger = logging.getLogger(__name__)
 # 처리 성공 / 실패 데이터 분할 
 ##############################################################
 def separate_success_and_fail(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """성공/실패 데이터를 `Status`와 동일한 값(`state` 컬럼)으로 분리하고 `state`는 제거."""
+    """`state` 컬럼으로 success/fail DataFrame을 나누고 `state` 컬럼을 제거한다.
+
+    Note:
+        함수 유형: B — DataFrame 분할
+        안전성: Level 0
+        불변 규칙: `state == success|fail`만 각각 포함
+    """
 
     c_state = CrawlingColumn.STATE.value
     df_success = df[df[c_state] == Status.SUCCESS.value]
@@ -57,6 +63,12 @@ def _clean_special_cell(v: object) -> object:
     return t.replace("\u00a0", " ")
 
 def cleaning_special_characters(df: pd.DataFrame) -> pd.DataFrame:
+    """title·content에서 ZW·제어문자·NBSP를 정리한다.
+
+    Note:
+        함수 유형: B — 데이터 변환
+        안전성: Level 0
+    """
     text_cols = (CrawlingColumn.TITLE.value, CrawlingColumn.CONTENT.value)
     cols = [c for c in text_cols if c in df.columns]
     if not cols:
@@ -76,6 +88,12 @@ def _collapse_newlines_cell(v: object) -> object:
     return re.sub(r"\n+", "\n", str(v))
 
 def cleaning_continuous_newlines(df: pd.DataFrame) -> pd.DataFrame:
+    """title·content의 연속 줄바꿈을 하나로 축소한다.
+
+    Note:
+        함수 유형: B — 데이터 변환
+        안전성: Level 0
+    """
     text_cols = (CrawlingColumn.TITLE.value, CrawlingColumn.CONTENT.value)
     cols = [c for c in text_cols if c in df.columns]
     if not cols:
@@ -94,6 +112,12 @@ def _collapse_spaces_cell(v: object) -> object:
     return re.sub(r"[ \t]+", " ", str(v))
 
 def cleaning_continuous_spaces(df: pd.DataFrame) -> pd.DataFrame:
+    """title·content의 연속 공백·탭을 단일 공백으로 축소한다.
+
+    Note:
+        함수 유형: B — 데이터 변환
+        안전성: Level 0
+    """
     text_cols = (CrawlingColumn.TITLE.value, CrawlingColumn.CONTENT.value)
     cols = [c for c in text_cols if c in df.columns]
     if not cols:
@@ -151,7 +175,13 @@ def _article_url_to_anchor_cell(
 
 
 def wrap_article_url_as_html_anchor(df: pd.DataFrame) -> pd.DataFrame:
-    """``article_url`` 컬럼 값을 같은 행 ``title`` 로 링크 텍스트를 둔 ``<a>`` HTML 한 줄로 치환."""
+    """`article_url`을 `<a href="…">제목</a>` HTML로 치환한다(varchar 500 이내).
+
+    Note:
+        함수 유형: B — 데이터 변환
+        안전성: Level 0
+        불변 규칙: URL은 escape; 표시 제목만 길이 예산에 맞게 절단
+    """
     url_c = CrawlingColumn.ARTICLE_URL.value
     title_c = CrawlingColumn.TITLE.value
     if url_c not in df.columns or title_c not in df.columns:
@@ -167,7 +197,13 @@ def wrap_article_url_as_html_anchor(df: pd.DataFrame) -> pd.DataFrame:
 # 데이터 프레임을 가지고 컬럼별로 가공 
 ##############################################################
 def cleaning_data_in_df(df: pd.DataFrame) -> pd.DataFrame:
-    """ 데이터에서 각 컬럼에 대해 전처리 진행  """
+    """클리닝용 DataFrame 전처리: 중복·필수값·텍스트 정규화·`state` 부여.
+
+    Note:
+        함수 유형: B+C — 변환 + 필수 컬럼 검증
+        안전성: Level 0
+        불변 규칙: `thread` 중복은 last 유지; 결측·전처리 예외 행은 `state=fail`
+    """
 
     ##############################
     # 읽어온 데이터 처리 
@@ -249,11 +285,13 @@ def _validate_success_thread_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_crawling_success_for_cleaning(service: Service) -> pd.DataFrame:
-    """클리닝용: 크롤 산출(`process=raw`, …/status=success)에서 **한 소스** `{service}_*.csv`만 수집.
+    """클리닝 입력: 한 `Service`의 raw success CSV를 워터마크·run 하한으로 로드한다.
 
-    - 크롤이 `build_csv_path(Stage.CRAWLING, information_cd=…, service=…, …)` 로 쓴 경로와 동일한 트리를 읽는다.
-    - 호출부에서 `Service` 열거를 돌리며 소스마다 1회 호출한 뒤 `concat` 하면 됨.
-    - 행에 `_page_service`를 붙여 소스를 구분한다(`utils.collect_crawling_success_datas`).
+    Note:
+        함수 유형: E+D — CSV 읽기 + DB 워터마크 조회
+        안전성: Level 1
+        불변 규칙: `created_at`/`thread` 없으면 빈 DataFrame; `_page_service` 태그
+        부작용: 없음(DB 읽기만)
     """
     th = get_last_success_date(service)
     # run 폴더(연/월/일) 하한: DB 워터마크·90일 lookback 중 더 늦은 (오래된) 쪽
@@ -282,10 +320,12 @@ def get_crawling_success_for_cleaning(service: Service) -> pd.DataFrame:
 def get_cleaning_success_for_save(
     *, last_collected_at: datetime | None = None
 ) -> pd.DataFrame:
-    """세이브용: 클리닝 산출(`process=cleaning`, …/status=success)의 **모든** `*.csv`를 읽는다.
+    """save 입력: cleaning success CSV를 run 하한으로 모두 로드한다.
 
-    - 클리닝이 이미 여러 소스를 합친 **통합 파일**이므로, 소스별 인자는 없다.
-    - run 폴더 하한: `last_collected_at`이 있으면 그 날짜, 없으면 DB `MAX(created_at)` 기준.
+    Note:
+        함수 유형: E+D — CSV 읽기 + 워터마크(선택)
+        안전성: Level 1
+        불변 규칙: 소스별 인자 없음(통합 파일); `created_at`/`thread` 없으면 빈 DF
     """
     if last_collected_at is not None:
         min_run_folder_date = pd.Timestamp(last_collected_at).date()

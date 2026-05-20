@@ -20,7 +20,14 @@ def cleaning_threads(
     *,
     output_csv_prefix: str = ItNewsFilePrefix.DEFAULT,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """diagram 2단계: 성공 CSV 로드·concat → 전처리 → success/fail CSV."""
+    """클리닝 단계 진입: raw success CSV 로드·전처리·cleaning CSV 저장.
+
+    Note:
+        함수 유형: F — 단계 오케스트레이션
+        안전성: Level 2 — CSV 읽기·쓰기; DB 직접 쓰기 없음
+        불변 규칙: `Service` 열거 소스별 1회 로드 후 concat
+        부작용: `process=cleaning` success/fail CSV
+    """
 
     # 현재 시간 생성 
     run_time = get_run_time()

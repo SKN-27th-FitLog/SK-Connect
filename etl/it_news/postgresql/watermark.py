@@ -12,10 +12,13 @@ from postgresql.connection import PostgreDB
 
 
 def get_last_success_date(service: Service | None = None) -> datetime:
-    """`crawling` 테이블에서 워터마크로 쓸 `MAX(created_at)`(없으면 `default_last_collected_at()`).
+    """`crawling` 테이블 `MAX(created_at)` 워터마크를 조회한다.
 
-    * ``service is None``: 전체 `crawling`에 대해 `MAX(created_at)`.
-    * ``Service.GEEKNEWS | Service.PYTORCH``: `thread` 접두 `{service}_` 행만 대상.
+    Note:
+        함수 유형: D — DB 조회
+        안전성: Level 1
+        불변 규칙: row 없음→`default_last_collected_at()`; service는 GEEKNEWS/PYTORCH 또는 None(전체)
+        부작용: PostgreSQL SELECT
     """
     if service is None:
         conn = PostgreDB()

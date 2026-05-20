@@ -132,7 +132,14 @@ def _df_to_crawling_records(df: pd.DataFrame) -> list[dict]:
 
 
 def insert_crawling_batch(df: pd.DataFrame, db: PostgreDB | None = None) -> None:
-    """`crawling`에 df 전부를 1문(`jsonb_to_recordset`)으로 INSERT."""
+    """DataFrame을 JSON 배열로 `crawling`에 MERGE·INSERT한다.
+
+    Note:
+        함수 유형: D — DB 저장
+        안전성: Level 2
+        불변 규칙: `ON thread` MATCHED UPDATE / NOT MATCHED INSERT; 빈 df는 no-op
+        부작용: 운영 DB `crawling` 변경
+    """
     if df.empty:
         return
     records = _df_to_crawling_records(df)
@@ -143,7 +150,13 @@ def insert_crawling_batch(df: pd.DataFrame, db: PostgreDB | None = None) -> None
 
 
 def fetch_crawling_dataframe(column: CrawlingColumn) -> pd.DataFrame:
-    """crawling 테이블에서 지정한 컬럼의 값을 조회해 데이터 프레임으로 반환."""
+    """`crawling`에서 단일 컬럼을 SELECT해 DataFrame으로 반환한다.
+
+    Note:
+        함수 유형: D — DB 조회
+        안전성: Level 1
+        부작용: PostgreSQL SELECT
+    """
     db = PostgreDB()
     column_name = column.value
     with db.conn.cursor() as cur:

@@ -13,7 +13,13 @@ from common.constant import CodeTable, CrawlingColumn, CrawlingConstant, PathCon
 # 데이터 파일 저장 관련 
 ###############################################################
 def save_csv(df: pd.DataFrame, path: Path) -> Path:
-    """CSV 파일 저장"""
+    """DataFrame을 UTF-8 CSV로 저장하고 부모 디렉터리를 만든다.
+
+    Note:
+        함수 유형: E — 파일 I/O
+        안전성: Level 2
+        부작용: 디스크에 CSV 생성·갱신
+    """
 
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False, encoding=CrawlingConstant.CSV_ENCODING)
@@ -28,7 +34,13 @@ def build_csv_path(
     status: Status,
     run_time: datetime,
 ) -> Path:
-    """CSV 저장 경로 생성 (`PathConst.CODE_TABLE_KEY` = ``information_cd``)."""
+    """단계·information_cd·service·status·run_time으로 CSV 경로를 생성한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: `process=…/information_cd=…/year=…/month=…/day=…/status=…/{service}_{HHMMSS}.csv`
+    """
 
     file_name = f"{service}_{format_hhmmss(run_time)}.csv"
 
@@ -49,9 +61,12 @@ def build_csv_path(
 
 
 def information_cd_for_path(df: pd.DataFrame) -> str:
-    """``crawling.information_cd``와 동일한 열에서 경로 세그먼트용 코드 문자열을 고른다.
+    """DataFrame에서 `build_csv_path`용 `information_cd` 세그먼트 값을 고른다.
 
-    열이 없거나 값이 비면 ``CodeTable.INFORMATION_IT``; 여러 값이면 mode(동률이면 첫 mode).
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: 열 없음·공백이면 `IC02`; 여러 값이면 mode(동률 시 첫 mode)
     """
     col = CrawlingColumn.INFORMATION_CD.value
     if df.empty or col not in df.columns:
@@ -67,7 +82,13 @@ def information_cd_for_path(df: pd.DataFrame) -> str:
 
 # 폴더 이름에서 인자를 추출하는 함수 
 def parse_segment_int(dirname: str, key: str) -> int | None:
-    """`year=2026` 형태 디렉터리 이름에서 정수만 추출하는 함수 ."""
+    """`year=2026` 형태 디렉터리 이름에서 정수만 추출한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: 접두 불일치·파싱 실패 시 `None`
+    """
     prefix = f"{key}="
     if not dirname.startswith(prefix):
         return None
@@ -155,9 +176,13 @@ def collect_crawling_success_datas(
     *,
     min_run_folder_date: date,
 ) -> tuple[list[pd.DataFrame], dict[str, int]]:
-    """`process=raw` … `…/status=success/{service}_*.csv`를 서비스명별로 읽는다(클리닝 입력).
+    """raw success CSV를 서비스 prefix별로 읽고 `_page_service`를 붙인다.
 
-    각 DataFrame에 `_page_service`를 붙인다. 반환: (프레임 목록, service별 로드 직후 행 수)
+    Note:
+        함수 유형: E — 파일 읽기
+        안전성: Level 1
+        불변 규칙: `min_run_folder_date` 이전 run 폴더는 스킵
+        부작용: 읽기 실패 CSV는 건너뜀
     """
     rows_by_service: dict[str, int] = dict.fromkeys(service_list, 0)
     thread_lst: list[pd.DataFrame] = []
@@ -181,7 +206,13 @@ def collect_save_stage_success_datas(
     *,
     min_run_folder_date: date,
 ) -> list[pd.DataFrame]:
-    """`process=cleaning` … `…/status=success/*.csv` 전부(클리닝 이후는 파일이 통합된 상태)."""
+    """cleaning success CSV를 prefix 없이 모두 읽는다.
+
+    Note:
+        함수 유형: E — 파일 읽기
+        안전성: Level 1
+        불변 규칙: `min_run_folder_date` 이전 run 폴더는 스킵
+    """
     thread_lst: list[pd.DataFrame] = []
     for csv_file in _iter_code_table_success_csv_paths(
         process_root, min_run_folder_date, filename_prefix=None
@@ -198,17 +229,33 @@ def collect_save_stage_success_datas(
 # 시간 관련
 ###############################################################
 def get_run_time() -> datetime:
-    """실행 기준 시간을 생성"""
+    """파이프라인·단계 실행 기준 시각을 반환한다.
+
+    Note:
+        함수 유형: A — 순수 계산(시계 의존)
+        안전성: Level 0
+    """
     return datetime.now()
 
 
 def format_hhmmss(dt: datetime) -> str:
-    """HHMMSS 형태 문자열 반환"""
+    """datetime을 CSV 파일명용 `HHMMSS` 문자열로 변환한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+    """
     return dt.strftime("%H%M%S")
 
 
 def korean_relative_time(text: str, now: Optional[datetime] = None) -> Optional[datetime]:
-    """'8시간전', '3일전' 등 한국어 상대 시각 문자열을 now 기준으로 역산한 datetime."""
+    """'8시간전', '3일전' 등 한국어 상대 시각 문자열을 now 기준 datetime으로 변환한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: 미매칭·빈 문자열은 `None`; '방금' 계열은 `now`
+    """
     now = now or datetime.now()
     text = text.strip()
     if not text:
@@ -240,10 +287,12 @@ def korean_relative_time(text: str, now: Optional[datetime] = None) -> Optional[
 
 
 def default_last_collected_at() -> datetime:
-    """최초 적재( DB에 기존 row 없음 )일 때의 워터마크: 오늘 00:00 기준 `ETL_CRAWL_LOOKBACK_DAYS`일 이전 00:00.
+    """DB가 비었을 때 쓰는 워터마크: 오늘 기준 `ETL_CRAWL_LOOKBACK_DAYS`일 전 00:00.
 
-    그 **이후**에 발행·수집된 글(행 `created_at` > 이 시각)만 후속 단계에서 “신규”로 다루기 위한 기준. 이미 `get_last_success_date`가
-    `MAX(created_at)`을 줄 때는 그 값이 우선한다.
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: `get_last_success_date`가 값을 주면 그쪽이 우선
     """
     return datetime.combine(
         date.today() - timedelta(days=CrawlingConstant.ETL_CRAWL_LOOKBACK_DAYS), time.min
@@ -251,7 +300,13 @@ def default_last_collected_at() -> datetime:
 
 
 def coalesce_last_created_at(last_created_at: object | None) -> datetime:
-    """호출부에서 온 `last_created_at`을 `datetime`으로. None / NaT / 파싱 실패 → `default_last_collected_at` (최초 90일 워터마크)."""
+    """`last_created_at`을 워터마크용 datetime으로 정규화한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: None·NaT·파싱 실패 → `default_last_collected_at()`
+    """
     ts = pd.to_datetime(last_created_at, errors="coerce")
     if pd.notna(ts):
         return ts.to_pydatetime()

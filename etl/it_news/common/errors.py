@@ -4,7 +4,13 @@ from __future__ import annotations
 
 
 class EtlErrors:
-    """에러 코드 = 중첩 클래스·메서드명. 메시지는 classmethod로 반환."""
+    """ETL 에러 메시지 팩토리(중첩 클래스·classmethod).
+
+    Note:
+        함수 유형: B — 메시지 문자열 조립
+        안전성: Level 0 — I/O·DB 없음
+        불변 규칙: 로그·raise·fail CSV에 동일 문구 재사용
+    """
 
     class Crawl:
         @classmethod

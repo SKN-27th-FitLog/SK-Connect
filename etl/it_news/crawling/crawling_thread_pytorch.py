@@ -40,7 +40,14 @@ logger = logging.getLogger(__name__)
 #########################################################################
 
 def get_article_list() -> list[str]:
-    '''기준 페이지에서 수집해야 할 게시글의 절대 URL 목록을 구하는 함수'''
+    """pytorch(Discourse) 목록 페이지를 순회해 게시글 절대 URL 목록을 수집한다.
+
+    Note:
+        함수 유형: E — HTTP·HTML 파싱
+        안전성: Level 3
+        불변 규칙: page=0부터; 최대 `PAGE_COUNT`; 빈 페이지면 종료
+        부작용: discuss.pytorch.kr 요청
+    """
     article_urls = []
     list_origin = urlparse(Service.PYTORCH.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
@@ -80,7 +87,14 @@ def get_article_list() -> list[str]:
 
 # 게시글 1개 soup된 내용 가지고 슬라이싱 해서 컬럼값 반환 
 def parse_article(url:str) -> dict:
-    '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 '''
+    """pytorch 토픽 URL 1건에서 HTML+JSON API로 `CrawlingColumn` dict를 추출한다.
+
+    Note:
+        함수 유형: E — HTTP·파싱
+        안전성: Level 3
+        불변 규칙: JSON/HTML 실패 시 예외 → fail 행
+        부작용: HTML GET + `{url}.json` GET
+    """
 
     # HTML 파싱
     response = requests.get(url, headers=user_agent_headers())
@@ -120,14 +134,24 @@ def parse_article(url:str) -> dict:
 
 # 제목 슬라이싱 
 def slicing_title(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 제목을 추출하는 함수 (discuss.pytorch.kr Discourse 구조)'''
+    """Discourse HTML에서 제목을 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+    """
 
     title = soup.select_one("#topic-title h1 a")
     return title.get_text(strip=True)
 
 # 내용 슬라이싱 
 def slicing_content(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 내용을 추출하는 함수 (discuss.pytorch.kr Discourse 구조)'''
+    """Discourse meta description에서 본문 요약을 추출한다.
+
+    Note:
+        함수 유형: E — DOM/meta 추출
+        안전성: Level 0
+    """
 
     # 본문: div.cooked 는 JS 렌더링이므로, SSR로 제공되는 meta description 에서 추출
     content = soup.find('meta', {'name': 'description'})
@@ -135,24 +159,46 @@ def slicing_content(soup: BeautifulSoup) -> str:
 
 # 게시글 id 슬라이싱
 def slicing_thread(article_url: str) -> str:
-    """URL 경로 /t/slug/{id} 의 마지막 세그먼트에 pytorch_ 접두사."""
+    """URL 경로 마지막 세그먼트에 `pytorch_` 접두를 붙인 `thread`를 만든다.
+
+    Note:
+        함수 유형: A — URL 파싱
+        안전성: Level 0
+    """
     topic_id = urlparse(article_url).path.split('/')[-1]
     return f"{Service.PYTORCH.service}_{topic_id}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
-    """time.post-time[datetime] 의 ISO 8601 값을 datetime으로 반환."""
+    """`time.post-time[datetime]` ISO 값을 UTC datetime으로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+    """
     dt_str = soup.select_one("time.post-time")["datetime"]
     return datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ")
 
 # 조회수 슬라이싱
 def slicing_view_count(topic_data: dict) -> int:
-    """JSON API 응답의 views 값을 반환. 없으면 0."""
+    """Discourse JSON `views`를 정수로 반환한다.
+
+    Note:
+        함수 유형: E — JSON 필드
+        안전성: Level 0
+        불변 규칙: 없으면 `DEFAULT_INT`
+    """
     return int(topic_data.get("views", C_Constant.DEFAULT_INT))
 
 # 댓글 수 슬라이싱
 def slicing_comment_count(soup: BeautifulSoup) -> int:
-    """a[data-topic-comment-count] 정수값. 요소·속성 없음·변환 실패 시 0."""
+    """댓글 수 DOM 속성을 정수로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: 없음·변환 실패 시 `DEFAULT_INT`
+    """
     try:
         return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
     except (TypeError, KeyError, ValueError):
@@ -163,7 +209,13 @@ def slicing_comment_count(soup: BeautifulSoup) -> int:
 
 # 작성자 슬라이싱
 def slicing_author(topic_data: dict) -> str:
-    """JSON API 응답의 첫 번째 포스트 username을 반환. 키 없으면 예외로 실패."""
+    """Discourse JSON 첫 포스트 `username`을 반환한다.
+
+    Note:
+        함수 유형: E — JSON 필드
+        안전성: Level 0
+        불변 규칙: 키 없으면 예외
+    """
     # data-user-card 속성은 JS 렌더링 영역이라 SSR HTML에 없으므로 JSON API 사용
     return topic_data["post_stream"]["posts"][0]["username"]
 
@@ -176,7 +228,13 @@ def crawling_thread_pytorch(
     run_time: Optional[datetime] = None,
     last_created_at: Optional[object] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
+    """pytorch 크롤 단계 진입: 목록 수집 후 `run_crawl_and_save`로 raw CSV 저장.
+
+    Note:
+        함수 유형: F — 사이트별 크롤 진입
+        안전성: Level 2 — CSV 쓰기; 내부 HTTP는 L3
+        부작용: `process=raw` success/fail CSV
+    """
     return run_crawl_and_save(
         service=Service.PYTORCH,
         article_urls=get_article_list(),

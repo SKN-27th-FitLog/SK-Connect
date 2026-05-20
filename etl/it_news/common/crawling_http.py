@@ -15,6 +15,12 @@ from common.utils import build_csv_path, coalesce_last_created_at, get_run_time,
 
 
 def user_agent_headers() -> dict[str, str]:
+    """크롤 HTTP 요청용 User-Agent 헤더 dict.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+    """
     return {CrawlingConstant.USER_AGENT_HEADER: CrawlingConstant.USER_AGENT}
 
 
@@ -27,7 +33,14 @@ def run_crawl_and_save(
     run_time: Optional[datetime] = None,
     last_created_at: Optional[object] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """게시글 URL 순회 → success/fail DataFrame → 워터마크 필터 → CSV 저장."""
+    """게시글 URL 순회·파싱·워터마크 필터 후 raw success/fail CSV 저장.
+
+    Note:
+        함수 유형: E+B — 외부 HTTP(콜백) + DataFrame·CSV
+        안전성: Level 2 — CSV 쓰기; `parse_article`은 호출부가 E(L3)
+        불변 규칙: success는 `created_at > threshold`만 유지
+        부작용: `process=raw` CSV; per-URL 예외는 fail 행(`error`)
+    """
     if run_time is None:
         run_time = get_run_time()
 

@@ -254,7 +254,6 @@ DB 쓰기 배치는 테스트 통과와 별도로, 로컬 DB 기동 후 위 명�
 
 ---
 
-## 9. 다음 작업(문서화·정리 예정)
+## 9. 함수 계약·인벤토리
 
-함수별 역할·계약·인벤토리는 별도 문서(`function-inventory.md` 등)로 정리할 예정이다.  
-본 문서는 **현재 구현된 프로세스와 flow**만 기술한다.
+공개 API의 유형(A~F)·안전성(Level 0~3)·docstring `Note:`는 [function-inventory.md](./function-inventory.md)를 따른다.

@@ -1,4 +1,7 @@
-"""PostgreSQL 연결·스키마 상수. 연결 정보는 `etl/it_news/.env`에서 읽는다."""
+"""PostgreSQL 연결·스키마 상수. 연결 정보는 `etl/it_news/.env`에서 읽는다.
+
+모듈 import 시 `load_dotenv(etl/it_news/.env)` 가 1회 실행된다(인벤토리·테스트 시 부작용 명시).
+"""
 
 from __future__ import annotations
 
@@ -24,7 +27,13 @@ class PgEnv:
 
 
 def require_env(key: str) -> str:
-    """`.env`에서 필수 연결 값을 읽는다. 없거나 비어 있으면 `ValueError`."""
+    """`.env`에서 필수 연결 값을 읽는다.
+
+    Note:
+        함수 유형: C — 환경 검증
+        안전성: Level 0
+        불변 규칙: 없거나 공백이면 `ValueError(EtlErrors.Db.missing_env_var)`
+    """
     value = os.getenv(key)
     if value is None or not str(value).strip():
         raise ValueError(EtlErrors.Db.missing_env_var(key))
@@ -44,7 +53,13 @@ SQL_SAMPLE_CRAWLING = f"SELECT * FROM {TABLE_CRAWLING} LIMIT 5;"
 
 
 def build_dsn() -> str:
-    """`.env`의 연결 변수로 PostgreSQL URI를 만든다."""
+    """`.env` 연결 변수로 PostgreSQL URI 문자열을 만든다.
+
+    Note:
+        함수 유형: A — 순수 계산(환경 읽기)
+        안전성: Level 0
+        부작용: `require_env` 호출로 `.env` 읽기
+    """
     user = require_env(PgEnv.USER)
     password = require_env(PgEnv.PASSWORD)
     host = require_env(PgEnv.HOST)

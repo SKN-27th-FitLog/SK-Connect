@@ -65,4 +65,9 @@ python -m postgresql
 ## 8. 문서
 
 - 설계·flow·단계 동작: [design.md](./design.md)
+- 함수 인벤토리·docstring `Note:`: [function-inventory.md](./function-inventory.md)
 - 본 기준 문서 수정 시 Skill 배포본(`code-structure-standards`)도 필요 시 동기화한다.
+
+## 9. docstring
+
+공개·핵심 함수는 한 줄 요약 + `Note:`(함수 유형, 안전성, 불변 규칙·부작용). 형식은 Skill `code-integrity-and-testing` 및 `function-inventory.md`와 동기화한다.

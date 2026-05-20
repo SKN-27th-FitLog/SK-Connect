@@ -39,7 +39,14 @@ logger = logging.getLogger(__name__)
 #########################################################################
 
 def get_article_list() -> list[str]:
-    '''기준 페이지에서 수집해야 할 게시글의 절대 URL 목록을 구하는 함수'''
+    """geeknews 목록 페이지를 순회해 게시글 절대 URL 목록을 수집한다.
+
+    Note:
+        함수 유형: E — HTTP·HTML 파싱
+        안전성: Level 3
+        불변 규칙: 최대 `PAGE_COUNT` 페이지; 게시글 없으면 종료
+        부작용: news.hada.io 요청
+    """
     article_urls = []
     list_origin = urlparse(Service.GEEKNEWS.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
@@ -79,7 +86,14 @@ def get_article_list() -> list[str]:
 
 # 게시글 1개 soup된 내용 가지고 슬라이싱 해서 컬럼값 반환 
 def parse_article(url:str) -> dict:
-    '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
+    """geeknews 토픽 URL 1건에서 `CrawlingColumn` dict를 추출한다.
+
+    Note:
+        함수 유형: E — HTTP·파싱
+        안전성: Level 3
+        불변 규칙: 필수 필드 누락·파싱 실패 시 예외 → `run_crawl_and_save` fail 행
+        부작용: 게시글 HTML GET
+    """
 
     # 게시글 1개 soup 
     response = requests.get(url, headers=user_agent_headers())
@@ -112,7 +126,12 @@ def parse_article(url:str) -> dict:
 
 # 제목 슬라이싱 
 def slicing_title(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 제목을 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
+    """geeknews HTML에서 제목 텍스트를 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출(soup 입력)
+        안전성: Level 0 — HTTP 없음
+    """
 
     title = soup.select_one("div.topic .topictitle h1") \
             or soup.select_one(".topictitle h1")
@@ -121,7 +140,12 @@ def slicing_title(soup: BeautifulSoup) -> str:
 
 # 내용 슬라이싱 
 def slicing_content(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 내용을 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
+    """geeknews HTML에서 본문 텍스트를 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+    """
 
     # 본문: topic.js 렌더 영역 — id=topic_contents
     content = soup.select_one("#topic_contents") \
@@ -131,13 +155,25 @@ def slicing_content(soup: BeautifulSoup) -> str:
 
 # 게시글 id 슬라이싱
 def slicing_thread(article_url: str) -> str:
-    """URL 의 topic?id= 값에 geeknews_ 접두사. id 없으면 예외로 실패."""
+    """URL `topic?id=` 값에 `geeknews_` 접두를 붙인 `thread`를 만든다.
+
+    Note:
+        함수 유형: A — URL 파싱
+        안전성: Level 0
+        불변 규칙: id 없으면 예외
+    """
     # geeknews_1234 형식으로 고유 id 값을 가지도록 처리함 
     return f"{Service.GEEKNEWS.service}_{parse_qs(urlparse(article_url).query)['id'][0]}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
-    """div.topicinfo 내 상대 시각(예: 8시간전)을 현재 시각에서 차감해 datetime으로 반환."""
+    """topicinfo 상대 시각(예: 8시간전)을 `korean_relative_time`으로 datetime화한다.
+
+    Note:
+        함수 유형: E — DOM + A(시간 변환)
+        안전성: Level 0
+        불변 규칙: 미발견 시 `EtlErrors.Crawl.created_at_not_found` 예외
+    """
     topicinfo = soup.select_one("div.topicinfo")
 
     # topicinfo 내 span 태그 내 텍스트를 차례대로 추출 
@@ -154,7 +190,13 @@ def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
 
 # 댓글 수 슬라이싱
 def slicing_comment_count(soup: BeautifulSoup) -> int:
-    """a[data-topic-comment-count] 정수값. 요소·속성 없음·변환 실패 시 0."""
+    """댓글 수 DOM 속성을 정수로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: 없음·변환 실패 시 `DEFAULT_INT`
+    """
     try:
         return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
     except (TypeError, KeyError, ValueError):
@@ -163,14 +205,26 @@ def slicing_comment_count(soup: BeautifulSoup) -> int:
 
 # 점수/좋아요 수 슬라이싱
 def slicing_point(soup: BeautifulSoup) -> int:
-    """topicinfo 안 '… P by …' 구조에서 P 앞 숫자(예: id=tp12345 span 텍스트)."""
+    """topicinfo에서 추천(P) 점수를 정수로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: 비숫자 시 `DEFAULT_INT`
+    """
     t = soup.select_one("div.topicinfo span[id^='tp']").get_text(strip=True)
     return int(t) if t.isdigit() else C_Constant.DEFAULT_INT
 
 
 # 작성자 슬라이싱
 def slicing_author(soup: BeautifulSoup) -> str:
-    """topicinfo 내 /@username 링크의 사용자명. DOM이 없으면 AttributeError 등으로 실패."""
+    """topicinfo `/@username` 링크에서 작성자명을 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: DOM 없으면 예외
+    """
     # 작성자 이름이 들어있는 부분 pick > href 부분의 값을 추출 
     href = soup.select_one('div.topicinfo a[href^="/@"]')["href"]
     return href.strip().removeprefix("/@") # 추출 값에서 앞부분 제거 
@@ -184,7 +238,13 @@ def crawling_thread_geeknews(
     run_time: Optional[datetime] = None,
     last_created_at: Optional[object] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
+    """geeknews 크롤 단계 진입: 목록 수집 후 `run_crawl_and_save`로 raw CSV 저장.
+
+    Note:
+        함수 유형: F — 사이트별 크롤 진입
+        안전성: Level 2 — CSV 쓰기; 내부 HTTP는 L3
+        부작용: `process=raw` success/fail CSV
+    """
     return run_crawl_and_save(
         service=Service.GEEKNEWS,
         article_urls=get_article_list(),
