@@ -64,5 +64,5 @@ python -m postgresql
 
 ## 8. 문서
 
-- 구조·import 변경 이력: `docs/refactoring-*.md`
-- 본 기준 문서 수정 시 Skill 배포본도 동기화한다.
+- 설계·flow·단계 동작: [design.md](./design.md)
+- 본 기준 문서 수정 시 Skill 배포본(`code-structure-standards`)도 필요 시 동기화한다.
