@@ -264,4 +264,5 @@ flowchart LR
 
 - Skill **`code-integrity-and-testing`** — 범용 기준·인벤토리 템플릿
 - [integrity-and-testing-standards.md](integrity-and-testing-standards.md)
+- [testing.md](testing.md) — 시나리오·가드레일·간접 검증
 - [design.md](design.md)

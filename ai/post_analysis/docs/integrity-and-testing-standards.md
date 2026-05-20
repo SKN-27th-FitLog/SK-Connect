@@ -393,7 +393,8 @@ DB 또는 저장소와 상호작용한다.
 
 현재 `tests/` 및 자동화 테스트는 **미구현** 상태이다. §11 순서에 따라 계약 정의 후 `tests/` 추가를 권장한다.
 
-**함수 분류 상세:** [function-inventory.md](function-inventory.md)
+**함수 분류 상세:** [function-inventory.md](function-inventory.md)  
+**테스트 기준(통합):** [testing.md](testing.md)
 
 ### 작업 진행 체크리스트
 
@@ -401,10 +402,12 @@ DB 또는 저장소와 상호작용한다.
 | 항목                                                                 | 상태  |
 | ------------------------------------------------------------------ | --- |
 | 본 기준 문서 확정                                                         | ☐   |
+| 함수 인벤토리                                                             | ☑   |
+| 테스트 기준 ([testing.md](testing.md)) | ☑ |
 | 핵심 함수 계약(최소: `get_reviews`, `merge_analysis_data`, `run_pipeline`) | ☐   |
-| Level 0 단위 테스트 (필터·컬럼 검증)                                          | ☐   |
-| Level 2 DB 테스트 (테스트 DB 또는 rollback)                                | ☐   |
-| Level 3 LLM mock 테스트                                               | ☐   |
+| Level 0 단위 테스트 (필터·컬럼 검증) | ☑ (`tests/unit/`) |
+| Level 2 간접 테스트 (merge·배치 patch) | ☑ |
+| Level 3 LLM mock 테스트 | ☑ |
 | CI에서 테스트 실행                                                        | ☐   |
 
 
