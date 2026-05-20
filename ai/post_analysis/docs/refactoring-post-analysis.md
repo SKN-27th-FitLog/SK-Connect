@@ -1,7 +1,7 @@
 # post_analysis 리팩토링 이력
 
 sk-connect-etl-standards Part A 기준으로 2026-05 구조 정리.  
-오케스트레이션은 루트 스크립트 5개 유지(외부 스케줄러 연동 예정).
+오케스트레이션은 루트 스크립트 3개 + 외부 스케줄러 연동.
 
 ## Phase 1 — 인프라 분리
 
@@ -12,8 +12,8 @@ sk-connect-etl-standards Part A 기준으로 2026-05 구조 정리.
 
 ## Phase 2 — 에러 중앙화
 
-- `common/errors.py` — `PostAnalysisErrors` (Sentiment, KiwiKeywords, LlmKeywords, ClassifyKeywords)
-- 4개 배치 스크립트의 컬럼 누락 `ValueError` 통합
+- `common/errors.py` — `PostAnalysisErrors` (Sentiment, LlmKeywords, GetReviews, Db)
+- 배치 스크립트 컬럼 누락 `ValueError` 통합
 
 ## Phase 3 — BERT 통합
 
@@ -28,13 +28,20 @@ sk-connect-etl-standards Part A 기준으로 2026-05 구조 정리.
 
 ## Phase 5 — 운영 정리
 
-- `classify_keywords`: `max_rows` 인자 추가, 기본 전량 처리 (`PREVIEW_MAX_ROWS=4` 제거)
-- `common/env.py` — `load_dotenv` 일원화 (`postgresql/connection`, LLM 스크립트)
-- `requirements.txt`: `python-dotenv`, `langchain-openai` pin; `dotenv` 패키지 제거
+- `analyze_keywords_by_llm`: `max_rows` 인자 (테스트·batch 청크)
+- `common/env.py` — `load_dotenv` 일원화
+- `requirements.txt`: `python-dotenv`, `langchain-openai` pin
 - `.gitignore`: `.venv`, `.env`, `__pycache__` 등
 
-## 실행 순서 (참고)
+## Phase 6 — 파이프라인 단순화
 
-`get_reviews` → `analyze_sentimental` → `analyze_keywords` 또는 `analyze_keywords_by_llm` → `classify_keywords`
+- 제거: `analyze_keywords.py` (Kiwi), `classify_keywords.py` (긍·부정 키워드 분류)
+- 제거: `kiwipiepy`, `KiwiPosTagPrefix`, `AnalyzeKeywordsConfig`, `ClassifyKeywordsConfig`, `KeywordFormat`
+- `errors.py`: `KiwiKeywords`, `ClassifyKeywords` 삭제
+- [design.md](design.md) — 3단계 파이프라인·다이어그램 정비
+
+## 실행 순서 (확정)
+
+`get_reviews` → `analyze_sentimental` → `analyze_keywords_by_llm`
 
 상세 설계: [design.md](design.md)

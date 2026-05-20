@@ -4,7 +4,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 패키지지
+# 패키지
 import pandas as pd
 from datetime import datetime
 

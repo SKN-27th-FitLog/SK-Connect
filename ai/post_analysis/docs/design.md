@@ -1,109 +1,330 @@
- # Analysis 테이블 
- - 리뷰/블로그 글들을 분석한 내용을 가져와서 분석하기 위한 별도 테이블 
- - 테이블은 다음 컬럼값을 가진다. 
+# post_analysis 설계
 
-| 컬럼명        | 타입            | 값                                      |
-|---------------|-----------------|------------------------------------------|
-| crawling_id   | int             | crawling.crawling_id                     |
-| title         | str             | crawling.title                           |
-| content       | str             | crawling.content                         |
-| article_url   | str             | crawling.article_url                     |
-| map_id        | int             | crawling.map_id                          |
-| shop_id       | int             | shop.map_id                              |
-| category_cd      | 코드(CA**)      | 카테고리 축 예: 맛집 **CA01** (`CategoryCdCode.RESTAURANT`). IT 크롤은 **CA07** (`CategoryCdCode.ETC`). |
-| information_cd   | 코드(IC**)      | 정보 축 예: 맛집 정보 **IC01**. IT 정보 **IC02** (`InformationCdCode.IT_INFO`). |
-| created_dt    | datetime        | 2016-04-25 15:55:02                      |
-| sentimental   | enum            | positive / negative                      |
-| score         | float           | 0.3356                                   |
-| keywords      | list[str]       | ["keyword1", "keyword2", ...]            |
-| positive_kw   | list[str]       | ["keyword1", "keyword2", ...]            |
-| negative_kw   | list[str]       | ["keyword3", "keyword4", ...]            |
+`crawling` 테이블의 리뷰·블로그 글을 읽어 `analysis` 테이블에 적재하고, BERT 감성 분석과 LLM 키워드 추출까지 수행하는 **배치 파이프라인**이다.
 
+오케스트레이션은 **루트 스크립트 3개 + 외부 스케줄러**(Airflow 등) 연동 방식이며, `pipeline.py`는 두지 않는다.
 
-# get_reviews()
- - crawling 테이블에서 Analysis 테이블로 컬럼 값을 가져오고 가져온 시간을 created_dt 컬럼에 기록함
- - **크롤 `category_cd` 가 CA07**(IT 크롬 스트림, `CategoryCdCode.ETC`)인 행은 analysis 적재에서 제외(식점 리뷰 파이프라인 우선).
- 1) crawling 테이블에서 Analysis 테이블로 데이터를 MERGE 한다. 
- 2) created_dt 컬럼값은 가져온 시점의 시간으로 결정한다. 
+---
+
+## 프로젝트 구조
+
+```
+post_analysis/
+├── get_reviews.py              # 1단계: crawling → analysis 적재
+├── analyze_sentimental.py      # 2단계: BERT 감성 분석
+├── analyze_keywords_by_llm.py  # 3단계: LLM 키워드 추출
+├── common/                     # 도메인·공통 (DB 비의존)
+│   ├── constant.py             # 컬럼명·코드·배치 설정
+│   ├── errors.py               # PostAnalysisErrors
+│   ├── env.py                  # load_dotenv 일원화
+│   ├── bert_tokenizer.py       # BERT 감성 추론
+│   └── singleton.py
+├── postgresql/                 # 인프라 (DB 연결·쿼리·MERGE)
+│   ├── config.py               # 테이블명·환경변수 키·MERGE SQL
+│   ├── connection.py
+│   ├── run_query.py            # get_* / merge_analysis_data
+│   └── __main__.py             # 연결·샘플 쿼리 검증
+├── docs/
+│   ├── design.md               # 본 문서
+│   └── refactoring-post-analysis.md
+└── requirements.txt
+```
+
+### 레이어·의존 방향
+
+sk-connect-etl-standards Part A/B와 동일하게 **common ↔ postgresql**을 분리한다.
+
+| 패키지 | 역할 |
+|--------|------|
+| `common/` | 컬럼·코드 Enum, BERT, 에러 메시지, `.env` 로드 — **postgresql을 import하지 않음** |
+| `postgresql/` | 연결, SELECT, MERGE SQL, DB 전용 상수(`config.py`) |
+| 루트 `*.py` | 단계별 배치 로직. `common` + `postgresql.run_query`만 사용 |
+
+```mermaid
+flowchart TB
+  subgraph scripts ["루트 스크립트 (단계별 진입점)"]
+    GR[get_reviews.py]
+    AS[analyze_sentimental.py]
+    AK[analyze_keywords_by_llm.py]
+  end
+
+  subgraph common ["common/ (도메인·공통)"]
+    C1[constant.py]
+    C2[errors.py]
+    C3[env.py]
+    C4[bert_tokenizer.py]
+  end
+
+  subgraph pg ["postgresql/ (인프라)"]
+    P1[config.py]
+    P2[connection.py]
+    P3[run_query.py]
+  end
+
+  subgraph db ["PostgreSQL"]
+    crawl[(crawling)]
+    anal[(analysis)]
+  end
+
+  GR --> C1
+  GR --> C2
+  GR --> P3
+  AS --> C1
+  AS --> C2
+  AS --> C4
+  AS --> P3
+  AK --> C1
+  AK --> C2
+  AK --> C3
+  AK --> P3
+
+  P3 --> P1
+  P3 --> P2
+  P1 -.-> C1
+
+  P3 --> crawl
+  P3 --> anal
+```
+
+- DB URL·테이블명·MERGE SQL → `postgresql/config.py`에만 정의
+- 사용자·로그·`raise` 문구 → `common/errors.py`의 `PostAnalysisErrors`
+- OpenAI·DB 환경변수 → `common/env.py` (`import common.env`로 일괄 로드)
+
+---
+
+## 운영 파이프라인 (확정)
+
+외부 스케줄러에서 **아래 순서**로 루트 스크립트를 호출한다.
+
+```mermaid
+flowchart LR
+  A["① get_reviews"] --> B["② analyze_sentimental"]
+  B --> C["③ analyze_keywords_by_llm"]
+```
+
+| 순서 | 스크립트 | 입력 조건 | 출력 컬럼 |
+|------|----------|-----------|-----------|
+| 1 | `get_reviews.py` | `crawling`에만 있는 신규 행, **CA07 제외** | `title`, `content`, …, `information_cd=IC01`, `created_dt` |
+| 2 | `analyze_sentimental.py` | `information_cd ≠ IC02`, `sentimental` 또는 `score` 결측 | `sentimental`, `score` |
+| 3 | `analyze_keywords_by_llm.py` | `information_cd ≠ IC02`, `keywords` 결측, 본문·감성 유효 | `keywords` (`#` 구분) |
+
+```bash
+# 작업 디렉터리: post_analysis/
+python get_reviews.py
+python analyze_sentimental.py
+python analyze_keywords_by_llm.py
+
+# DB 연결·샘플 쿼리 검증
+python -m postgresql
+```
+
+### 전체 데이터 흐름
+
+```mermaid
+flowchart TB
+  subgraph step1 [① get_reviews]
+    S1A[crawling SELECT *]
+    S1B[CA07 제외 · analysis 미존재 crawling_id만]
+    S1C[information_cd = IC01]
+    S1D[MERGE analysis]
+    S1A --> S1B --> S1C --> S1D
+  end
+
+  subgraph step2 [② analyze_sentimental]
+    S2A[analysis SELECT · IC02 제외]
+    S2B[sentimental/score 결측만]
+    S2C[BertTokenizer 추론]
+    S2D[MERGE sentimental, score]
+    S2A --> S2B --> S2C --> S2D
+  end
+
+  subgraph step3 [③ analyze_keywords_by_llm]
+    S3A[analysis SELECT · IC02 제외]
+    S3B[keywords 결측 · 빈 본문 제외]
+    S3C[LangChain + OpenAI]
+    S3D[MERGE keywords]
+    S3A --> S3B --> S3C --> S3D
+  end
+
+  crawl[(crawling)] --> step1
+  step1 --> anal[(analysis)]
+  anal --> step2
+  step2 --> anal
+  anal --> step3
+  step3 --> anal
+```
+
+### 공통 필터·MERGE 규칙
+
+| 규칙 | 내용 |
+|------|------|
+| IT 정보 제외 | ②③ 단계에서 `information_cd = IC02` 행은 처리하지 않음 |
+| IT 크롤 제외 | ① 단계에서 `category_cd = CA07` 행은 적재하지 않음 |
+| 부분 MERGE | `WHEN MATCHED` UPDATE는 `COALESCE(x.col, a.col)` — 단계별로 일부 컬럼만 MERGE해도 기존 값이 NULL로 덮이지 않음 |
+| 키 | `crawling_id` 기준 UPSERT |
+
+---
+
+## Analysis 테이블
+
+| 컬럼명 | 타입 | 설명 |
+|--------|------|------|
+| crawling_id | int | `crawling.crawling_id` (MERGE 키) |
+| title | str | `crawling.title` |
+| content | str | `crawling.content` |
+| article_url | str | `crawling.article_url` |
+| map_id | int | `crawling.map_id` |
+| shop_id | int | 현재 `map_id`와 동일 매핑 (향후 shop 조회로 대체 예정) |
+| category_cd | 코드(CA**) | 카테고리 축. IT 크롤 **CA07** (`CodeTable.CATEGORY_ETC`) |
+| information_cd | 코드(IC**) | 정보 축. 식당 리뷰 **IC01**, IT 정보 **IC02** |
+| created_dt | datetime | analysis 적재 시각 |
+| sentimental | enum | `positive` / `negative` |
+| score | float | 감성 신뢰도 |
+| keywords | text | LLM 추출 주요 표현 (`#` 구분 문자열) |
+| positive_kw | text | **현재 파이프라인 미사용** (DB·MERGE 스키마 예약) |
+| negative_kw | text | **현재 파이프라인 미사용** (DB·MERGE 스키마 예약) |
+
+---
+
+## 1. get_reviews()
+
+`crawling`에만 있는 신규 행을 `analysis`로 MERGE한다.
+
+1. `crawling`, `analysis` 전량 SELECT
+2. `analysis`에 이미 있는 `crawling_id` 제외
+3. **`category_cd = CA07`(IT 크롤) 제외** — 식당 리뷰 파이프라인 우선
+4. `information_cd = IC01`, `created_dt = now` 설정 후 MERGE
 
 ```mermaid
 sequenceDiagram
-    participant Func as get_reviews()
-    participant DB as Crawling
-    participant AN as Analysis
+    participant Script as get_reviews.py
+    participant RQ as postgresql.run_query
+    participant Crawl as crawling
+    participant An as analysis
 
-    Func->>DB: crawling 테이블 조회 요청
-    DB->>Func: crawling 테이블 데이터 return
-    Func->>AN: MERGE INTO Analysis<br/>(crawling 소스 기준)
-    Func-->>AN: 반영 시 created_dt를 현재 시간으로 설정
+    Script->>RQ: get_crawling_data()
+    RQ->>Crawl: SELECT *
+    Crawl-->>RQ: DataFrame
+    RQ-->>Script: df_crawling
+
+    Script->>RQ: get_analysis_data()
+    RQ->>An: SELECT *
+    An-->>RQ: DataFrame
+    RQ-->>Script: df_analysis
+
+    Note over Script: 신규 crawling_id만<br/>CA07 제외 · IC01 · created_dt
+
+    Script->>RQ: merge_analysis_data(df_new)
+    RQ->>An: MERGE (COALESCE UPSERT)
 ```
 
+---
 
- # analyze_sentimental()
- - 감성분석이 가능한 데이터들에 대해 감성분석 적용한다. 
- - enum으로 만들되 메서드로 해서 감성분석 가능한 컬럼 리스트를 구하는 함수 만들어 처리하는걸로 검토
- - Analysis 테이블에서 감성분석이 되지 않은 글들을 가져와 감성분석 적용한다. 
- 1) sentimental IS NULL인 글 SELECT해서 가져온다. (감성분석이 가능한 글 중 아직 값이 없는 것들 )
- 2) 가져온 글들을 BERT 모델을 사용해서 감성분석 진행한다. 
- 3) 감성분석 후 나온 결과를 sentimental, score 컬럼에 적용한다. 
+## 2. analyze_sentimental()
+
+NSMC 학습 BERT(`BertTokenizer`, Singleton)로 본문 감성을 분석한다.
+
+1. `analysis` 조회 — `information_cd ≠ IC02`, `sentimental` **또는** `score` 결측
+2. `content`별 `predict_sentiment` 추론
+3. `sentimental`, `score` MERGE
 
 ```mermaid
- sequenceDiagram
-    participant Func as analyze_sentimental()
-    participant BERT as BERT Model
-    participant DB as Analysis
+sequenceDiagram
+    participant Script as analyze_sentimental.py
+    participant BT as BertTokenizer
+    participant RQ as postgresql.run_query
+    participant An as analysis
 
-    Func->>DB: Analysis 테이블 조회<br/>요약: sentimental/score 결측, information_cd≠IC02(IT 정보)
-    DB-->>Func: 감성분석 대상 글 반환
+    Script->>RQ: get_analysis_data()
+    RQ->>An: SELECT *
+    An-->>Script: IC02 제외 · 결측 행만
 
-    Func->>BERT: content 컬럼 감성분석 요청
-    BERT-->>Func: 분석 결과 반환
+    loop 각 행
+        Script->>BT: predict_sentiment(content)
+        BT-->>Script: sentimental, score
+    end
 
-    Func->>DB: sentimental, score 분석 결과 업데이트 
+    Script->>RQ: merge_analysis_data(df)
+    RQ->>An: MERGE sentimental, score
 ```
 
- # analyze_keywords()
- 1) keywords IS NULL인 글 SELECT 한다.  
- 2) 가져온 글들을 kiwi를 사용해서 형태소 분석 / 키워드 추출 진행한다. 
- 3) 추출된 키워드 리스트 keywords에 등록한다. 
+---
+
+## 3. analyze_keywords_by_llm()
+
+감성 분석 결과와 본문을 LLM에 넘겨, **감정 방향과 일치하는 주요 표현**을 `keywords`에 저장한다.
+
+1. `analysis` 조회 — `information_cd ≠ IC02`, `keywords` 결측, `content`·`sentimental` 유효
+2. LangChain + OpenAI(`AnalyzeKeywordsByLlmConfig.OPENAI_MODEL`)로 `#` 연결 문자열 생성
+3. `keywords` MERGE
+
+**`max_rows` 인자**
+
+| 값 | 동작 |
+|----|------|
+| `None` (기본) | 필터 후 전량 처리 |
+| 양의 정수 | 상위 N건만 LLM 호출 (테스트·batch 청크) |
 
 ```mermaid
- sequenceDiagram
-    participant Func as analyze_keywords()
-    participant Kiwi as Kiwi NLP
-    participant DB as Analysis
+sequenceDiagram
+    participant Script as analyze_keywords_by_llm.py
+    participant LLM as ChatOpenAI
+    participant RQ as postgresql.run_query
+    participant An as analysis
 
+    Script->>RQ: get_analysis_data()
+    RQ->>An: SELECT *
+    An-->>Script: keywords 결측 · IC02 제외
 
-    Func->>DB: Analysis 테이블 조회 요청<br/>조건: keywords IS NULL
-    DB-->>Func: 키워드 추출 대상 목록 반환 
+    opt max_rows 지정
+        Note over Script: head(max_rows) · 상한 로그
+    end
 
-    Func->>Kiwi: content 기반 형태소 분석 및 키워드 추출 요청
-    Kiwi-->>Func: 키워드 리스트 반환
-    Func->>DB: keywords 컬럼에 키워드 리스트 적용
+    loop 각 행
+        Script->>LLM: content + sentimental
+        LLM-->>Script: keywords 문자열
+    end
 
+    Script->>RQ: merge_analysis_data(df)
+    RQ->>An: MERGE keywords
 ```
 
-# classify_keywords()
- - Analysis 테이블에서 키워드 추출이 완료된 행 중, **information_cd가 IC02(IT 정보)가 아닌 글**을 가져와 키워드 분류 한다.
- 1) positive_kw IS NULL AND negative_kw IS NULL인 글 SELECT
- 2) LLM 또는 Bert모델에게 keywords 기반 키워드 분류를 요청한다. (긍정/부정 라벨링 작업)
- 3) 키워드를 분류해서 긍정 키워드는 positive_kw, 부정 키워드는 negative_kw에 분류한다. 
- 4) 분류한 데이터를 다시 Analysis 테이블에 적용한다. 
+---
 
+## 에러·환경
 
-```mermaid
- sequenceDiagram
-    participant Func as classify_keywords()
-    participant Model as LLM / BERT
-    participant DB as Analysis 
+### PostAnalysisErrors (`common/errors.py`)
 
+| 중첩 클래스 | 용도 |
+|-------------|------|
+| `GetReviews` | crawling/analysis 컬럼 누락 |
+| `Sentiment` | 감성 분석 컬럼 누락, 처리 대상 0건 |
+| `LlmKeywords` | LLM 키워드 컬럼 누락, 처리 대상 0건, 행별 실패 로그 |
+| `Db` | `python -m postgresql` 연결 성공/실패 메시지 |
 
-    Func->>DB: Analysis 테이블 조회 요청<br/>조건: positive_kw IS NULL AND negative_kw IS NULL AND information_cd ≠ IC02
-    DB-->>Func: 키워드 분류 대상 글 반환
+### 환경변수
 
-    Func->>Model: keywords 기반 키워드 감성 분류 요청<br/>(긍정/부정 라벨링)
-    Model-->>Func: 키워드 분류해서 각 컬럼에 반환 
+| 키 (`PostgresEnvKey`) | 용도 |
+|-----------------------|------|
+| `PGUSER`, `PGPASSWORD`, `PGHOST`, `PGPORT`, `PGDATABASE` | PostgreSQL 연결 |
+| OpenAI API 키 | LangChain (`OPENAI_API_KEY` 등, langchain-openai 규격) |
 
+`.env`는 `common/env.py`에서 `load_dotenv()`로 로드한다. LLM 단계 진입 시 `import common.env`로 보장한다.
 
-    Func->>DB : 분류한 키워드를 positive_kw, negative_kw에 적용한다. 
-```
+---
+
+## 제거된 단계 (참고)
+
+| 스크립트 | 사유 |
+|----------|------|
+| `analyze_keywords.py` (Kiwi) | LLM 키워드 추출(`analyze_keywords_by_llm`)로 대체 |
+| `classify_keywords.py` | `positive_kw` / `negative_kw` 분리 미사용 |
+
+필요 시 Git 이력에서 복구 가능. 스키마의 `positive_kw`·`negative_kw` 컬럼과 MERGE SQL 해당 필드는 DB 호환을 위해 유지한다.
+
+---
+
+## 관련 문서
+
+- 리팩토링 이력: [refactoring-post-analysis.md](refactoring-post-analysis.md)
+- 코딩 기준: sk-connect-etl-standards Skill (Part A 범용 + Part B it_news ETL 패턴)

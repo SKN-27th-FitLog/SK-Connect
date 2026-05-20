@@ -37,11 +37,6 @@ class PostAnalysisErrors:
                 "(information_cd≠IC02(IT 정보) 제외 후 sentimental/score 결측 행 0건)"
             )
 
-    class KiwiKeywords:
-        @staticmethod
-        def missing_columns(missing: Iterable[str]) -> str:
-            return _missing_columns_message("analysis", "Kiwi 키워드 추출", missing)
-
     class LlmKeywords:
         @staticmethod
         def missing_columns(missing: Iterable[str]) -> str:
@@ -55,15 +50,6 @@ class PostAnalysisErrors:
         def row_processing_failed() -> str:
             """``logger.exception(PostAnalysisErrors.LlmKeywords.row_processing_failed(), title, index)``."""
             return "행 %s 처리 실패 (index=%s)"
-
-    class ClassifyKeywords:
-        @staticmethod
-        def missing_columns(missing: Iterable[str]) -> str:
-            return _missing_columns_message("analysis", "키워드 분류", missing)
-
-        @staticmethod
-        def no_pending_rows() -> str:
-            return "키워드 분류 대상 행이 없습니다."
 
     class GetReviews:
         @staticmethod

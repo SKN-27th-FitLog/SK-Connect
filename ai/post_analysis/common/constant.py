@@ -119,26 +119,6 @@ class SentimentResultKey(str, Enum):
     NEGATIVE_SCORE = "negative_score"
 
 
-class KiwiPosTagPrefix(str, Enum):
-    """kiwipiepy 토큰 태그 접두사(명사·동사·형용사 계열)."""
-
-    NOUN_FAMILY = "N"
-    VERB_FAMILY = "V"
-    ADJECTIVE = "VA"
-
-
-class KeywordFormat:
-    """여러 파이프라인에서 동일하게 쓰는 키워드 토큰 구분자."""
-
-    SEP = "#"
-
-
-class AnalyzeKeywordsConfig:
-    """형태소 기반 키워드 배치(`analyze_keywords`) 전용 pandas/LLM 외 설정."""
-
-    DTYPE_OBJECT = "object"
-
-
 class AnalyzeKeywordsByLlmConfig:
     """LLM 키워드 추출 배치(`analyze_keywords_by_llm`) 설정.
 
@@ -159,16 +139,6 @@ class AnalyzeSentimentalConfig:
     SCORE_DECIMAL_PLACES = 4
     DTYPE_OBJECT = "object"
     DTYPE_SCORE = "float64"
-
-
-class ClassifyKeywordsConfig:
-    """감성 키워드 양분 배치(`classify_keywords`) 설정.
-
-    LLM 호출 상한은 ``classify_sentimental_keywords(max_rows=...)`` 인자로 제어한다.
-    기본(``None``)은 제한 없음. 테스트·batch 청크 시에만 값을 넘긴다.
-    """
-
-    OPENAI_MODEL = "gpt-5.4-nano"
 
 
 class GetReviewsConfig:
