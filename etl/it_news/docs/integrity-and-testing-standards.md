@@ -28,6 +28,8 @@
 
 테스트 코드 작성 **전에** [testing.md](./testing.md)에 시나리오가 있어야 한다.
 
+**기존 테스트 수정:** Skill `code-integrity-and-testing` §9.1 · [testing.md §2.1](./testing.md) — 구현에 맞춰 assert만 고치지 않는다(불변·INV 유지, 신규는 새 `IT-L*` ID). 검토 없이 조정하면 방어선 침범·작업 2배화 위험.
+
 ---
 
 ## it_news 핵심 불변 규칙
