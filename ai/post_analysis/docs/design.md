@@ -356,4 +356,5 @@ sequenceDiagram
 
 - 리팩토링 이력: [refactoring-post-analysis.md](refactoring-post-analysis.md)
 - 코드 무결성·테스트 기준: [integrity-and-testing-standards.md](integrity-and-testing-standards.md)
+- 함수 인벤토리·분류: [function-inventory.md](function-inventory.md)
 - 코딩 기준: sk-connect-etl-standards Skill (Part A 범용 + Part B it_news ETL 패턴)

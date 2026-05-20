@@ -390,6 +390,8 @@ DB 또는 저장소와 상호작용한다.
 
 현재 `tests/` 및 자동화 테스트는 **미구현** 상태이다. §11 순서에 따라 계약 정의 후 `tests/` 추가를 권장한다.
 
+**함수 분류 상세:** [function-inventory.md](function-inventory.md)
+
 ### 작업 진행 체크리스트
 
 
@@ -408,6 +410,7 @@ DB 또는 저장소와 상호작용한다.
 ## 관련 문서
 
 - [design.md](design.md) — 파이프라인·레이어·에러·환경변수
+- [function-inventory.md](function-inventory.md) — 함수 인벤토리·유형·안전성 분류
 - [refactoring-post-analysis.md](refactoring-post-analysis.md) — 리팩토링 이력
 - sk-connect-etl-standards Skill — ETL 레이어 분리·최소 diff·오케스트레이션 패턴
 

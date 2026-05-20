@@ -22,7 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 def analyze_sentimental() -> None:
-    """``information_cd`` 가 IT 정보(IC02)가 아닌 행만 대상으로, ``sentimental`` 또는 ``score`` 가 NULL인 행만 계산해 MERGE한다."""
+    """``information_cd≠IC02`` 행 중 ``sentimental`` 또는 ``score`` 가 NULL인 행만 BERT 감성 분석 후 MERGE한다.
+
+    Raises:
+        ValueError: 필수 analysis 컬럼 누락.
+
+    Note:
+        함수 유형: A+D+F — 로컬 추론 + DB 조회·저장 + 배치
+        안전성: Level 2 — ``analysis`` 감성·점수 컬럼 UPSERT
+        불변 규칙: IC02(IT 정보) 제외, 이미 채워진 행 스킵
+    """
 
     content_col = AnalysisColumn.CONTENT.value
     info_col = AnalysisColumn.INFORMATION_CD.value

@@ -14,8 +14,18 @@ from postgresql.connection import PostgreDB
 # 테이블 조회 쿼리를 내장 함수로 분리 
 ##############################################
 def _read_table(table: str) -> pd.DataFrame:
-    """테이블 조회 쿼리를 내장 함수로 분리
-    반복 적으로 많이 사용되서 공통 함수로 분리하고 호출해서 사용함
+    """지정 테이블을 ``SELECT *`` 로 읽어 DataFrame으로 반환한다.
+
+    Args:
+        table: PostgreSQL 테이블명 (호출부에서 ``PostgreSqlTable`` 등으로 전달).
+
+    Returns:
+        테이블 전체 행·컬럼 DataFrame.
+
+    Note:
+        함수 유형: D — 저장/조회
+        안전성: Level 1 — 읽기 전용, 운영 DB 데이터 변경 없음
+        부작용: DB SELECT, ``PostgreDB`` 연결 사용
     """
     db = PostgreDB()
     with db.conn.cursor() as cur:
@@ -29,11 +39,14 @@ def _read_table(table: str) -> pd.DataFrame:
 # 서버에서 crwaling 테이블 데이터 로드
 ##############################################
 def get_crawling_data() -> pd.DataFrame:
-    """crawling 테이블의 데이터를 서버로부터 읽어와서 데이터프레임으로 반환하는 함수.
+    """``crawling`` 테이블 전체를 읽어 DataFrame으로 반환한다.
 
-    반환된 데이터 프레임은 이후 키워드 분석, 형태소 분해, 감정분류 등 처리를 위해 사용한다.
-    해당 함수의 역할은 데이터 불러오기만 하는 용도로 사용.
-    사용할 쿼리 현재 버전으로는 직접 정의해서 사용하되 나중에 범용 기능이 되면 분리 예정임.
+    Returns:
+        크롤링 원본 행. ``get_reviews`` 등 1단계 적재의 입력.
+
+    Note:
+        함수 유형: D — 저장/조회
+        안전성: Level 1 — 읽기 전용
     """
     db = PostgreDB()
     table = PostgreSqlTable.CRAWLING.value
@@ -45,7 +58,15 @@ def get_crawling_data() -> pd.DataFrame:
 # 서버에서 shop 테이블 데이터 로드
 ##############################################
 def get_shop_data() -> pd.DataFrame:
-    """`shop` 테이블 전체를 읽어 `map_id` → `shop_id`/`shop_cd` 조회에 사용한다."""
+    """``shop`` 테이블 전체를 읽어 ``map_id`` → ``shop_id``/``shop_cd`` 조회에 사용한다.
+
+    Returns:
+        shop 마스터 DataFrame.
+
+    Note:
+        함수 유형: D — 저장/조회
+        안전성: Level 1 — 읽기 전용
+    """
     return _read_table(PostgreSqlTable.SHOP.value)
 
 
@@ -53,11 +74,14 @@ def get_shop_data() -> pd.DataFrame:
 # 서버에서 analysis 테이블 데이터 로드
 ##############################################
 def get_analysis_data() -> pd.DataFrame:
-    """analysis 테이블의 데이터를 서버로부터 읽어와서 데이터프레임으로 반환하는 함수.
+    """``analysis`` 테이블 전체를 읽어 DataFrame으로 반환한다.
 
-    반환된 데이터 프레임은 이후 키워드 분석, 형태소 분해, 감정분류 등 처리를 위해 사용한다.
-    해당 함수의 역할은 데이터 불러오기만 하는 용도로 사용.
-    사용할 쿼리 현재 버전으로는 직접 정의해서 사용하되 나중에 범용 기능이 되면 분리 예정임.
+    Returns:
+        분석 대상·결과 행. 감성·키워드 배치 및 중복 적재 판단의 입력.
+
+    Note:
+        함수 유형: D — 저장/조회
+        안전성: Level 1 — 읽기 전용
     """
     db = PostgreDB()
     table = PostgreSqlTable.ANALYSIS.value
@@ -78,6 +102,12 @@ def merge_analysis_data(df: pd.DataFrame) -> None:
 
     Args:
         df: ``crawling_id``가 포함된 업서트 대상. 컬럼은 스키마에 맞게 전달한다.
+
+    Note:
+        함수 유형: D — 저장/조회 (UPSERT)
+        안전성: Level 2 — ``analysis`` 행 insert/update, autocommit으로 즉시 반영
+        불변 규칙: ``WHEN MATCHED`` 시 ``COALESCE(x.col, a.col)`` — NULL로 기존 값 덮어쓰지 않음
+        부작용: PostgreSQL MERGE 실행
     """
     # crawling 테이블과 analysis 테이블을 한번에 merge 하는 함수
     merge_analysis_sql = MergeAnalysisConfig.MERGE_SQL

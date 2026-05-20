@@ -38,6 +38,15 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
             - **테스트**: 전량 LLM 호출·비용·시간을 줄이기 위해 (테스트 코드에서 ``max_rows=N`` 전달)
             - **운영**: 네트워크 환경에서 **batch 청크** 단위로 끊어 실행할 때
               (남은 행은 MERGE 반영 후 다음 호출에서 이어서 처리)
+
+    Raises:
+        ValueError: 필수 analysis 컬럼 누락.
+
+    Note:
+        함수 유형: E+D+F — OpenAI LLM + DB 조회·저장 + 배치
+        안전성: Level 3 — 외부 API 호출·과금, ``analysis.keywords`` UPSERT
+        불변 규칙: IC02 제외, 빈 content 제외, keywords 이미 있는 행 스킵
+        에러 처리: 행별 LLM 실패는 로그 후 continue, 성공분만 MERGE
     """
 
     # 데이터 로드 (데이터 로드 부분을 데이터에서 서버 쿼리로 변경 )

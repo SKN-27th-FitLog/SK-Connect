@@ -20,7 +20,12 @@ class BertTokenizer(metaclass=Singleton):
         """HF 허브에서 토크나이저와 시퀀스 분류 모델을 불러온다.
 
         Args:
-            model_name: 미지정 시 `AnalyzeSentimentalConfig`의 기본 모델.
+            model_name: 미지정 시 ``AnalyzeSentimentalConfig.MODEL_NAME`` 사용.
+
+        Note:
+            함수 유형: E — 외부 연동 (Hugging Face Hub)
+            안전성: Level 1 — 네트워크·디스크 캐시 읽기, DB/운영 데이터 미변경
+            부작용: 모델·토크나이저 메모리 로드
         """
         name = model_name or AnalyzeSentimentalConfig.MODEL_NAME
         self.model_name = name
@@ -30,15 +35,52 @@ class BertTokenizer(metaclass=Singleton):
         self.model = AutoModelForSequenceClassification.from_pretrained(name)
 
     def tokenize(self, text: str) -> dict:
-        """문장을 입력 텐서로 인코딩한다 (`encode_plus`, `pt`)."""
+        """문장을 PyTorch 입력 텐서로 인코딩한다.
+
+        Args:
+            text: 감성 분류 대상 문장.
+
+        Returns:
+            ``encode_plus(..., return_tensors="pt")`` 결과 dict.
+
+        Note:
+            함수 유형: A — 순수 계산 (추론 전처리)
+            안전성: Level 0 — 입력만으로 결과 생성 (모델은 이미 로드됨)
+        """
         return self.tokenizer.encode_plus(text, return_tensors="pt")
 
     def decode(self, token_ids: list) -> str:
-        """토큰 id 시퀀스를 문자열로 복원한다."""
+        """토큰 id 시퀀스를 원문 문자열로 복원한다.
+
+        Args:
+            token_ids: 토크나이저가 반환한 id 목록.
+
+        Returns:
+            디코딩된 문자열.
+
+        Note:
+            함수 유형: A — 순수 계산
+            안전성: Level 0
+        """
         return self.tokenizer.decode(token_ids)
 
     def predict_sentiment(self, text: str) -> dict:
-        """문장에 대한 긍·부정 softmax 확률과 대표 라벨 dict를 반환한다 (`SentimentResultKey` 키)."""
+        """문장에 대한 긍·부정 softmax 확률과 대표 라벨 dict를 반환한다.
+
+        ``SentimentResultKey`` 키(``sentimental``, ``score``, ``positive_score``,
+        ``negative_score``)로 결과를 담는다. ``score``는 두 클래스 확률 중 큰 값이다.
+
+        Args:
+            text: 감성 분류 대상 본문.
+
+        Returns:
+            감성 라벨·점수 dict.
+
+        Note:
+            함수 유형: A — 순수 계산 (로컬 추론)
+            안전성: Level 0 — DB·API 쓰기 없음
+            불변 규칙: ``positive_score >= negative_score`` 이면 ``sentimental=positive``
+        """
         inputs = self.tokenizer(
             text,
             return_tensors="pt",

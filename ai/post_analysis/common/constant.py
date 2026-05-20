@@ -28,7 +28,12 @@ class CrawlingColumn(str, Enum):
 
     @classmethod
     def allowed_crawling_columns(cls) -> frozenset[str]:
-        """DB/INSERT용으로 허용되는 본문 칼럼 집합(클리닝 전용·에러 필드 제외)."""
+        """DB/INSERT용으로 허용되는 본문 칼럼 집합(클리닝 전용·에러 필드 제외).
+
+        Note:
+            함수 유형: A — 순수 계산
+            안전성: Level 0 — 외부 상태 접근·변경 없음
+        """
         return frozenset(
             {
                 cls.TITLE,
@@ -73,7 +78,12 @@ class AnalysisColumn(str, Enum):
 
     @classmethod
     def allowed_analysis_columns(cls) -> frozenset[str]:
-        """파이프라인 MERGE SQL에 대응하는 분석 칼럼 집합."""
+        """파이프라인 MERGE SQL에 대응하는 분석 칼럼 집합.
+
+        Note:
+            함수 유형: A — 순수 계산
+            안전성: Level 0 — 외부 상태 접근·변경 없음
+        """
         return frozenset(
             {
                 cls.CRAWLING_ID,

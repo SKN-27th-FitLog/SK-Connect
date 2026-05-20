@@ -7,6 +7,14 @@ from postgresql.connection import PostgreDB
 
 
 def main() -> None:
+    """DB 연결 및 ``crawling`` 샘플 조회로 로컬 환경을 검증한다.
+
+    ``python -m postgresql`` 진입점.
+
+    Note:
+        함수 유형: F — 오케스트레이션 (진단)
+        안전성: Level 1 — 연결 테스트 + LIMIT 5 SELECT
+    """
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 

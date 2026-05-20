@@ -37,6 +37,21 @@ def _filter_rows_by_shop_match(
     - ``map_id`` 결측·shop 0건 → ``GetReviews.Warn.shop_not_found`` 후 드랍
     - shop 2건 이상 → ``GetReviews.Warn.ambiguous_shop`` 후 드랍
     - 1:1만 통과 (``shop_id``, ``shop_cd``는 호출 측에서 merge)
+
+    Args:
+        df_crawling: shop 매칭 대상 crawling 행.
+        df_shop: shop 마스터.
+        crawling_id_col: crawling 쪽 식별 컬럼명.
+        map_id_col: crawling 쪽 ``map_id`` 컬럼명.
+
+    Returns:
+        ``shop_id``·``shop_cd``가 붙은 1:1 매칭 행만 남긴 DataFrame.
+        매칭 실패 행은 제외(``logger.warning``).
+
+    Note:
+        함수 유형: A+B+C — 순수 변환 + shop 유효성 검증
+        안전성: Level 0 — DB 미접근 (입력 DataFrame만 변환)
+        부작용: ``logger.warning`` (매칭 실패 행)
     """
     if df_crawling.empty:
         return df_crawling
@@ -118,15 +133,23 @@ def _filter_rows_by_shop_match(
 
 
 def get_reviews() -> None:
-    """
-    crawling 테이블에서 데이터를 가져와 analysis 테이블로 옮기는 함수
-    1. crawling 테이블을 가져옴
-    2. analysis 테이블의 crawling_id 컬럼값을 가져옴
-    3. crawling 테이블의 데이터를 analysis 테이블 데이터에 맞게 데이터 프레임 조정
-    4. crawling_id (analysis) 가 이미 존재하는 row는 drop (신규만 추가)
-    5. shop 테이블에서 map_id로 shop_id·shop_cd 1:1 매칭 (실패·다중 매칭 행은 warning 후 제외)
-    6. created_dt 컬럼 값은 now로 설정 (입력되는 시간이 날짜임)
-    7. 나머지 데이터는 설정에 맞춰서 merge 함
+    """``crawling`` 신규 행을 ``analysis`` 스키마로 변환해 MERGE 적재한다.
+
+    처리 순서:
+        1. ``crawling`` / ``analysis`` / ``shop`` 조회
+        2. 이미 ``analysis``에 있는 ``crawling_id`` 제외
+        3. ``category_cd=CA07``(IT) 제외
+        4. ``_filter_rows_by_shop_match``로 shop 1:1 매칭
+        5. analysis 컬럼 매핑, ``information_cd=IC01``, ``created_dt=now``
+        6. ``merge_analysis_data`` UPSERT
+
+    Raises:
+        ValueError: 필수 crawling/analysis 컬럼 누락.
+
+    Note:
+        함수 유형: B+D+F — 변환 + DB 조회·저장 + 배치 오케스트레이션
+        안전성: Level 2 — ``analysis`` UPSERT (autocommit)
+        불변 규칙: 신규 ``crawling_id``만 insert, ``information_cd=IC01``(맛집)
     """
     ###################################################
     # 데이터 설정

@@ -25,6 +25,11 @@ def run_pipeline(max_rows: int | None = None) -> None:
     Raises:
         ValueError: ``max_rows``가 0 이하일 때.
         Exception: 어느 단계에서든 실패 시 해당 예외를 그대로 전파한다.
+
+    Note:
+        함수 유형: F — 오케스트레이션
+        안전성: Level 2~3 — 1·2단계 Level 2, 3단계 LLM Level 3
+        불변 규칙: ``get_reviews`` → ``analyze_sentimental`` → ``analyze_keywords_by_llm`` 순서 고정
     """
     if max_rows is not None and max_rows <= 0:
         raise ValueError(PostAnalysisErrors.Pipeline.invalid_max_rows(max_rows))
@@ -50,6 +55,12 @@ def run_pipeline(max_rows: int | None = None) -> None:
 
 
 def _parse_args() -> argparse.Namespace:
+    """CLI 인자(``--max-rows``)를 파싱한다.
+
+    Note:
+        함수 유형: C — 입력 검증 (argparse)
+        안전성: Level 0 — 외부 상태 변경 없음
+    """
     parser = argparse.ArgumentParser(description="post_analysis 전체 파이프라인 실행")
     parser.add_argument(
         "--max-rows",
