@@ -1,6 +1,6 @@
 # post_analysis 리팩토링 이력
 
-sk-connect-etl-standards Part A 기준으로 2026-05 구조 정리.  
+code-structure-standards(구 sk-connect-etl-standards) 기준으로 2026-05 구조 정리.  
 오케스트레이션은 루트 스크립트 3개 + 외부 스케줄러 연동.
 
 ## Phase 1 — 인프라 분리

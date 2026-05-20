@@ -1,6 +1,6 @@
 # SK-Connect ETL 코딩 기준 (it_news)
 
-이 문서는 it_news ETL 및 동일 패턴의 ETL 작업 시 적용하는 코드 구조·수정 규칙의 원본이다. Cursor Skill 배포본은 `~/.cursor/skills/sk-connect-etl-standards/SKILL.md`와 동일 내용을 유지한다.
+이 문서는 it_news ETL 및 동일 패턴 작업 시 적용하는 **프로젝트별** 코드 구조·수정 규칙의 원본이다. 범용 함수·레이어 배치 양식은 Cursor Skill **`code-structure-standards`** (`~/.cursor/skills/code-structure-standards/SKILL.md`)를 따른다.
 
 ## 1. 디렉터리·진입점
 

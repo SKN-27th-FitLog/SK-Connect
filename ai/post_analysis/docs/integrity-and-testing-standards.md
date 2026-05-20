@@ -391,7 +391,7 @@ DB 또는 저장소와 상호작용한다.
 
 ### 테스트 디렉터리
 
-현재 `tests/` 및 자동화 테스트는 **미구현** 상태이다. §11 순서에 따라 계약 정의 후 `tests/` 추가를 권장한다.
+`tests/unit/`에 **44건** pytest 구현 완료. 상세·실행 방법은 [testing.md](testing.md)를 따른다.
 
 **함수 분류 상세:** [function-inventory.md](function-inventory.md)  
 **테스트 기준(통합):** [testing.md](testing.md)
@@ -419,7 +419,7 @@ DB 또는 저장소와 상호작용한다.
 - [design.md](design.md) — 파이프라인·레이어·에러·환경변수
 - [function-inventory.md](function-inventory.md) — post_analysis 함수 인벤토리
 - [refactoring-post-analysis.md](refactoring-post-analysis.md) — 리팩토링 이력
-- **sk-connect-etl-standards** Skill — ETL 레이어 분리·최소 diff
+- **code-structure-standards** Skill — 레이어·함수 배치 기본 양식
 
 ---
 

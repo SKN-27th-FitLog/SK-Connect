@@ -33,7 +33,7 @@ post_analysis/
 
 ### 레이어·의존 방향
 
-sk-connect-etl-standards Part A/B와 동일하게 **common ↔ postgresql**을 분리한다.
+**code-structure-standards** Skill과 동일하게 **common ↔ postgresql**을 분리한다.
 
 | 패키지 | 역할 |
 |--------|------|
@@ -359,4 +359,4 @@ sequenceDiagram
 - 함수 인벤토리·분류: [function-inventory.md](function-inventory.md)
 - 테스트 기준: [testing.md](testing.md)
 - 테스트 기준: [testing.md](testing.md)
-- 코딩 기준: sk-connect-etl-standards Skill (Part A 범용 + Part B it_news ETL 패턴)
+- 구조·함수 배치: **code-structure-standards** Skill; 계약·테스트: **code-integrity-and-testing** Skill · [testing.md](testing.md)
