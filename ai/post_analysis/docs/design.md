@@ -355,4 +355,5 @@ sequenceDiagram
 ## 관련 문서
 
 - 리팩토링 이력: [refactoring-post-analysis.md](refactoring-post-analysis.md)
+- 코드 무결성·테스트 기준: [integrity-and-testing-standards.md](integrity-and-testing-standards.md)
 - 코딩 기준: sk-connect-etl-standards Skill (Part A 범용 + Part B it_news ETL 패턴)
