@@ -248,6 +248,11 @@ def format_hhmmss(dt: datetime) -> str:
     return dt.strftime("%H%M%S")
 
 
+_RELATIVE_TIME_IN_TEXT = re.compile(
+    r"(\d+\s*(?:초|분|시간|일|주|개월|년)\s*전|방금(?:\s*전)?)"
+)
+
+
 def korean_relative_time(text: str, now: Optional[datetime] = None) -> Optional[datetime]:
     """'8시간전', '3일전' 등 한국어 상대 시각 문자열을 now 기준 datetime으로 변환한다.
 
@@ -279,6 +284,49 @@ def korean_relative_time(text: str, now: Optional[datetime] = None) -> Optional[
         return now
 
     return None
+
+
+def extract_korean_relative_time_from_text(
+    text: str, now: Optional[datetime] = None
+) -> Optional[datetime]:
+    """문장·topicinfo 전체 텍스트에서 첫 상대 시각(예: `6시간전`)을 찾아 datetime으로 변환한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: 미매칭 시 `None`; 목록 HTML처럼 span 밖 텍스트 노드에 시각이 있을 때 사용
+    """
+    if not text or not text.strip():
+        return None
+    match = _RELATIVE_TIME_IN_TEXT.search(text)
+    if not match:
+        return None
+    compact = re.sub(r"\s+", "", match.group(1))
+    return korean_relative_time(compact, now=now)
+
+
+def parse_discourse_iso_datetime(iso_str: str) -> datetime:
+    """Discourse ISO 8601(`…Z`, 밀리초 포함) 문자열을 naive UTC datetime으로 변환한다.
+
+    Note:
+        함수 유형: A — 순수 계산
+        안전성: Level 0
+        불변 규칙: 파싱 실패 시 pandas가 예외
+    """
+    ts = pd.to_datetime(iso_str, utc=True)
+    if getattr(ts, "tzinfo", None) is not None:
+        return ts.tz_convert("UTC").tz_localize(None).to_pydatetime()
+    return ts.to_pydatetime()
+
+
+def is_created_after_watermark(created_at: datetime, threshold: datetime) -> bool:
+    """`run_crawl_and_save`·목록 수집과 동일: `created_at > threshold` (INV-04).
+
+    Note:
+        함수 유형: C — 워터마크 판정
+        안전성: Level 0
+    """
+    return pd.Timestamp(created_at) > pd.Timestamp(threshold)
 
 
 ##############################################

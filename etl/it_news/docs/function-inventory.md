@@ -127,7 +127,7 @@
 
 | 심볼 | 유형 | 안전성 | 책임 |
 |------|------|--------|------|
-| `get_article_list` | E | 3 | 목록 페이지 HTTP 순회→URL 목록 |
+| `get_article_list` | E | 3 | 목록 HTTP→URL; 워터마크·조기 종료(pytorch JSON, geeknews HTML) |
 | `parse_article` | E | 3 | 1 URL→`CrawlingColumn` dict; 실패 시 예외 |
 | `slicing_*` | E | 0* | 사이트 DOM/API 필드 추출 (*입력은 이미 파싱된 soup/JSON) |
 | `crawling_thread_*` | F | 2 | `run_crawl_and_save` 위임·진입 |

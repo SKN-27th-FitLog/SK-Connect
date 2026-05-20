@@ -29,6 +29,11 @@ from bs4 import BeautifulSoup
 from common.constant import CodeTable
 from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service
 from common.crawling_http import run_crawl_and_save, user_agent_headers
+from common.utils import (
+    coalesce_last_created_at,
+    is_created_after_watermark,
+    parse_discourse_iso_datetime,
+)
 from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
@@ -39,40 +44,72 @@ logger = logging.getLogger(__name__)
 # 게시글 전체 목록 주회 
 #########################################################################
 
-def get_article_list() -> list[str]:
-    """pytorch(Discourse) 목록 페이지를 순회해 게시글 절대 URL 목록을 수집한다.
+def _topic_url_from_list_item(site_base: str, topic: dict) -> str:
+    """Discourse 목록 JSON 토픽 dict → 절대 게시글 URL."""
+    slug = topic.get("slug") or "topic"
+    return urljoin(site_base, f"t/{slug}/{topic['id']}")
+
+
+def _is_above_watermark(created_at: datetime, threshold: datetime) -> bool:
+    """목록 단계: 워터마크보다 최신(`created_at`)인 토픽만 수집 대상.
 
     Note:
-        함수 유형: E — HTTP·HTML 파싱
-        안전성: Level 3
-        불변 규칙: page=0부터; 최대 `PAGE_COUNT`; 빈 페이지면 종료
-        부작용: discuss.pytorch.kr 요청
+        함수 유형: C — 판정(지역)
+        안전성: Level 0
+        불변 규칙: `common.utils.is_created_after_watermark`와 동일 (INV-04)
     """
-    article_urls = []
+    return is_created_after_watermark(created_at, threshold)
+
+
+def get_article_list(last_created_at: Optional[object] = None) -> list[str]:
+    """pytorch(Discourse) 목록 JSON을 순회해 워터마크 통과 URL만 수집한다.
+
+    Note:
+        함수 유형: E — HTTP·JSON
+        안전성: Level 3
+        불변 규칙: `created_at > threshold`만 URL 추가; pinned 제외; 비고정 토픽이
+            한 페이지에 없으면 다음 페이지 중단; page=0부터 최대 `PAGE_COUNT`
+        부작용: discuss.pytorch.kr 목록 `.json` 요청
+    """
+    threshold = coalesce_last_created_at(last_created_at)
+    article_urls: list[str] = []
     list_origin = urlparse(Service.PYTORCH.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
+    list_json_url = Service.PYTORCH.url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX
 
-    # discuss.pytorch.kr (Discourse) 목록은 ?page=0 이 첫 페이지 (0 인덱스)
     page_num = 0
 
     with tqdm(desc="pytorch 게시글 목록 URL 수집", unit="page") as pbar:
-        # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
-        while True:
-            url = Service.PYTORCH.url + f"?page={page_num}"
-            response = requests.get(url, headers=user_agent_headers())
-            soup = BeautifulSoup(response.text, "html.parser")
+        while page_num <= C_Constant.PAGE_COUNT:
+            response = requests.get(
+                list_json_url,
+                params={"page": page_num},
+                headers=user_agent_headers(),
+            )
+            response.raise_for_status()
+            topics = response.json().get("topic_list", {}).get("topics", [])
 
-            # Discourse 토픽 목록: tr.topic-list-item … td.main-link 안의 a.title(클래스명 title; CrawlingColumn.TITLE 컬럼과 무관)
-            articles = soup.select("tr.topic-list-item td.main-link a.title")
-            # 게시글이 없으면 반복문을 종료한다.
-
-            if not articles:
+            if not topics:
                 break
-            for a in tqdm(articles, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
-                href = a.get("href")
-                if href:
-                    article_urls.append(urljoin(site_base, href))
+
+            page_has_new = False
+            for topic in tqdm(
+                topics,
+                desc="게시글 URL 수집(페이지 내)",
+                unit="개",
+                leave=False,
+            ):
+                if topic.get("pinned"):
+                    continue
+                created_at = parse_discourse_iso_datetime(topic["created_at"])
+                if not _is_above_watermark(created_at, threshold):
+                    continue
+                page_has_new = True
+                article_urls.append(_topic_url_from_list_item(site_base, topic))
+
             pbar.update(1)
+            if not page_has_new:
+                break
             if page_num >= C_Constant.PAGE_COUNT:
                 break
             time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
@@ -237,7 +274,7 @@ def crawling_thread_pytorch(
     """
     return run_crawl_and_save(
         service=Service.PYTORCH,
-        article_urls=get_article_list(),
+        article_urls=get_article_list(last_created_at=last_created_at),
         parse_article=parse_article,
         tqdm_desc="pytorch 게시글 파싱",
         run_time=run_time,
@@ -260,4 +297,3 @@ if __name__ == "__main__":
         len(df_ok),
         len(df_bad),
     )
-

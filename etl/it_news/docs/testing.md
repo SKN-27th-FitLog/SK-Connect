@@ -13,7 +13,7 @@ Skill `code-integrity-and-testing` · [function-inventory.md](./function-invento
 | 항목 | 상태 |
 |------|------|
 | 테스트 케이스 문서 | **본 문서** (2026-05-20) |
-| `tests/` · `pytest.ini` | **구현** (`tests/unit/` 59 tests) |
+| `tests/` · `pytest.ini` | **구현** (`tests/unit/` 63 tests) |
 | 시나리오 ID | `IT-L{등급}-{모듈}-{순번}` |
 | G1 MERGE 차단 | `tests/conftest.py` autouse |
 | 의존성 | `requirements.txt` — `pytest>=8.0.0` |
@@ -27,7 +27,7 @@ Skill `code-integrity-and-testing` · [function-inventory.md](./function-invento
 | P1 | Level 1 | 6 | **6** (`test_l1_*`) |
 | P2 | Level 2 | 12 | **12** (`test_l2_*`) |
 | P3 | Level 3 | 8 | **7** (`test_l3_*`; `IT-L3-CRAWL-004` slow 미구현) |
-| **합계** | | **66** | **59** (문서 대비 7건은 통합·slow로 생략 또는 G1-002 문서 전용) |
+| **합계** | | **66** | **63** (문서 대비 3건은 통합·slow로 생략 또는 G1-002 문서 전용) |
 
 ### 1.2 파일 ↔ 시나리오 매핑
 
@@ -49,8 +49,8 @@ Skill `code-integrity-and-testing` · [function-inventory.md](./function-invento
 | `test_l2_util_csv.py` | IT-L2-UTIL-001 |
 | `test_l2_cln_indirect.py` | IT-L2-CLN-001 |
 | `test_l2_pln_indirect.py` | IT-L2-PLN-001 |
-| `test_l3_geek_mock.py` | IT-L3-GEEK-001~003 |
-| `test_l3_pt_mock.py` | IT-L3-PT-001~003 |
+| `test_l3_geek_mock.py` | IT-L3-GEEK-001~004 |
+| `test_l3_pt_mock.py` | IT-L3-PT-001~004 |
 | `test_l3_pln_indirect.py` | IT-L3-PLN-002 |
 
 ---
@@ -126,7 +126,7 @@ pythonpath = .
 
 | 모듈 | ID 범위 | 대상 함수 | 분류 |
 |------|---------|-----------|------|
-| UTIL | 001~010 | `build_csv_path`, `format_hhmmss`, `parse_segment_int`, `information_cd_for_path`, `korean_relative_time`, `coalesce_last_created_at`, `default_last_collected_at`, `user_agent_headers` | 정상·실패·불변 |
+| UTIL | 001~010 | `build_csv_path`, …, `is_created_after_watermark`, `parse_discourse_iso_datetime`, `extract_korean_relative_time_from_text` | 정상·실패·불변 |
 | PRE | 001~010 | `separate_success_and_fail`, `cleaning_*`, `wrap_article_url_as_html_anchor`, `cleaning_data_in_df` | 정상·실패·불변 |
 | ERR | 001~003 | `EtlErrors.*` | 불변 |
 | CST | 001~004 | `Service`, `Stage`, `Status`, `CodeTable` | 불변 |
@@ -174,9 +174,11 @@ pythonpath = .
 
 | ID | 대상 |
 |----|------|
-| IT-L3-GEEK-001 | `get_article_list` — mock HTML·URL 개수 |
+| IT-L3-GEEK-001 | `get_article_list` — HTML 목록·워터마크 필터 |
+| IT-L3-GEEK-004 | `get_article_list` — 전 페이지 워터마크 이하 시 조기 종료 |
 | IT-L3-GEEK-002 | `parse_article` — mock response·dict 키 |
-| IT-L3-PT-001 | `get_article_list` — Discourse 목록 mock |
+| IT-L3-PT-001 | `get_article_list` — JSON 목록·워터마크 필터 |
+| IT-L3-PT-004 | `get_article_list` — 전 페이지 구간 워터마크 이하 시 조기 종료 |
 | IT-L3-PT-002 | `parse_article` — HTML+JSON mock |
 | IT-L3-GEEK-003 | `crawling_thread_geeknews` — `run_crawl_and_save` 위임 (patch) |
 | IT-L3-PT-003 | `crawling_thread_pytorch` — 위임 (patch) |
@@ -545,7 +547,7 @@ pip install -r requirements.txt
 python -m pytest -v
 ```
 
-**기대 결과:** `59 passed` (DB·실 HTTP 불필요)
+**기대 결과:** `63 passed` (DB·실 HTTP 불필요)
 
 | 작업 | 명령 | `crawling` 변경 |
 |------|------|-----------------|
@@ -562,7 +564,7 @@ python -m pytest -v
 
 - [x] 테스트 케이스 문서 (`testing.md`)
 - [x] 불변 규칙 (`integrity-and-testing-standards.md` INV-*)
-- [x] `tests/` · G1 · pytest 59건 구현
+- [x] `tests/` · G1 · pytest 63건 구현
 - [ ] 로컬 `pytest` passed 확인(사용자 실행)
 - [ ] `readonly_smoke` · CI
 

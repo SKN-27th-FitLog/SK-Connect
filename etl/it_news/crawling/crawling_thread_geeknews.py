@@ -29,7 +29,12 @@ from bs4 import BeautifulSoup
 from common.constant import CodeTable, CrawlingColumn, CrawlingConstant as C_Constant, Service
 from common.crawling_http import run_crawl_and_save, user_agent_headers
 from common.errors import EtlErrors
-from common.utils import korean_relative_time
+from common.utils import (
+    coalesce_last_created_at,
+    extract_korean_relative_time_from_text,
+    is_created_after_watermark,
+    korean_relative_time,
+)
 from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
@@ -38,16 +43,43 @@ logger = logging.getLogger(__name__)
 # 게시글 전체 목록 주회 
 #########################################################################
 
-def get_article_list() -> list[str]:
-    """geeknews 목록 페이지를 순회해 게시글 절대 URL 목록을 수집한다.
+def _created_at_from_list_row(row: BeautifulSoup) -> Optional[datetime]:
+    """목록 `div.topic_row`의 topicinfo에서 상대 시각을 datetime으로 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출(지역)
+        안전성: Level 0
+        불변 규칙: 목록 HTML은 시각이 span 밖 텍스트 노드인 경우가 있음
+    """
+    topicinfo = row.select_one("div.topicinfo")
+    if topicinfo is None:
+        return None
+    return extract_korean_relative_time_from_text(topicinfo.get_text(" ", strip=True))
+
+
+def _is_above_watermark(created_at: datetime, threshold: datetime) -> bool:
+    """목록 단계: 워터마크보다 최신(`created_at`)인 토픽만 수집 대상.
+
+    Note:
+        함수 유형: C — 판정(지역)
+        안전성: Level 0
+        불변 규칙: `common.utils.is_created_after_watermark`와 동일 (INV-04)
+    """
+    return is_created_after_watermark(created_at, threshold)
+
+
+def get_article_list(last_created_at: Optional[object] = None) -> list[str]:
+    """geeknews 목록 HTML을 순회해 워터마크 통과 URL만 수집한다.
 
     Note:
         함수 유형: E — HTTP·HTML 파싱
         안전성: Level 3
-        불변 규칙: 최대 `PAGE_COUNT` 페이지; 게시글 없으면 종료
+        불변 규칙: `created_at > threshold`만 URL 추가; 한 페이지에 신규 없으면
+            다음 페이지 중단; page=1부터 최대 `PAGE_COUNT`; 행 없으면 종료
         부작용: news.hada.io 요청
     """
-    article_urls = []
+    threshold = coalesce_last_created_at(last_created_at)
+    article_urls: list[str] = []
     list_origin = urlparse(Service.GEEKNEWS.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
 
@@ -55,23 +87,32 @@ def get_article_list() -> list[str]:
     page_num = 1
 
     with tqdm(desc="geeknews 게시글 목록 URL 수집", unit="page") as pbar:
-        # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
-        while True:
+        while page_num <= C_Constant.PAGE_COUNT:
             url = Service.GEEKNEWS.url + f"?page={page_num}"
             response = requests.get(url, headers=user_agent_headers())
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # 긱뉴스(하다) 목록: 각 행의 GN 토픽 링크는 div.topicdesc 내 a[href^='topic?id=']
-            articles = soup.select("div.topic_row div.topicdesc a[href^='topic?id=']")
-            # 게시글이 없으면 반복문을 종료한다.
-
-            if not articles:
+            rows = soup.select("div.topic_row")
+            if not rows:
                 break
-            for a in tqdm(articles, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
-                href = a.get("href")
-                if href:
-                    article_urls.append(urljoin(site_base, href))
+
+            page_has_new = False
+            for row in tqdm(rows, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
+                link = row.select_one('div.topicdesc a[href^="topic?id="]')
+                if not link:
+                    continue
+                href = link.get("href")
+                if not href:
+                    continue
+                created_at = _created_at_from_list_row(row)
+                if created_at is None or not _is_above_watermark(created_at, threshold):
+                    continue
+                page_has_new = True
+                article_urls.append(urljoin(site_base, href))
+
             pbar.update(1)
+            if not page_has_new:
+                break
             if page_num >= C_Constant.PAGE_COUNT:
                 break
             time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
@@ -175,16 +216,18 @@ def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
         불변 규칙: 미발견 시 `EtlErrors.Crawl.created_at_not_found` 예외
     """
     topicinfo = soup.select_one("div.topicinfo")
+    if topicinfo is None:
+        raise ValueError(EtlErrors.Crawl.created_at_not_found())
 
-    # topicinfo 내 span 태그 내 텍스트를 차례대로 추출 
-    # korean_relative_time 함수를 사용해 datetime으로 변환
     for span in topicinfo.find_all("span"):
-        text = span.get_text(strip=True)
-        dt = korean_relative_time(text)
-        if dt is not None: 
+        dt = korean_relative_time(span.get_text(strip=True))
+        if dt is not None:
             return dt
 
-    # 모든 span을 순회했는데도 작성일자를 찾을 수 없으면 예외 발생 
+    dt = extract_korean_relative_time_from_text(topicinfo.get_text(" ", strip=True))
+    if dt is not None:
+        return dt
+
     raise ValueError(EtlErrors.Crawl.created_at_not_found())
 
 
@@ -247,7 +290,7 @@ def crawling_thread_geeknews(
     """
     return run_crawl_and_save(
         service=Service.GEEKNEWS,
-        article_urls=get_article_list(),
+        article_urls=get_article_list(last_created_at=last_created_at),
         parse_article=parse_article,
         tqdm_desc="geeknews 게시글 파싱",
         run_time=run_time,

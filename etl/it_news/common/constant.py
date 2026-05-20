@@ -40,6 +40,7 @@ class CrawlingConstant:
     # requests `headers=`, CSV 입출력, Discourse API 보조 URL
     USER_AGENT_HEADER = "User-Agent"
     CSV_ENCODING = "utf-8"
+    # Discourse 토픽·카테고리 목록 API URL 접미사 (`{base}.json`, 목록은 `?page=`)
     PYTORCH_DISCOURSE_JSON_SUFFIX = ".json"
     # DB/크롤에서 조회수·점수·댓글 등 없을 때 쓰는 기본 정수(스키마·파싱 실패·미제공)
     DEFAULT_INT = 0

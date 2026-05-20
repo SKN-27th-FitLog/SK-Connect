@@ -11,9 +11,12 @@ from common.utils import (
     build_csv_path,
     coalesce_last_created_at,
     default_last_collected_at,
+    extract_korean_relative_time_from_text,
     format_hhmmss,
     information_cd_for_path,
+    is_created_after_watermark,
     korean_relative_time,
+    parse_discourse_iso_datetime,
     parse_segment_int,
 )
 
@@ -86,3 +89,21 @@ def test_it_l0_util_008_user_agent_headers() -> None:
     """IT-L0-UTIL-008: user_agent_headers 키·값."""
     headers = user_agent_headers()
     assert headers[CrawlingConstant.USER_AGENT_HEADER] == CrawlingConstant.USER_AGENT
+
+
+def test_it_l0_util_009_watermark_and_discourse_time() -> None:
+    """IT-L0-UTIL-009: is_created_after_watermark·parse_discourse_iso_datetime."""
+    threshold = datetime(2026, 5, 19, 12, 0, 0)
+    created = parse_discourse_iso_datetime("2026-05-20T06:30:08.822Z")
+    assert is_created_after_watermark(created, threshold)
+    assert not is_created_after_watermark(
+        parse_discourse_iso_datetime("2020-01-01T00:00:00.000Z"), threshold
+    )
+
+
+def test_it_l0_util_010_extract_korean_relative_time_from_text() -> None:
+    """IT-L0-UTIL-010: extract_korean_relative_time_from_text (목록 topicinfo용)."""
+    now = datetime(2026, 5, 20, 12, 0, 0)
+    text = "3 points by user 6시간전 | 댓글 1개"
+    assert extract_korean_relative_time_from_text(text, now=now) == now - timedelta(hours=6)
+    assert extract_korean_relative_time_from_text("no time here", now=now) is None
