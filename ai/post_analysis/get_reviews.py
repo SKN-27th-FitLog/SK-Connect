@@ -42,10 +42,18 @@ def _filter_rows_by_shop_match(
         return df_crawling
 
     shop_map_col = ShopColumn.MAP_ID.value
+
+    #################################################
+    # shop · crawling map_id 타입 정규화 (merge 키 일치)
+    #################################################
     df_shop = df_shop.copy()
     df_shop[shop_map_col] = pd.to_numeric(df_shop[shop_map_col], errors="coerce")
 
     warn = PostAnalysisErrors.GetReviews.Warn
+
+    #################################################
+    # map_id 결측 행 — shop 조회 불가 → warning 후 제외
+    #################################################
     null_mask = df_crawling[map_id_col].isna()
     for _, row in df_crawling[null_mask].iterrows():
         logger.warning(warn.shop_not_found(row[crawling_id_col], row[map_id_col]))
@@ -56,6 +64,9 @@ def _filter_rows_by_shop_match(
 
     df_work[map_id_col] = pd.to_numeric(df_work[map_id_col], errors="coerce")
 
+    #################################################
+    # map_id별 shop 건수 집계 → 1:1만 통과 (0건·N건은 드랍)
+    #################################################
     shop_counts = df_shop.groupby(shop_map_col, dropna=False).size()
 
     merged = df_work.merge(
@@ -66,11 +77,13 @@ def _filter_rows_by_shop_match(
     )
     merged["_shop_n"] = merged["_shop_n"].fillna(0).astype(int)
 
+    # shop 0건 (map_id에 해당 가게 없음)
     for _, row in merged[merged["_shop_n"] == 0].iterrows():
         logger.warning(
             warn.shop_not_found(row[crawling_id_col], row[map_id_col])
         )
 
+    # shop 2건 이상 — 현재는 1:1 가정, 선택 기준 확정 시 후속 작업
     for _, row in merged[merged["_shop_n"] > 1].iterrows():
         logger.warning(
             warn.ambiguous_shop(
@@ -80,6 +93,9 @@ def _filter_rows_by_shop_match(
 
     ok = merged[merged["_shop_n"] == 1].copy()
 
+    #################################################
+    # 1:1 map_id에 shop_id · shop_cd 부여
+    #################################################
     one_to_one_maps = shop_counts[shop_counts == 1].index
     shop_lookup = df_shop[df_shop[shop_map_col].isin(one_to_one_maps)][
         [shop_map_col, ShopColumn.SHOP_ID.value, ShopColumn.SHOP_CD.value]
@@ -95,6 +111,7 @@ def _filter_rows_by_shop_match(
     if shop_map_col + "_shop" in ok.columns:
         ok = ok.drop(columns=[shop_map_col + "_shop"])
 
+    # crawling 원본 컬럼 + shop 조회 결과만 반환
     crawl_cols = [c for c in df_crawling.columns if c in ok.columns]
     extra = [ShopColumn.SHOP_ID.value, ShopColumn.SHOP_CD.value]
     return ok[crawl_cols + [c for c in extra if c in ok.columns]]

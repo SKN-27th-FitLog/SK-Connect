@@ -10,8 +10,13 @@ from common.constant import AnalysisColumn
 from postgresql.config import MergeAnalysisConfig, PostgreSqlTable
 from postgresql.connection import PostgreDB
 
-
+##############################################
+# 테이블 조회 쿼리를 내장 함수로 분리 
+##############################################
 def _read_table(table: str) -> pd.DataFrame:
+    """테이블 조회 쿼리를 내장 함수로 분리
+    반복 적으로 많이 사용되서 공통 함수로 분리하고 호출해서 사용함
+    """
     db = PostgreDB()
     with db.conn.cursor() as cur:
         cur.execute(f"SELECT * FROM {table}")
