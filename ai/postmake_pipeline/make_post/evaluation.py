@@ -13,6 +13,20 @@ logger = set_logging()
 _MAX_SOURCE_CHARS_PER_ROW = 600
 # 평가 프롬프트에 같이 보낼 source row 최대 개수
 _MAX_SOURCE_ROWS = 12
+_GENERIC_CLICHE_PHRASES = (
+    "좋은 시간을 보냈",
+    "만족스러웠",
+    "만족스러운",
+    "기분 좋게",
+    "다음에 또",
+    "다시 찾고 싶은",
+    "추천하고 싶은",
+    "한 번쯤",
+    "잘 어울렸",
+    "인상적이었",
+    "기억에 남",
+    "매력적이었",
+)
 
 
 def _find_local_quality_issue(post_text: str) -> str | None:
@@ -30,6 +44,20 @@ def _find_local_quality_issue(post_text: str) -> str | None:
                 "'갈 때까지도'는 목적지나 재방문 맥락 없이 쓰여 어색합니다. "
                 "'다시 갈 때까지' 또는 '돌아오는 길에도'처럼 고쳐야 합니다."
             )
+
+    compact_text = re.sub(r"\s+", " ", post_text)
+    cliche_hits = [
+        phrase for phrase in _GENERIC_CLICHE_PHRASES
+        if phrase in compact_text
+    ]
+    repeated_cliches = [
+        phrase for phrase in _GENERIC_CLICHE_PHRASES
+        if compact_text.count(phrase) >= 2
+    ]
+    if repeated_cliches:
+        return f"상투적인 표현이 반복됩니다: {', '.join(repeated_cliches[:3])}"
+    if len(cliche_hits) >= 4:
+        return f"상투적인 표현이 너무 많습니다: {', '.join(cliche_hits[:4])}"
     return None
 
 
@@ -131,10 +159,17 @@ def evaluate_post_completion(result: dict) -> dict:
                - 사전 의미가 모호하거나 문맥상 어색하게 잘려있는 단어
                - 추상적 한 글자/두 글자 한자어가 음식·서비스 평가 맥락에서 단독으로 쓰인 경우
                단, SOURCES에 같은 표현이 그대로 등장한다면 통과로 본다.
+            9. **(SPECIFICITY)** SOURCES나 키워드에서 확인 가능한 구체적인 대상과 평가가 최소 2개 이상 드러나야 한다.
+               - 메뉴명, 재료, 식감, 양, 가격, 서비스, 매장 분위기처럼 무엇이 왜 좋았는지 알 수 있어야 한다.
+               - "맛있다", "좋았다", "만족스러웠다"처럼 어느 식당에도 붙일 수 있는 표현만 있으면 fail.
+            10. **(CLICHE)** 상투적인 칭찬이나 템플릿 같은 문장이 많으면 fail.
+               - 같은 의미의 칭찬을 반복하거나, SOURCES를 보지 않아도 쓸 수 있는 일반 문장 위주면 fail.
 
             [실패 사유 작성 가이드]
             - rule 7 위반: "SOURCES에 없는 표현: <단어>" 형태로 명시
             - rule 8 위반: "독자가 의미를 알기 어려운 표현: <단어>" 형태로 명시
+            - rule 9 위반: "구체성 부족: <부족한 부분>" 형태로 명시
+            - rule 10 위반: "상투적 표현 과다: <반복/진부한 표현>" 형태로 명시
 
             반드시 아래 JSON 형식만 반환하세요. 코드블록을 붙이지 마세요.
             {{

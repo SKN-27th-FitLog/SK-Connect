@@ -22,6 +22,11 @@ def to_post(result: dict, shop_data: dict) -> str:
             )
             return None
 
+        post_cd = shop_data.get("post_cd") or "PT01"
+        category_cd = shop_data.get("category_cd") or "CA07"
+        result["post_cd"] = post_cd
+        result["category_cd"] = category_cd
+
         query = """
         INSERT INTO posts (
             title, content, created_at, modify_at, status_cd, post_cd,
@@ -34,8 +39,8 @@ def to_post(result: dict, shop_data: dict) -> str:
             title,
             content,
             "ST01",
-            "PT03",
-            shop_data["category_cd"],
+            post_cd,
+            category_cd,
             shop_data["map_id"],
             shop_data["shop_id"],
             shop_data["crawling_id"],
@@ -49,7 +54,8 @@ def to_post(result: dict, shop_data: dict) -> str:
             post_id = row["post_id"]
         logger.info(
             f"to_post inserted | post_id={post_id} | "
-            f"shop_id={shop_data.get('shop_id')}"
+            f"shop_id={shop_data.get('shop_id')} | "
+            f"post_cd={post_cd} | category_cd={category_cd}"
         )
         return post_id
     except Exception as e:
@@ -82,12 +88,12 @@ def to_post_vector(
             metadata = result.get("metadata", {}).copy()
         metadata["post_id"] = post_id
         metadata["title"] = result.get("title")
-        metadata["post_cd"] = "PT03"
+        metadata["post_cd"] = result.get("post_cd")
         metadata["map_id"] = shop_data.get("map_id")
         metadata["shop_id"] = shop_data.get("shop_id")
         metadata["crawling_id"] = shop_data.get("crawling_id")
         metadata["shop"] = shop_data.get("title")
-        metadata["category_cd"] = shop_data.get("category_cd")
+        metadata["category_cd"] = result.get("category_cd") or shop_data.get("category_cd")
         metadata["selected_keywords"] = keyword_data
         metadata["keyword_stats"] = keyword_stats
         metadata["used_crawling_ids"] = [

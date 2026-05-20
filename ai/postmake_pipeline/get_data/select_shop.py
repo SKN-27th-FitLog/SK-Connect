@@ -470,6 +470,10 @@ def _resolve_keyword_rules(keyword_rules: dict | None) -> dict:
         "repeat_penalty": 0.6,
         # 한 번만 등장한 키워드 weight를 약간 깎음
         "singleton_penalty": 0.7,
+        # 메뉴명/대상어 + 평가가 함께 있는 키워드는 게시글 재료로 더 구체적이므로 가중
+        "target_keyword_boost": 1.2,
+        # 대상 없이 "맛있다/좋다"처럼 일반 평가만 있는 키워드는 대표 키워드에서 약간 후순위
+        "generic_keyword_penalty": 0.85,
         # 과거 vector 조회 시 거리 컷오프
         "similarity_distance_threshold": 0.25,
         # 시그니처가 없는 키워드 배치 그룹핑 시 임베딩 거리 컷오프
@@ -766,6 +770,16 @@ def _build_keyword_stats(
 
         keywords = [str(value).strip() for value in keywords if str(value).strip()]
         representative_keyword = max(set(keywords), key=len)
+        has_target_keyword = any(_keyword_has_topic(value) for value in keywords)
+        is_generic_predicate_keyword = (
+            not has_target_keyword
+            and _keyword_has_predicate_token(representative_keyword)
+            and not _extract_keyword_nouns(representative_keyword)
+        )
+        if has_target_keyword:
+            final_weight *= rules["target_keyword_boost"]
+        elif is_generic_predicate_keyword:
+            final_weight *= rules["generic_keyword_penalty"]
 
         # Layer 1: 정규형 토큰 집합, Layer 2: 상위 카테고리
         canonicals = sorted(set(data.get("canonicals") or []))
@@ -789,6 +803,7 @@ def _build_keyword_stats(
             "canonicals": canonicals,
             "categories": categories,
             "category": representative_category,
+            "has_target_keyword": has_target_keyword,
         })
     return sorted(keyword_stats, key=lambda item: item["final_weight"], reverse=True)
 
@@ -1005,6 +1020,7 @@ def save_keyword_vector(
                 "canonicals": data.get("canonicals") or [],
                 "categories": data.get("categories") or [],
                 "category": data.get("category"),
+                "has_target_keyword": data.get("has_target_keyword"),
             }
             documents.append(Document(page_content=data["keyword"], metadata=metadata))
 

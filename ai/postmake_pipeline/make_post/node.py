@@ -9,6 +9,7 @@ from typing import Optional
 from get_data.get_another import get_similar_post
 from common.prompt import Create_Prompt
 from get_data.get_another import get_image
+from get_data.select_shop import _keyword_has_topic, _split_keywords
 import time
 import os
 import random
@@ -66,22 +67,25 @@ def _strip_reserved_urls(content: str) -> str:
     return HTTP_URL_PATTERN.sub(replace, content)
 
 
-def _select_article_url(data: Optional[list[dict]], sample_data: Optional[dict]) -> Optional[str]:
+def _select_article_url(data: Optional[list[dict]], sample_data: Optional[dict | list[dict]]) -> Optional[str]:
     candidates = []
     if sample_data:
-        candidates.append(sample_data.get('article_url'))
+        if isinstance(sample_data, list):
+            candidates.extend(row.get('article_url') for row in sample_data if isinstance(row, dict))
+        else:
+            candidates.append(sample_data.get('article_url'))
     if data:
         candidates.append(data[0].get('article_url'))
 
     for candidate in candidates:
-        clean_url = _clean_external_url(candidate)
-        if clean_url:
-            return clean_url
+        text = str(candidate or "").strip()
+        if text:
+            return text
     return None
 
 
 def _extract_image_urls(image_list: Optional[list]) -> list[str]:
-    """DB 조회 결과 또는 문자열 목록에서 실제 이미지 URL만 추출한다."""
+    """DB 조회 결과 또는 문자열 목록에서 이미지 HTML/URL 조각을 그대로 추출한다."""
     urls = []
     for image in image_list or []:
         url = None
@@ -89,21 +93,21 @@ def _extract_image_urls(image_list: Optional[list]) -> list[str]:
             url = image.get('image_url') or image.get('url')
         elif image is not None:
             url = str(image)
-        clean_url = _clean_external_url(url)
-        if clean_url:
-            urls.append(clean_url)
+        text = str(url or "").strip()
+        if text:
+            urls.append(text)
     return urls
 
 
 def _ensure_media(post: str, image_list: Optional[list], url: Optional[str]) -> str:
-    """LLM 응답에 이미지 URL과 원문 URL이 빠졌으면 본문 끝에 보강한다."""
+    """LLM 응답에 이미지 HTML과 원문 링크 HTML이 빠졌으면 본문 끝에 보강한다."""
     content = _strip_reserved_urls(str(post or "")).strip()
     image_urls = _extract_image_urls(image_list)
     if image_urls and not any(image_url in content for image_url in image_urls):
         content = f"{content}\n\n{image_urls[0]}"
-    clean_url = _clean_external_url(url)
-    if clean_url and clean_url not in content:
-        content = f"{content}\n\n{clean_url}"
+    link_html = str(url or "").strip()
+    if link_html and link_html not in content:
+        content = f"{content}\n\n{link_html}"
     return content
 
 
@@ -120,7 +124,8 @@ class State(TypedDict):
     title: Optional[str]
     similar_post: Optional[list[str]]
     reason: Optional[str]
-    sample_data: Optional[dict]
+    sample_data: Optional[dict | list[dict]]
+    source_facts: Optional[str]
     is_pass: Optional[bool]
     retry_count: int
 
@@ -132,11 +137,98 @@ def make_post(state: State) -> State:
         llm = get_llm()
         image_list = get_image(state['data'])
 
-        # 여러 리뷰 중 하나를 샘플로 골라 프롬프트에 넣어 게시글의 구체성을 높인다.
-        sample_data = None
-        if state['data']:
-            sample_data = random.choice(state['data'])
+        # 선정 키워드와 많이 겹치고 대상어+평가 키워드가 있는 리뷰를 우선 샘플로 보낸다.
+        selected_keywords = {str(keyword).strip() for keyword in state.get('keyword') or [] if str(keyword).strip()}
+        for keyword_stat in state.get('keyword_stats') or []:
+            if not isinstance(keyword_stat, dict):
+                continue
+            keyword = str(keyword_stat.get("keyword") or "").strip()
+            if keyword:
+                selected_keywords.add(keyword)
+            for grouped_keyword in keyword_stat.get("keywords") or []:
+                grouped_keyword = str(grouped_keyword).strip()
+                if grouped_keyword:
+                    selected_keywords.add(grouped_keyword)
+
+        rows = [row for row in state.get('data') or [] if isinstance(row, dict)]
+        candidates = [row for row in rows if row.get("sentimental") == "positive"] or rows
+        scored_rows = []
+        seen_ids = set()
+        for index, row in enumerate(candidates):
+            row_id = row.get("crawling_id") or index
+            if row_id in seen_ids:
+                continue
+            seen_ids.add(row_id)
+
+            content = str(row.get("content") or "").strip()
+            if not content:
+                continue
+
+            row_keywords = _split_keywords(row.get("keywords") or "")
+            overlap_score = 0
+            for row_keyword in row_keywords:
+                for selected_keyword in selected_keywords:
+                    if row_keyword == selected_keyword:
+                        overlap_score += 3
+                    elif row_keyword in selected_keyword or selected_keyword in row_keyword:
+                        overlap_score += 1
+
+            target_keyword_count = 0
+            for row_keyword in row_keywords:
+                try:
+                    if _keyword_has_topic(row_keyword):
+                        target_keyword_count += 1
+                except Exception as e:
+                    logger.error(f"make_post source review scoring | Error={e} | keyword={row_keyword}")
+
+            try:
+                row_score = float(row.get("score") or 0)
+            except (TypeError, ValueError):
+                row_score = 0.0
+            content_bonus = min(len(content), 300) / 300
+            total_score = (
+                overlap_score * 10
+                + target_keyword_count * 4
+                + (2 if row.get("sentimental") == "positive" else 0)
+                + row_score
+                + content_bonus
+            )
+            scored_rows.append((total_score, overlap_score, target_keyword_count, row_score, -index, row))
+
+        scored_rows.sort(reverse=True, key=lambda item: item[:-1])
+        sample_data = [row for *_, row in scored_rows[:5]]
+        if not sample_data and state['data']:
+            sample_data = [random.choice(state['data'])]
         url = _select_article_url(state.get('data'), sample_data)
+        source_review_block = Create_Prompt._format_sample_data(sample_data)
+        source_facts = ""
+        try:
+            facts_prompt = f"""
+# [SYSTEM ROLE]
+당신은 식당 게시글 작성을 위한 근거 사실만 추리는 편집자입니다.
+아래 TOP SOURCE REVIEWS와 KEYWORDS를 보고, 게시글에 사용 가능한 사실만 3~5개 뽑으세요.
+
+# [KEYWORDS]
+{", ".join(state.get('keyword') or [])}
+
+# [TOP SOURCE REVIEWS]
+{source_review_block}
+
+# [RULES]
+1. 리뷰에 직접 나오거나 자연스럽게 확인되는 사실만 쓰세요.
+2. 메뉴명/재료명/식감/양/가격/서비스/매장 분위기처럼 구체적인 대상과 평가를 우선하세요.
+3. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
+4. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
+5. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
+"""
+            facts_response = llm.invoke(facts_prompt)
+            source_facts = str(facts_response)
+            if hasattr(facts_response, "content"):
+                source_facts = facts_response.content
+            source_facts = source_facts.strip()
+        except Exception as e:
+            logger.error(f"source facts extraction error | Error={e} | shop_id={state['data'][0].get('shop_id')}")
+
         prompt = Create_Prompt.get_prompt(
             state['keyword'],
             image_list,
@@ -144,6 +236,7 @@ def make_post(state: State) -> State:
             sample_data,
             state.get('keyword_stats'),
             state.get('negative_keywords'),
+            source_facts,
         )
         response = llm.invoke(prompt)
         post = str(response)
@@ -156,6 +249,7 @@ def make_post(state: State) -> State:
             **state,
             'post': post,
             'sample_data': sample_data,
+            'source_facts': source_facts,
         }
     except Exception as e:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
@@ -227,9 +321,98 @@ def regenerate_post(state: State) -> State:
         llm = get_llm()
         image_list = get_image(state['data'])
         sample_data = state.get('sample_data')
-        if not sample_data and state['data']:
-            sample_data = random.choice(state['data'])
+        if not sample_data:
+            selected_keywords = {str(keyword).strip() for keyword in state.get('keyword') or [] if str(keyword).strip()}
+            for keyword_stat in state.get('keyword_stats') or []:
+                if not isinstance(keyword_stat, dict):
+                    continue
+                keyword = str(keyword_stat.get("keyword") or "").strip()
+                if keyword:
+                    selected_keywords.add(keyword)
+                for grouped_keyword in keyword_stat.get("keywords") or []:
+                    grouped_keyword = str(grouped_keyword).strip()
+                    if grouped_keyword:
+                        selected_keywords.add(grouped_keyword)
+
+            rows = [row for row in state.get('data') or [] if isinstance(row, dict)]
+            candidates = [row for row in rows if row.get("sentimental") == "positive"] or rows
+            scored_rows = []
+            seen_ids = set()
+            for index, row in enumerate(candidates):
+                row_id = row.get("crawling_id") or index
+                if row_id in seen_ids:
+                    continue
+                seen_ids.add(row_id)
+
+                content = str(row.get("content") or "").strip()
+                if not content:
+                    continue
+
+                row_keywords = _split_keywords(row.get("keywords") or "")
+                overlap_score = 0
+                for row_keyword in row_keywords:
+                    for selected_keyword in selected_keywords:
+                        if row_keyword == selected_keyword:
+                            overlap_score += 3
+                        elif row_keyword in selected_keyword or selected_keyword in row_keyword:
+                            overlap_score += 1
+
+                target_keyword_count = 0
+                for row_keyword in row_keywords:
+                    try:
+                        if _keyword_has_topic(row_keyword):
+                            target_keyword_count += 1
+                    except Exception as e:
+                        logger.error(f"regenerate_post source review scoring | Error={e} | keyword={row_keyword}")
+
+                try:
+                    row_score = float(row.get("score") or 0)
+                except (TypeError, ValueError):
+                    row_score = 0.0
+                content_bonus = min(len(content), 300) / 300
+                total_score = (
+                    overlap_score * 10
+                    + target_keyword_count * 4
+                    + (2 if row.get("sentimental") == "positive" else 0)
+                    + row_score
+                    + content_bonus
+                )
+                scored_rows.append((total_score, overlap_score, target_keyword_count, row_score, -index, row))
+
+            scored_rows.sort(reverse=True, key=lambda item: item[:-1])
+            sample_data = [row for *_, row in scored_rows[:5]]
+            if not sample_data and state['data']:
+                sample_data = [random.choice(state['data'])]
         url = _select_article_url(state.get('data'), sample_data)
+        source_facts = str(state.get('source_facts') or "").strip()
+        if not source_facts:
+            source_review_block = Create_Prompt._format_sample_data(sample_data)
+            try:
+                facts_prompt = f"""
+# [SYSTEM ROLE]
+당신은 식당 게시글 재작성을 위한 근거 사실만 추리는 편집자입니다.
+아래 TOP SOURCE REVIEWS와 KEYWORDS를 보고, 재작성에 사용 가능한 사실만 3~5개 뽑으세요.
+
+# [KEYWORDS]
+{", ".join(state.get('keyword') or [])}
+
+# [TOP SOURCE REVIEWS]
+{source_review_block}
+
+# [RULES]
+1. 리뷰에 직접 나오거나 자연스럽게 확인되는 사실만 쓰세요.
+2. 메뉴명/재료명/식감/양/가격/서비스/매장 분위기처럼 구체적인 대상과 평가를 우선하세요.
+3. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
+4. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
+5. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
+"""
+                facts_response = llm.invoke(facts_prompt)
+                source_facts = str(facts_response)
+                if hasattr(facts_response, "content"):
+                    source_facts = facts_response.content
+                source_facts = source_facts.strip()
+            except Exception as e:
+                logger.error(f"source facts extraction error | Error={e} | shop_id={state['data'][0].get('shop_id')}")
 
         # 실패 사유가 있으면 품질 보정 프롬프트를, 유사 게시글이 있으면 중복 회피 프롬프트를 우선한다.
         prompt = Create_Prompt.get_prompt(
@@ -239,6 +422,7 @@ def regenerate_post(state: State) -> State:
             sample_data,
             state.get('keyword_stats'),
             state.get('negative_keywords'),
+            source_facts,
         )
         if state['similar_post']:
             prompt = Create_Prompt.get_regenerate_prompt(
@@ -249,6 +433,7 @@ def regenerate_post(state: State) -> State:
                 sample_data,
                 state.get('keyword_stats'),
                 state.get('negative_keywords'),
+                source_facts,
             )
         if state['reason']:
             prompt = Create_Prompt.get_regenerate_reason_prompt(
@@ -259,6 +444,8 @@ def regenerate_post(state: State) -> State:
                 sample_data,
                 state.get('keyword_stats'),
                 state.get('negative_keywords'),
+                source_facts,
+                state.get('post'),
             )
         response = llm.invoke(prompt)
         post = str(response)
@@ -270,6 +457,7 @@ def regenerate_post(state: State) -> State:
             **state,
             'post': post,
             'sample_data': sample_data,
+            'source_facts': source_facts,
             'similar_post': None,
             'reason': None,
             'is_pass': None,

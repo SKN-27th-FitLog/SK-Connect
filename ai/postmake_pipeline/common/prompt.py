@@ -14,10 +14,10 @@ class Create_Prompt:
 광고처럼 과장하지 말고, 제공된 데이터 안에 있는 사실과 분위기만 사용하세요.
 긍정적인 내용으로 작성하되, 없는 정보는 절대 지어내지 마세요.
 
-#[image_urls]
+#[image_html]
 {image_list}
 
-#[url]
+#[link_html]
 {url}
 
 #[shop_name]
@@ -29,12 +29,18 @@ class Create_Prompt:
 3. '안녕하세요', '추천합니다', '참고하세요', '방문해보세요', '이상입니다' 같은 상투적인 표현을 쓰지 마세요.
 4. '[장소 이름]', '[여기에 식당 이름]', '[참고]', '**[참고]**', '여기에', 'xxxxx' 같은 placeholder를 절대 쓰지 마세요.
 5. shop_name이 있으면 실제 식당명으로 자연스럽게 포함하세요. 값이 비어 있으면 장소 정보 섹션을 만들지 마세요.
-6. image_urls가 있으면 본문 중간 적절한 위치에 이미지 URL 하나를 그대로 한 줄로 포함하세요.
-7. url이 있으면 글 마지막 줄에 실제 URL만 포함하세요.
-8. image_urls나 url이 비어 있으면 이미지/URL 문장을 만들지 마세요.
+6. image_html이 있으면 본문 중간 적절한 위치에 이미지 HTML 한 개를 그대로 한 줄로 포함하세요. 태그나 속성을 바꾸지 마세요.
+7. link_html이 있으면 글 마지막 줄에 링크 HTML을 그대로 한 줄로 포함하세요. 태그나 속성을 바꾸지 마세요.
+8. image_html이나 link_html이 비어 있으면 이미지/링크 문장을 만들지 마세요.
 9. 비슷한 단어가 있으면 비슷한 단어를 사용하지 마세요.
 10. 동일한 단어를 여러 번 사용하지 마세요.
 11. 재방문이나 여운을 표현할 때는 목적이 분명한 자연스러운 시간 표현만 쓰세요. "갈 때까지도"처럼 목적지나 맥락이 빠진 표현은 쓰지 마세요.
+12. SOURCE FACTS에 있는 사실만 본문 재료로 사용하세요. 리뷰에 없는 메뉴명, 재료명, 지명, 고유명사는 새로 만들지 마세요.
+13. 구체적인 대상+평가를 최소 2개 이상 포함하세요. 예: 메뉴/재료/식감/양/가격/서비스/매장 분위기.
+14. "맛있다", "좋았다", "만족스러웠다", "다시 찾고 싶다"처럼 어느 식당에도 붙일 수 있는 문장만으로 채우지 마세요.
+15. KEYWORDS는 보조 신호이고, SOURCE FACTS와 충돌하면 SOURCE FACTS를 우선하세요.
+16. SOURCE FACTS나 TOP SOURCE REVIEWS 섹션 제목, 번호, bullet은 출력하지 마세요.
+17. image_html과 link_html은 SOURCE FACTS 제한과 별개로 반드시 그대로 포함해야 하는 출력 요소입니다.
 """]
 
         self.title_template = ["""
@@ -177,9 +183,30 @@ class Create_Prompt:
         return "\n".join(urls)
 
     @classmethod
-    def _format_sample_data(cls, sample_data: Optional[dict]) -> str:
+    def _format_sample_data(cls, sample_data: Optional[dict | list[dict]]) -> str:
         if not sample_data:
             return ""
+
+        if isinstance(sample_data, list):
+            lines = []
+            for idx, review in enumerate(sample_data[:5], start=1):
+                if not isinstance(review, dict):
+                    continue
+                fields = [
+                    ("title", review.get("title")),
+                    ("content", cls._clip_text(review.get("content"), 500)),
+                    ("keywords", review.get("keywords")),
+                    ("sentimental", review.get("sentimental")),
+                    ("score", review.get("score")),
+                ]
+                body = "\n".join(
+                    f"  - {key}: {value}"
+                    for key, value in fields
+                    if value not in (None, "")
+                )
+                if body:
+                    lines.append(f"[{idx}]\n{body}")
+            return "\n".join(lines)
 
         fields = [
             ("shop_id", sample_data.get("shop_id")),
@@ -214,11 +241,14 @@ class Create_Prompt:
         return ", ".join(negative_keywords[:5])
 
     @classmethod
-    def _master_prompt(cls, prompt: "Create_Prompt", image_list: Optional[list], url: Optional[str], sample_data: Optional[dict]) -> str:
+    def _master_prompt(cls, prompt: "Create_Prompt", image_list: Optional[list], url: Optional[str], sample_data: Optional[dict | list[dict]]) -> str:
+        shop_sample = sample_data
+        if isinstance(sample_data, list):
+            shop_sample = sample_data[0] if sample_data else {}
         return prompt.master_template[0].format(
             image_list=cls._format_image_urls(image_list),
             url=url or "",
-            title=cls._clean_shop_name((sample_data or {}).get("title", "")),
+            title=cls._clean_shop_name((shop_sample or {}).get("title", "")),
         )
 
     @classmethod
@@ -227,9 +257,10 @@ class Create_Prompt:
         keyword: list[str],
         image_list: Optional[list] = None,
         url: Optional[str] = None,
-        sample_data: Optional[dict] = None,
+        sample_data: Optional[dict | list[dict]] = None,
         keyword_stats: Optional[list[dict]] = None,
         negative_keywords: Optional[list[str]] = None,
+        source_facts: Optional[str] = None,
     ) -> str:
         try:
             prompt = cls()
@@ -246,14 +277,21 @@ class Create_Prompt:
                 cls._format_negative_keywords(negative_keywords),
                 "# [AVOID KEYWORD RULE]",
                 "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
-                "# [RANDOM SOURCE SAMPLE]",
+                "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
-                "# [SOURCE SAMPLE RULE]",
-                "RANDOM SOURCE SAMPLE은 같은 shop_id로 모은 analysis 원본 데이터 중 랜덤으로 하나 뽑은 예시입니다. 구체적인 관찰 포인트만 반영하고 원문을 그대로 복사하지 마세요.",
+                "# [SOURCE REVIEW RULE]",
+                "TOP SOURCE REVIEWS는 선정 키워드와 많이 겹치고 메뉴명/대상어가 있는 리뷰를 우선 고른 근거입니다.\n"
+                "여러 리뷰에서 반복되는 구체적인 관찰 포인트를 반영하되, 원문을 그대로 복사하지 마세요.",
+                "# [SOURCE FACTS]",
+                str(source_facts or "").strip(),
+                "# [SOURCE FACT RULE]",
+                "본문은 SOURCE FACTS의 사실만 조합해서 작성하세요.\n"
+                "SOURCE FACTS가 부족하면 TOP SOURCE REVIEWS에서 직접 확인되는 표현만 보완하고, 추측으로 메뉴명/재료명/장소명을 만들지 마세요.",
                 random.choice(prompt.casual_sub_prompts),
             ])
         except Exception as e:
-            crawling_id = (sample_data or {}).get("crawling_id")
+            sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data
+            crawling_id = (sample_for_log or {}).get("crawling_id")
             logger.error(f"get_prompt | Error={e} | crawling_id={crawling_id}")
             return ""
 
@@ -269,9 +307,10 @@ class Create_Prompt:
         keyword: Optional[list[str]] = None,
         image_list: Optional[list] = None,
         url: Optional[str] = None,
-        sample_data: Optional[dict] = None,
+        sample_data: Optional[dict | list[dict]] = None,
         keyword_stats: Optional[list[dict]] = None,
         negative_keywords: Optional[list[str]] = None,
+        source_facts: Optional[str] = None,
     ) -> str:
         try:
             prompt = cls()
@@ -291,14 +330,18 @@ class Create_Prompt:
                 cls._format_negative_keywords(negative_keywords),
                 "# [AVOID KEYWORD RULE]",
                 "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
-                "# [RANDOM SOURCE SAMPLE]",
+                "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
+                "# [SOURCE FACTS]",
+                str(source_facts or "").strip(),
                 sub_prompt,
                 "# [REGENERATION RULE]",
-                "keyword, image_urls, url, RANDOM SOURCE SAMPLE 정보는 유지해서 반영하되, 기존 유사 게시글과 다르게 작성하세요.",
+                "keyword, image_html, link_html, TOP SOURCE REVIEWS, SOURCE FACTS 정보는 유지해서 반영하되, 기존 유사 게시글과 다르게 작성하세요.\n"
+                "SOURCE FACTS 밖의 메뉴명/재료명/고유명사는 새로 만들지 마세요.",
             ])
         except Exception as e:
-            crawling_id = (sample_data or {}).get("crawling_id")
+            sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data
+            crawling_id = (sample_for_log or {}).get("crawling_id")
             logger.error(f"get_regenerate_prompt | Error={e} | crawling_id={crawling_id}")
             return ""
 
@@ -309,9 +352,11 @@ class Create_Prompt:
         keyword: Optional[list[str]] = None,
         image_list: Optional[list] = None,
         url: Optional[str] = None,
-        sample_data: Optional[dict] = None,
+        sample_data: Optional[dict | list[dict]] = None,
         keyword_stats: Optional[list[dict]] = None,
         negative_keywords: Optional[list[str]] = None,
+        source_facts: Optional[str] = None,
+        previous_post: Optional[str] = None,
     ) -> str:
         try:
             prompt = cls()
@@ -329,13 +374,19 @@ class Create_Prompt:
                 cls._format_negative_keywords(negative_keywords),
                 "# [AVOID KEYWORD RULE]",
                 "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
-                "# [RANDOM SOURCE SAMPLE]",
+                "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
+                "# [SOURCE FACTS]",
+                str(source_facts or "").strip(),
+                "# [PREVIOUS POST]",
+                str(previous_post or "").strip(),
                 sub_prompt,
                 "# [REGENERATION RULE]",
-                "keyword, image_urls, url, RANDOM SOURCE SAMPLE 정보는 유지해서 반영하되, 실패 사유를 해결하도록 다시 작성하세요.",
+                "PREVIOUS POST를 그대로 고치지 말고, 실패 사유가 된 표현을 제거한 뒤 SOURCE FACTS에 있는 사실만 사용해서 새로 작성하세요.\n"
+                "구체적인 대상+평가를 최소 2개 이상 포함하고, 상투적인 칭찬만 반복하지 마세요.",
             ])
         except Exception as e:
-            crawling_id = (sample_data or {}).get("crawling_id")
+            sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data
+            crawling_id = (sample_for_log or {}).get("crawling_id")
             logger.error(f"get_regenerate_reason_prompt | Error={e} | crawling_id={crawling_id}")
             return ""

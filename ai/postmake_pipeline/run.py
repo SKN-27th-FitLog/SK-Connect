@@ -54,6 +54,7 @@ def run_pipeline():
                 "similar_post": None,
                 "reason": None,
                 "sample_data": None,
+                "source_facts": None,
                 "is_pass": None,
                 "retry_count": 0,
             })
