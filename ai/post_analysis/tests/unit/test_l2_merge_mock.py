@@ -1,20 +1,23 @@
-"""PA-L2-PG-MRG-001~005, 010~012 간접: merge_analysis_data (cursor mock)."""
-
-import pytest
-
-pytestmark = pytest.mark.merge_mock
+"""PA-L2-PG-MRG: merge_analysis_data 간접 검증 (cursor mock, merge_mock 마커)."""
 
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from common.constant import AnalysisColumn
 from postgresql.config import MergeAnalysisConfig
 from postgresql.run_query import merge_analysis_data
 
+pytestmark = pytest.mark.merge_mock
+
 
 def test_pa_l2_pg_mrg_001_executes_merge_with_records() -> None:
+    """PA-L2-PG-MRG-001 [정상]: MERGE SQL이 cursor.execute로 1회 호출된다.
+
+    PostgreDB는 mock — 실 DB TCP/MERGE 없음.
+    """
     df = pd.DataFrame({AnalysisColumn.CRAWLING_ID.value: [-900000001]})
     mock_conn = MagicMock()
     mock_cur = MagicMock()
@@ -32,6 +35,7 @@ def test_pa_l2_pg_mrg_001_executes_merge_with_records() -> None:
 
 
 def test_pa_l2_pg_mrg_002_nan_becomes_none_in_records() -> None:
+    """PA-L2-PG-MRG-002 [불변]: NaN/pd.NA는 Jsonb records에서 None으로 정규화."""
     df = pd.DataFrame(
         {
             AnalysisColumn.CRAWLING_ID.value: [-900000002],
@@ -57,7 +61,10 @@ def test_pa_l2_pg_mrg_002_nan_becomes_none_in_records() -> None:
 
 
 def test_pa_l2_pg_mrg_010_012_sql_has_coalesce_guard() -> None:
-    """실 DB MRG-010~012 대신 MERGE SQL 불변 규칙 검증."""
+    """PA-L2-PG-MRG-010~012 [불변·간접]: MERGE SQL에 COALESCE NULL 덮어쓰기 방지.
+
+    실 DB MERGE 대신 SQL 문자열 불변 규칙만 검증.
+    """
     sql = MergeAnalysisConfig.MERGE_SQL
     assert "COALESCE(x.title, a.title)" in sql
     assert "COALESCE(x.keywords, a.keywords)" in sql

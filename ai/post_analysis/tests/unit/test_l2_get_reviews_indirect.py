@@ -1,4 +1,4 @@
-"""PA-L2-GRV: get_reviews 간접 검증 (merge·get_* patch)."""
+"""PA-L2-GRV: get_reviews 간접 검증 (get_*·merge patch, DB 쓰기 없음)."""
 
 from unittest.mock import MagicMock, patch
 
@@ -10,10 +10,12 @@ from get_reviews import get_reviews
 
 
 def _crawl_df(rows: list[dict]) -> pd.DataFrame:
+    """crawling 행 목록 fixture."""
     return pd.DataFrame(rows)
 
 
 def _shop_df() -> pd.DataFrame:
+    """shop 1:1 fixture."""
     return pd.DataFrame(
         {
             ShopColumn.MAP_ID.value: [100],
@@ -33,6 +35,7 @@ def test_pa_l2_grv_001_missing_crawling_column(
     mock_shop: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L2-GRV-001 [실패]: crawling 필수 컬럼 누락 시 ValueError, merge 미호출."""
     mock_crawl.return_value = pd.DataFrame({"x": [1]})
     mock_an.return_value = pd.DataFrame({AnalysisColumn.CRAWLING_ID.value: []})
     mock_shop.return_value = _shop_df()
@@ -52,6 +55,7 @@ def test_pa_l2_grv_004_ic01_and_excludes_ca07(
     mock_shop: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L2-GRV-004 [불변]: CA07 제외·IC01 적재, merge DataFrame 1건 간접 검증."""
     cid = CrawlingColumn.CRAWLING_ID.value
     mock_crawl.return_value = _crawl_df(
         [
@@ -94,6 +98,7 @@ def test_pa_l2_grv_005_skips_existing_crawling_id(
     mock_shop: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L2-GRV-005 [불변]: analysis에 있는 crawling_id는 merge 대상에서 제외."""
     cid = CrawlingColumn.CRAWLING_ID.value
     existing = -900000020
     mock_crawl.return_value = _crawl_df(

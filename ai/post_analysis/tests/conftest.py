@@ -1,4 +1,4 @@
-"""pytest 가드레일 — merge_analysis_data 실실행 차단 (docs/testing.md G1)."""
+"""pytest 가드레일 및 공통 fixture (docs/testing.md G1~G6)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _should_block_merge() -> bool:
 
 @pytest.fixture(autouse=True)
 def block_merge_writes(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
-    """모든 테스트에서 analysis MERGE 실경로 차단 (`merge_mock` 제외)."""
+    """G1: 기본 테스트에서 analysis MERGE 실경로 차단 (`merge_mock` 마커 제외)."""
     if request.node.get_closest_marker("merge_mock"):
         return
     if not _should_block_merge():
@@ -42,7 +42,7 @@ def block_merge_writes(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
 
 @pytest.fixture
 def reset_singletons() -> None:
-    """프로세스 내 Singleton 캐시 초기화."""
+    """G5: PostgreDB·Singleton 인스턴스 캐시 초기화."""
     from common.singleton import Singleton
     from postgresql.connection import PostgreDB
 

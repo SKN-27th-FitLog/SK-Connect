@@ -1,11 +1,11 @@
-"""PA-L3-LLM: analyze_keywords_by_llm 간접 검증."""
+"""PA-L3-LLM: analyze_keywords_by_llm 간접 검증 (chain·merge patch)."""
 
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from common.constant import AnalysisColumn, CodeTable
 from analyze_keywords_by_llm import Keywords, analyze_keywords_by_llm
+from common.constant import AnalysisColumn, CodeTable
 
 
 @patch("analyze_keywords_by_llm.merge_analysis_data")
@@ -16,6 +16,7 @@ def test_pa_l3_llm_002_no_pending_rows(
     mock_llm_cls: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L3-LLM-002 [경계]: keywords가 모두 있으면 LLM·merge 미호출."""
     mock_get.return_value = pd.DataFrame(
         {
             AnalysisColumn.CONTENT.value: ["body"],
@@ -43,6 +44,7 @@ def test_pa_l3_llm_006_merge_receives_keywords(
     mock_parser_cls: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L3-LLM-006 [정상]: LLM 결과 keywords가 merge DataFrame에 반영(간접)."""
     mock_get.return_value = pd.DataFrame(
         {
             AnalysisColumn.CONTENT.value: ["맛있다"],

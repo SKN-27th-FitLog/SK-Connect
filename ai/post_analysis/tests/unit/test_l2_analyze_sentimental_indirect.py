@@ -1,12 +1,11 @@
-"""PA-L2-SNT: analyze_sentimental 간접 검증."""
+"""PA-L2-SNT: analyze_sentimental 간접 검증 (get/merge/BERT patch)."""
 
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
 
-from common.constant import AnalysisColumn, CodeTable, SentimentResultKey
 from analyze_sentimental import analyze_sentimental
+from common.constant import AnalysisColumn, CodeTable, SentimentResultKey
 
 
 @patch("analyze_sentimental.merge_analysis_data")
@@ -17,6 +16,7 @@ def test_pa_l2_snt_002_no_pending_rows(
     mock_bert_cls: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L2-SNT-002 [경계]: pending 0건이면 early return, merge·BERT 미호출."""
     mock_get.return_value = pd.DataFrame(
         {
             AnalysisColumn.CONTENT.value: ["c"],
@@ -39,6 +39,7 @@ def test_pa_l2_snt_003_excludes_ic02(
     mock_bert_cls: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
+    """PA-L2-SNT-003 [불변]: IC02 제외·IC01 pending 1건만 merge·predict."""
     mock_get.return_value = pd.DataFrame(
         {
             AnalysisColumn.CONTENT.value: ["a", "b"],

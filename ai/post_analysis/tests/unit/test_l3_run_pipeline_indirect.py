@@ -1,4 +1,4 @@
-"""PA-L2/3-PLN: run_pipeline 간접 검증."""
+"""PA-L2/3-PLN: run_pipeline 간접 검증 (3단계 함수 patch)."""
 
 from unittest.mock import MagicMock, patch
 
@@ -15,6 +15,7 @@ def test_pa_l2_pln_001_invalid_max_rows(
     mock_as: MagicMock,
     mock_llm: MagicMock,
 ) -> None:
+    """PA-L2-PLN-001 [실패]: max_rows<=0 이면 ValueError, 단계 함수 미호출."""
     with pytest.raises(ValueError, match="max_rows"):
         run_pipeline(max_rows=0)
     mock_gr.assert_not_called()
@@ -30,6 +31,7 @@ def test_pa_l2_pln_002_step_order(
     mock_as: MagicMock,
     mock_llm: MagicMock,
 ) -> None:
+    """PA-L2-PLN-002 [정상]: get_reviews → analyze_sentimental → LLM 순서."""
     calls: list[str] = []
 
     mock_gr.side_effect = lambda: calls.append("gr")
@@ -48,5 +50,6 @@ def test_pa_l2_pln_003_passes_max_rows_to_llm(
     mock_as: MagicMock,
     mock_llm: MagicMock,
 ) -> None:
+    """PA-L2-PLN-003 [정상]: max_rows가 analyze_keywords_by_llm에 전달."""
     run_pipeline(max_rows=3)
     mock_llm.assert_called_once_with(max_rows=3)
