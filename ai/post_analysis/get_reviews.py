@@ -10,6 +10,7 @@ from datetime import datetime
 
 # 모듈
 from common.constant import AnalysisColumn, CodeTable, CrawlingColumn, GetReviewsConfig
+from common.errors import PostAnalysisErrors
 from postgresql.run_query import get_crawling_data, get_analysis_data, merge_analysis_data
 
 
@@ -45,6 +46,25 @@ def get_reviews() -> None:
     # 테이블 데이터 가져오기
     df_crawling = get_crawling_data()
     df_analysis = get_analysis_data()
+
+    crawl_required = (
+        cid_crawl,
+        title_c,
+        content_c,
+        url_c,
+        map_c,
+        cat_c,
+    )
+    missing_crawl = [c for c in crawl_required if c not in df_crawling.columns]
+    if missing_crawl:
+        raise ValueError(
+            PostAnalysisErrors.GetReviews.missing_crawling_columns(missing_crawl)
+        )
+
+    if cid_an not in df_analysis.columns:
+        raise ValueError(
+            PostAnalysisErrors.GetReviews.missing_analysis_columns([cid_an])
+        )
 
     # => df_analysis에서 crawling_id 컬럼값만 남김 
     df_analysis_created = df_analysis[[cid_an]]

@@ -54,9 +54,9 @@ def get_analysis_data() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
-##############################################
+##################################################################
 # crawling 테이블에서 analysis 테이블로 한번에 데이터 merge
-##############################################
+##################################################################
 def merge_analysis_data(df: pd.DataFrame) -> None:
     """DataFrame 행을 JSONB 레코드로 직렬화해 `analysis`에 UPSERT(MERGE)한다.
 

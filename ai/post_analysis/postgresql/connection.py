@@ -7,6 +7,7 @@ import psycopg
 
 # 모듈
 import common.env  # noqa: F401 — `.env` 로드
+from common.errors import PostAnalysisErrors
 from common.singleton import Singleton
 from postgresql.config import PostgresEnvKey
 
@@ -60,6 +61,6 @@ class PostgreDB(metaclass=Singleton):
         """연결 확인용 쿼리 실행."""
         try:
             self.run_query("SELECT 1")
-            return "Connection successful"
+            return PostAnalysisErrors.Db.connection_successful()
         except Exception as e:
-            return f"Connection failed: {e}"
+            return PostAnalysisErrors.Db.connection_failed(e)

@@ -46,10 +46,7 @@ def analyze_sentimental() -> None:
     pending = int(needs_mask.sum())
 
     if pending == 0:
-        logger.info(
-            "감성·점수가 모두 채워져 처리할 행이 없습니다. "
-            "(information_cd≠IC02(IT 정보) 제외 후 sentimental/score 결측 행 0건)"
-        )
+        logger.info(PostAnalysisErrors.Sentiment.no_pending_rows())
         return
 
     df = df.loc[needs_mask].copy()

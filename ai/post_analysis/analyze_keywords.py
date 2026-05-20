@@ -39,8 +39,12 @@ def analyze_keywords() -> None:
     content_col = AnalysisColumn.CONTENT.value
     info_col = AnalysisColumn.INFORMATION_CD.value
 
-    if info_col not in df.columns:
-        raise ValueError(PostAnalysisErrors.KiwiKeywords.missing_columns(info_col))
+    required = (content_col, kw_col, info_col)
+
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(PostAnalysisErrors.KiwiKeywords.missing_columns(missing))
+
     df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)

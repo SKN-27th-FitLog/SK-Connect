@@ -64,7 +64,7 @@ def classify_sentimental_keywords(max_rows: int | None = None) -> None:
 
     pending = len(df)
     if pending == 0:
-        logger.info("키워드 분류 대상 행이 없습니다.")
+        logger.info(PostAnalysisErrors.ClassifyKeywords.no_pending_rows())
         return
 
     # max_rows 분기 — 기본(None)은 제한 없음. 값이 있을 때만 LLM 호출 상한 적용.

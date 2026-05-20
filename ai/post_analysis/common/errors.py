@@ -5,31 +5,71 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 
-def _missing_columns_message(task: str, missing: str | Iterable[str]) -> str:
-    """``analysis`` DataFrame 컬럼 누락 메시지."""
+def _missing_columns_message(
+    source: str, task: str, missing: str | Iterable[str]
+) -> str:
+    """DataFrame/테이블 컬럼 누락 메시지."""
     cols_text = missing if isinstance(missing, str) else ", ".join(missing)
-    return f"analysis 데이터에 {task}에 필요한 컬럼이 없습니다: {cols_text}"
+    return f"{source} 데이터에 {task}에 필요한 컬럼이 없습니다: {cols_text}"
 
 
 class PostAnalysisErrors:
-    """배치 단계별 오류 문구."""
+    """배치·DB 단계별 오류·로그 문구."""
+
+    class Db:
+        @staticmethod
+        def connection_successful() -> str:
+            return "Connection successful"
+
+        @staticmethod
+        def connection_failed(exc: BaseException) -> str:
+            return f"Connection failed: {exc}"
 
     class Sentiment:
         @staticmethod
         def missing_columns(missing: Iterable[str]) -> str:
-            return _missing_columns_message("감성 분석", missing)
+            return _missing_columns_message("analysis", "감성 분석", missing)
+
+        @staticmethod
+        def no_pending_rows() -> str:
+            return (
+                "감성·점수가 모두 채워져 처리할 행이 없습니다. "
+                "(information_cd≠IC02(IT 정보) 제외 후 sentimental/score 결측 행 0건)"
+            )
 
     class KiwiKeywords:
         @staticmethod
-        def missing_columns(column: str) -> str:
-            return _missing_columns_message("Kiwi 키워드 추출", column)
+        def missing_columns(missing: Iterable[str]) -> str:
+            return _missing_columns_message("analysis", "Kiwi 키워드 추출", missing)
 
     class LlmKeywords:
         @staticmethod
-        def missing_columns(column: str) -> str:
-            return _missing_columns_message("LLM 키워드 추출", column)
+        def missing_columns(missing: Iterable[str]) -> str:
+            return _missing_columns_message("analysis", "LLM 키워드 추출", missing)
+
+        @staticmethod
+        def no_pending_rows() -> str:
+            return "모든 row에 키워드가 존재합니다. 처리할 데이터가 없습니다."
+
+        @staticmethod
+        def row_processing_failed() -> str:
+            """``logger.exception(PostAnalysisErrors.LlmKeywords.row_processing_failed(), title, index)``."""
+            return "행 %s 처리 실패 (index=%s)"
 
     class ClassifyKeywords:
         @staticmethod
         def missing_columns(missing: Iterable[str]) -> str:
-            return _missing_columns_message("키워드 분류", missing)
+            return _missing_columns_message("analysis", "키워드 분류", missing)
+
+        @staticmethod
+        def no_pending_rows() -> str:
+            return "키워드 분류 대상 행이 없습니다."
+
+    class GetReviews:
+        @staticmethod
+        def missing_crawling_columns(missing: Iterable[str]) -> str:
+            return _missing_columns_message("crawling", "analysis 적재", missing)
+
+        @staticmethod
+        def missing_analysis_columns(missing: Iterable[str]) -> str:
+            return _missing_columns_message("analysis", "crawling_id 중복 조회", missing)

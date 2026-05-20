@@ -49,20 +49,23 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
     sent_col = AnalysisColumn.SENTIMENTAL.value
     title_col = AnalysisColumn.TITLE.value
 
+    required = (content_col, kw_col, info_col, sent_col, title_col)
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(PostAnalysisErrors.LlmKeywords.missing_columns(missing))
+
     # content가 비어있는 경우 오류가 나기 때문에 제외
     empty_map = {k: pd.NA for k in AnalyzeKeywordsByLlmConfig.CONTENT_EMPTY_PLACEHOLDERS}
     c = df[content_col].replace(empty_map)
     df = df[c.notna() & c.astype(str).str.strip().ne("")]
 
-    if info_col not in df.columns:
-        raise ValueError(PostAnalysisErrors.LlmKeywords.missing_columns(info_col))
     df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # 이미 키워드가 존재하는 경우 처리할 데이터에서 제외 (키워드 없는 데이터만 선택함)
     df = df[df[kw_col].isnull()]
 
     if df.empty:
-        logger.info("모든 row에 키워드가 존재합니다. 처리할 데이터가 없습니다.")
+        logger.info(PostAnalysisErrors.LlmKeywords.no_pending_rows())
         return
 
     # 빈 칸만 있으면 keywords 열이 float64로 잡혀 문자열 대입 시 오류가 난다.
@@ -116,8 +119,12 @@ def analyze_keywords_by_llm(max_rows: int | None = None) -> None:
             )
             df.at[index, kw_col] = result.keywords
             logger.info(f"keywords: {result.keywords}")
-        except Exception as e:
-            logger.exception("행 %s 처리 실패 (index=%s)", row[title_col], index)
+        except Exception:
+            logger.exception(
+                PostAnalysisErrors.LlmKeywords.row_processing_failed(),
+                row[title_col],
+                index,
+            )
             continue
 
 
