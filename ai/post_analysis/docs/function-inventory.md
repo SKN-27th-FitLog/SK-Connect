@@ -1,5 +1,8 @@
 # 함수 인벤토리 및 분류
 
+> **범용 템플릿·작성 절차:** Skill **`code-integrity-and-testing`** → `reference-inventory.md`  
+> 본 문서는 **post_analysis** 모듈의 프로젝트별 인벤토리(스냅샷)이다.
+
 [integrity-and-testing-standards.md](integrity-and-testing-standards.md) 기준으로 **post_analysis** 대상 모듈의 구현 함수를 inventorize하고, **함수 유형(A~F)**·**안전성 등급(Level 0~4)**을 부여한 문서이다.
 
 - 각 함수 docstring의 `Note:` 절에 동일 분류가 반영되어 있다.
@@ -259,5 +262,6 @@ flowchart LR
 
 ## 관련 문서
 
+- Skill **`code-integrity-and-testing`** — 범용 기준·인벤토리 템플릿
 - [integrity-and-testing-standards.md](integrity-and-testing-standards.md)
 - [design.md](design.md)

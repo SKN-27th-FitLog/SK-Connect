@@ -1,6 +1,9 @@
 # 코드 무결성 및 테스트 기준
 
-본 문서는 **post_analysis**를 포함한 프로젝트 구현 코드의 무결성, 안정성, 유지보수성, 테스트 가능성을 확보하기 위한 **범용 기준**을 정의한다.
+> **범용 기준**은 Cursor Skill **`code-integrity-and-testing`** (`~/.cursor/skills/code-integrity-and-testing/`)이 원본이다.  
+> 본 문서는 **post_analysis** 적용·체크리스트용이며, 다른 파트는 Skill + 각 repo `docs/function-inventory.md`를 사용한다.
+
+본 문서는 **post_analysis** 구현 코드의 무결성, 안정성, 유지보수성, 테스트 가능성을 확보하기 위한 기준을 정의한다.
 
 작업 전·후에 본 문서와 [design.md](design.md)를 함께 보고, 함수 계약·테스트 케이스·실행 안전성 등급이 충족되는지 확인한다.
 
@@ -409,10 +412,11 @@ DB 또는 저장소와 상호작용한다.
 
 ## 관련 문서
 
+- **범용 Skill:** `code-integrity-and-testing` (함수 계약·유형·안전성·테스트 전반)
 - [design.md](design.md) — 파이프라인·레이어·에러·환경변수
-- [function-inventory.md](function-inventory.md) — 함수 인벤토리·유형·안전성 분류
+- [function-inventory.md](function-inventory.md) — post_analysis 함수 인벤토리
 - [refactoring-post-analysis.md](refactoring-post-analysis.md) — 리팩토링 이력
-- sk-connect-etl-standards Skill — ETL 레이어 분리·최소 diff·오케스트레이션 패턴
+- **sk-connect-etl-standards** Skill — ETL 레이어 분리·최소 diff
 
 ---
 
