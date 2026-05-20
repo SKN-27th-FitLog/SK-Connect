@@ -46,6 +46,14 @@ class CrawlingColumn(str, Enum):
         )
 
 
+class ShopColumn(str, Enum):
+    """`shop` 테이블 DataFrame/행 키."""
+
+    SHOP_ID = "shop_id"
+    MAP_ID = "map_id"
+    SHOP_CD = "shop_cd"
+
+
 class AnalysisColumn(str, Enum):
     """분석·`INSERT analysis` 공통 DataFrame/행 키."""
 
@@ -61,12 +69,11 @@ class AnalysisColumn(str, Enum):
     SENTIMENTAL = "sentimental"
     SCORE = "score"
     KEYWORDS = "keywords"
-    POSITIVE_KW = "positive_kw"
-    NEGATIVE_KW = "negative_kw"
+    SHOP_CD = "shop_cd"
 
     @classmethod
     def allowed_analysis_columns(cls) -> frozenset[str]:
-        """`analysis` MERGE 스키마에 대응하는 전체 분석 칼럼 집합."""
+        """파이프라인 MERGE SQL에 대응하는 분석 칼럼 집합."""
         return frozenset(
             {
                 cls.CRAWLING_ID,
@@ -77,12 +84,11 @@ class AnalysisColumn(str, Enum):
                 cls.SHOP_ID,
                 cls.CATEGORY_CD,
                 cls.INFORMATION_CD,
+                cls.SHOP_CD,
                 cls.CREATED_DT,
                 cls.SENTIMENTAL,
                 cls.SCORE,
                 cls.KEYWORDS,
-                cls.POSITIVE_KW,
-                cls.NEGATIVE_KW,
             }
         )
 

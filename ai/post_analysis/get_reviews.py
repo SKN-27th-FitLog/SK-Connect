@@ -9,10 +9,95 @@ import pandas as pd
 from datetime import datetime
 
 # 모듈
-from common.constant import AnalysisColumn, CodeTable, CrawlingColumn, GetReviewsConfig
+from common.constant import (
+    AnalysisColumn,
+    CodeTable,
+    CrawlingColumn,
+    GetReviewsConfig,
+    ShopColumn,
+)
 from common.errors import PostAnalysisErrors
-from postgresql.run_query import get_crawling_data, get_analysis_data, merge_analysis_data
+from postgresql.run_query import (
+    get_analysis_data,
+    get_crawling_data,
+    get_shop_data,
+    merge_analysis_data,
+)
 
+
+def _filter_rows_by_shop_match(
+    df_crawling: pd.DataFrame,
+    df_shop: pd.DataFrame,
+    *,
+    crawling_id_col: str,
+    map_id_col: str,
+) -> pd.DataFrame:
+    """``shop.map_id`` 기준 1:1 매칭되는 행만 남긴다.
+
+    - ``map_id`` 결측·shop 0건 → ``GetReviews.Warn.shop_not_found`` 후 드랍
+    - shop 2건 이상 → ``GetReviews.Warn.ambiguous_shop`` 후 드랍
+    - 1:1만 통과 (``shop_id``, ``shop_cd``는 호출 측에서 merge)
+    """
+    if df_crawling.empty:
+        return df_crawling
+
+    shop_map_col = ShopColumn.MAP_ID.value
+    df_shop = df_shop.copy()
+    df_shop[shop_map_col] = pd.to_numeric(df_shop[shop_map_col], errors="coerce")
+
+    warn = PostAnalysisErrors.GetReviews.Warn
+    null_mask = df_crawling[map_id_col].isna()
+    for _, row in df_crawling[null_mask].iterrows():
+        logger.warning(warn.shop_not_found(row[crawling_id_col], row[map_id_col]))
+
+    df_work = df_crawling[~null_mask].copy()
+    if df_work.empty:
+        return df_work
+
+    df_work[map_id_col] = pd.to_numeric(df_work[map_id_col], errors="coerce")
+
+    shop_counts = df_shop.groupby(shop_map_col, dropna=False).size()
+
+    merged = df_work.merge(
+        shop_counts.reset_index(name="_shop_n"),
+        left_on=map_id_col,
+        right_on=shop_map_col,
+        how="left",
+    )
+    merged["_shop_n"] = merged["_shop_n"].fillna(0).astype(int)
+
+    for _, row in merged[merged["_shop_n"] == 0].iterrows():
+        logger.warning(
+            warn.shop_not_found(row[crawling_id_col], row[map_id_col])
+        )
+
+    for _, row in merged[merged["_shop_n"] > 1].iterrows():
+        logger.warning(
+            warn.ambiguous_shop(
+                row[crawling_id_col], row[map_id_col], int(row["_shop_n"])
+            )
+        )
+
+    ok = merged[merged["_shop_n"] == 1].copy()
+
+    one_to_one_maps = shop_counts[shop_counts == 1].index
+    shop_lookup = df_shop[df_shop[shop_map_col].isin(one_to_one_maps)][
+        [shop_map_col, ShopColumn.SHOP_ID.value, ShopColumn.SHOP_CD.value]
+    ].drop_duplicates(subset=[shop_map_col])
+
+    ok = ok.merge(
+        shop_lookup,
+        left_on=map_id_col,
+        right_on=shop_map_col,
+        how="left",
+        suffixes=("", "_shop"),
+    )
+    if shop_map_col + "_shop" in ok.columns:
+        ok = ok.drop(columns=[shop_map_col + "_shop"])
+
+    crawl_cols = [c for c in df_crawling.columns if c in ok.columns]
+    extra = [ShopColumn.SHOP_ID.value, ShopColumn.SHOP_CD.value]
+    return ok[crawl_cols + [c for c in extra if c in ok.columns]]
 
 
 def get_reviews() -> None:
@@ -22,11 +107,12 @@ def get_reviews() -> None:
     2. analysis 테이블의 crawling_id 컬럼값을 가져옴
     3. crawling 테이블의 데이터를 analysis 테이블 데이터에 맞게 데이터 프레임 조정
     4. crawling_id (analysis) 가 이미 존재하는 row는 drop (신규만 추가)
-    5. created_dt 컬럼 값은 now로 설정 (입력되는 시간이 날짜임)
-    6. 나머지 데이터는 설정에 맞춰서 merge 함 
+    5. shop 테이블에서 map_id로 shop_id·shop_cd 1:1 매칭 (실패·다중 매칭 행은 warning 후 제외)
+    6. created_dt 컬럼 값은 now로 설정 (입력되는 시간이 날짜임)
+    7. 나머지 데이터는 설정에 맞춰서 merge 함
     """
     ###################################################
-    # 데이터 설정 
+    # 데이터 설정
     ###################################################
 
     cid_crawl = CrawlingColumn.CRAWLING_ID.value
@@ -36,9 +122,12 @@ def get_reviews() -> None:
     url_c, url_a = CrawlingColumn.ARTICLE_URL.value, AnalysisColumn.ARTICLE_URL.value
     map_c, map_a = CrawlingColumn.MAP_ID.value, AnalysisColumn.MAP_ID.value
     shop_a = AnalysisColumn.SHOP_ID.value
+    shop_cd_a = AnalysisColumn.SHOP_CD.value
     cat_c, cat_a = CrawlingColumn.CATEGORY_CD.value, AnalysisColumn.CATEGORY_CD.value
     info_a = AnalysisColumn.INFORMATION_CD.value
     created_a = AnalysisColumn.CREATED_DT.value
+    shop_id_col = ShopColumn.SHOP_ID.value
+    shop_cd_col = ShopColumn.SHOP_CD.value
 
     # 현재 시간 가져오기
     now = datetime.now().isoformat(timespec=GetReviewsConfig.ISOFORMAT_TIMESPEC)
@@ -46,6 +135,7 @@ def get_reviews() -> None:
     # 테이블 데이터 가져오기
     df_crawling = get_crawling_data()
     df_analysis = get_analysis_data()
+    df_shop = get_shop_data()
 
     crawl_required = (
         cid_crawl,
@@ -66,11 +156,11 @@ def get_reviews() -> None:
             PostAnalysisErrors.GetReviews.missing_analysis_columns([cid_an])
         )
 
-    # => df_analysis에서 crawling_id 컬럼값만 남김 
+    # => df_analysis에서 crawling_id 컬럼값만 남김
     df_analysis_created = df_analysis[[cid_an]]
 
     #################################################
-    # 데이터 처리 
+    # 데이터 처리
     #################################################
 
     # df_crawling에서 df_analysis_created 값과 같은 crawling_id가 있으면 드랍 (불리언 인덱싱)
@@ -81,6 +171,17 @@ def get_reviews() -> None:
         df_crawling_drop[cat_c] != CodeTable.CATEGORY_ETC.value
     ]
 
+    df_crawling_drop = _filter_rows_by_shop_match(
+        df_crawling_drop,
+        df_shop,
+        crawling_id_col=cid_crawl,
+        map_id_col=map_c,
+    )
+
+    if df_crawling_drop.empty:
+        logger.info(PostAnalysisErrors.GetReviews.no_rows_after_shop_resolve())
+        return
+
     # df_crawling_drop 데이터를 analysis 테이블에 맞게 재설정 (컬럼별로 추가)
     df_analysis_new = pd.DataFrame()
     df_analysis_new[cid_an] = df_crawling_drop[cid_crawl]
@@ -88,17 +189,18 @@ def get_reviews() -> None:
     df_analysis_new[content_a] = df_crawling_drop[content_c]
     df_analysis_new[url_a] = df_crawling_drop[url_c]
     df_analysis_new[map_a] = df_crawling_drop[map_c]
-    df_analysis_new[shop_a] = df_crawling_drop[map_c] # 맵이랑 샵id 동일 (나중에는 직접 쿼리로 찾아서 붙여야 함 )
+    df_analysis_new[shop_a] = df_crawling_drop[shop_id_col]
+    df_analysis_new[shop_cd_a] = df_crawling_drop[shop_cd_col]
     df_analysis_new[cat_a] = df_crawling_drop[cat_c]
     # CA07(IT) 제외 후 적재되는 식당 리뷰 → information_cd=IC01 (맛집 정보)
     df_analysis_new[info_a] = CodeTable.INFORMATION_RESTAURANT.value
     df_analysis_new[created_a] = now
 
     #################################################
-    # 처리된 데이터를 analysis 테이블에 업데이트 
+    # 처리된 데이터를 analysis 테이블에 업데이트
     #################################################
     merge_analysis_data(df_analysis_new)
-    logger.info("데이터 적용 완료")
+    logger.info("데이터 적용 완료 (%s건)", len(df_analysis_new))
 
 
 if __name__ == "__main__":

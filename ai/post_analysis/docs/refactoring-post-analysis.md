@@ -40,8 +40,28 @@ sk-connect-etl-standards Part A 기준으로 2026-05 구조 정리.
 - `errors.py`: `KiwiKeywords`, `ClassifyKeywords` 삭제
 - [design.md](design.md) — 3단계 파이프라인·다이어그램 정비
 
+## Phase 7 — DB 스키마 동기화
+
+- 실 DB 조회: `analysis`에 `positive_kw`/`negative_kw` **없음**, `shop_cd` **있음**
+- `postgresql/config.py` MERGE SQL — 존재하지 않는 컬럼 제거, `title`(200)·`sentimental`(16) 길이 DB와 일치
+- `common/constant.py` — `POSITIVE_KW`/`NEGATIVE_KW` 제거, `SHOP_CD`는 DB 전용(미 MERGE)으로 문서화
+- [design.md](design.md) — 실측 스키마·`shop_cd` 미관리·제거 단계 문구 수정
+
+## Phase 8 — pipeline.py
+
+- `pipeline.py` — `run_pipeline()`: get_reviews → analyze_sentimental → analyze_keywords_by_llm
+- `PostAnalysisErrors.Pipeline` — 단계 로그·실패·`max_rows` 검증 메시지
+- CLI: `python pipeline.py [--max-rows N]`
+
+## Phase 9 — shop_id / shop_cd 매칭
+
+- `get_shop_data()` — `postgresql/run_query.py`
+- `get_reviews`: `shop.map_id` 1:1 → `shop_id`·`shop_cd` (기존 `map_id` 복사 제거)
+- 미매칭·다중 매칭: `PostAnalysisErrors.GetReviews.Warn` + 행 드랍
+- MERGE SQL에 `shop_cd` 추가
+
 ## 실행 순서 (확정)
 
-`get_reviews` → `analyze_sentimental` → `analyze_keywords_by_llm`
+`pipeline.py` 또는 `get_reviews` → `analyze_sentimental` → `analyze_keywords_by_llm`
 
 상세 설계: [design.md](design.md)

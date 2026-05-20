@@ -12,6 +12,7 @@ class PostgreSqlTable(str, Enum):
 
     CRAWLING = "crawling"
     ANALYSIS = "analysis"
+    SHOP = "shop"
 
 
 class PostgresEnvKey(str, Enum):
@@ -38,19 +39,18 @@ class MergeAnalysisConfig:
     USING (
     SELECT * FROM jsonb_to_recordset(%s::jsonb) AS s (
         crawling_id     bigint,
-        title           varchar(500),
+        title           varchar(200),
         content         text,
         article_url     varchar(500),
         map_id          bigint,
         shop_id         bigint,
         category_cd     varchar(6),
         information_cd  varchar(6),
+        shop_cd         varchar(6),
         created_dt      timestamp,
-        sentimental     varchar(50),
+        sentimental     varchar(16),
         score           double precision,
-        keywords        text,
-        positive_kw     text,
-        negative_kw     text
+        keywords        text
     )
     ) AS x
     ON a.crawling_id = x.crawling_id
@@ -63,21 +63,20 @@ class MergeAnalysisConfig:
         shop_id = COALESCE(x.shop_id, a.shop_id),
         category_cd = COALESCE(x.category_cd, a.category_cd),
         information_cd = COALESCE(x.information_cd, a.information_cd),
+        shop_cd = COALESCE(x.shop_cd, a.shop_cd),
         created_dt = COALESCE(x.created_dt, a.created_dt),
         sentimental = COALESCE(x.sentimental, a.sentimental),
         score = COALESCE(x.score, a.score),
-        keywords = COALESCE(x.keywords, a.keywords),
-        positive_kw = COALESCE(x.positive_kw, a.positive_kw),
-        negative_kw = COALESCE(x.negative_kw, a.negative_kw)
+        keywords = COALESCE(x.keywords, a.keywords)
     WHEN NOT MATCHED THEN
     INSERT (
         crawling_id, title, content, article_url, map_id, shop_id,
-        category_cd, information_cd, created_dt, sentimental, score,
-        keywords, positive_kw, negative_kw
+        category_cd, information_cd, shop_cd, created_dt, sentimental, score,
+        keywords
     )
     VALUES (
         x.crawling_id, x.title, x.content, x.article_url, x.map_id, x.shop_id,
-        x.category_cd, x.information_cd, x.created_dt, x.sentimental, x.score,
-        x.keywords, x.positive_kw, x.negative_kw
+        x.category_cd, x.information_cd, x.shop_cd, x.created_dt, x.sentimental, x.score,
+        x.keywords
     );
     """

@@ -2,7 +2,7 @@
 
 `crawling` 테이블의 리뷰·블로그 글을 읽어 `analysis` 테이블에 적재하고, BERT 감성 분석과 LLM 키워드 추출까지 수행하는 **배치 파이프라인**이다.
 
-오케스트레이션은 **루트 스크립트 3개 + 외부 스케줄러**(Airflow 등) 연동 방식이며, `pipeline.py`는 두지 않는다.
+오케스트레이션은 **`pipeline.py`**(전체 실행) 또는 **루트 스크립트 3개**를 외부 스케줄러(Airflow 등)에서 단계별로 호출한다.
 
 ---
 
@@ -10,6 +10,7 @@
 
 ```
 post_analysis/
+├── pipeline.py                 # 전체 오케스트레이션 (get_reviews → … → LLM)
 ├── get_reviews.py              # 1단계: crawling → analysis 적재
 ├── analyze_sentimental.py      # 2단계: BERT 감성 분석
 ├── analyze_keywords_by_llm.py  # 3단계: LLM 키워드 추출
@@ -38,11 +39,13 @@ sk-connect-etl-standards Part A/B와 동일하게 **common ↔ postgresql**을 �
 |--------|------|
 | `common/` | 컬럼·코드 Enum, BERT, 에러 메시지, `.env` 로드 — **postgresql을 import하지 않음** |
 | `postgresql/` | 연결, SELECT, MERGE SQL, DB 전용 상수(`config.py`) |
+| `pipeline.py` | 3단계 순차 실행·단계 실패 로그 (`PostAnalysisErrors.Pipeline`) |
 | 루트 `*.py` | 단계별 배치 로직. `common` + `postgresql.run_query`만 사용 |
 
 ```mermaid
 flowchart TB
   subgraph scripts ["루트 스크립트 (단계별 진입점)"]
+    PL[pipeline.py]
     GR[get_reviews.py]
     AS[analyze_sentimental.py]
     AK[analyze_keywords_by_llm.py]
@@ -66,6 +69,9 @@ flowchart TB
     anal[(analysis)]
   end
 
+  PL --> GR
+  PL --> AS
+  PL --> AK
   GR --> C1
   GR --> C2
   GR --> P3
@@ -94,7 +100,16 @@ flowchart TB
 
 ## 운영 파이프라인 (확정)
 
-외부 스케줄러에서 **아래 순서**로 루트 스크립트를 호출한다.
+**전체 실행**은 `pipeline.py`, **단계별·스케줄 분리**는 루트 스크립트 3개를 사용한다.
+
+```mermaid
+flowchart LR
+  PL[pipeline.py] --> A["① get_reviews"]
+  A --> B["② analyze_sentimental"]
+  B --> C["③ analyze_keywords_by_llm"]
+```
+
+외부 스케줄러에서 단계별로 나눌 때는 아래 순서로 호출한다.
 
 ```mermaid
 flowchart LR
@@ -110,6 +125,12 @@ flowchart LR
 
 ```bash
 # 작업 디렉터리: post_analysis/
+
+# 전체 파이프라인
+python pipeline.py
+python pipeline.py --max-rows 10   # LLM 3단계만 상한 (테스트·청크)
+
+# 단계별 (개발·스케줄 분리)
 python get_reviews.py
 python analyze_sentimental.py
 python analyze_keywords_by_llm.py
@@ -161,28 +182,32 @@ flowchart TB
 | IT 정보 제외 | ②③ 단계에서 `information_cd = IC02` 행은 처리하지 않음 |
 | IT 크롤 제외 | ① 단계에서 `category_cd = CA07` 행은 적재하지 않음 |
 | 부분 MERGE | `WHEN MATCHED` UPDATE는 `COALESCE(x.col, a.col)` — 단계별로 일부 컬럼만 MERGE해도 기존 값이 NULL로 덮이지 않음 |
+| shop 매칭 | ① `shop.map_id` 기준 **1:1**일 때만 `shop_id`·`shop_cd` 적재. 0건·2건 이상·`map_id` 결측 → `logger.warning` 후 **행 드랍** |
 | 키 | `crawling_id` 기준 UPSERT |
 
 ---
 
 ## Analysis 테이블
 
-| 컬럼명 | 타입 | 설명 |
-|--------|------|------|
-| crawling_id | int | `crawling.crawling_id` (MERGE 키) |
-| title | str | `crawling.title` |
-| content | str | `crawling.content` |
-| article_url | str | `crawling.article_url` |
-| map_id | int | `crawling.map_id` |
-| shop_id | int | 현재 `map_id`와 동일 매핑 (향후 shop 조회로 대체 예정) |
-| category_cd | 코드(CA**) | 카테고리 축. IT 크롤 **CA07** (`CodeTable.CATEGORY_ETC`) |
-| information_cd | 코드(IC**) | 정보 축. 식당 리뷰 **IC01**, IT 정보 **IC02** |
-| created_dt | datetime | analysis 적재 시각 |
-| sentimental | enum | `positive` / `negative` |
-| score | float | 감성 신뢰도 |
-| keywords | text | LLM 추출 주요 표현 (`#` 구분 문자열) |
-| positive_kw | text | **현재 파이프라인 미사용** (DB·MERGE 스키마 예약) |
-| negative_kw | text | **현재 파이프라인 미사용** (DB·MERGE 스키마 예약) |
+아래는 **연결 DB `public.analysis` 실측 스키마** (`database/init.sql` 기준, 2026-05 확인)이다.
+
+| 컬럼명 | DB 타입 | 파이프라인 | 설명 |
+|--------|---------|------------|------|
+| crawling_id | bigint PK | ① MERGE 키 | `crawling.crawling_id` |
+| title | varchar(200) | ① | `crawling.title` |
+| content | text | ① | `crawling.content` |
+| article_url | varchar(500) | ① | `crawling.article_url` |
+| map_id | bigint | ① | `crawling.map_id` |
+| shop_id | bigint | ① | `shop` 테이블에서 `map_id` 1:1 매칭 시 `shop.shop_id` |
+| category_cd | varchar(6) | ① | 카테고리 축. IT 크롤 **CA07** (`CodeTable.CATEGORY_ETC`) |
+| information_cd | varchar(6) | ① | 정보 축. 식당 리뷰 **IC01**, IT 정보 **IC02** |
+| shop_cd | varchar(6) | ① | 1:1 매칭 시 `shop.shop_cd` (업종 코드 SC**) |
+| created_dt | timestamp | ① | analysis 적재 시각 |
+| sentimental | varchar(16) | ② | `positive` / `negative` |
+| score | float | ② | 감성 신뢰도 |
+| keywords | text | ③ | LLM 추출 주요 표현 (`#` 구분 문자열) |
+
+> **참고:** `positive_kw`·`negative_kw` 컬럼은 **DB에 없음**. 과거 `classify_keywords` 설계 잔재였으며 MERGE SQL에서도 제거했다.
 
 ---
 
@@ -190,10 +215,11 @@ flowchart TB
 
 `crawling`에만 있는 신규 행을 `analysis`로 MERGE한다.
 
-1. `crawling`, `analysis` 전량 SELECT
+1. `crawling`, `analysis`, `shop` SELECT
 2. `analysis`에 이미 있는 `crawling_id` 제외
 3. **`category_cd = CA07`(IT 크롤) 제외** — 식당 리뷰 파이프라인 우선
-4. `information_cd = IC01`, `created_dt = now` 설정 후 MERGE
+4. **`shop.map_id` 1:1 매칭** — `shop_id`, `shop_cd` 부여. 미매칭·다중 매칭 행은 `PostAnalysisErrors.GetReviews.Warn` 후 드랍
+5. `information_cd = IC01`, `created_dt = now` 설정 후 MERGE
 
 ```mermaid
 sequenceDiagram
@@ -297,9 +323,11 @@ sequenceDiagram
 
 | 중첩 클래스 | 용도 |
 |-------------|------|
-| `GetReviews` | crawling/analysis 컬럼 누락 |
+| `GetReviews` | crawling/analysis 컬럼 누락 (`ValueError`), shop 매칭 후 0건 (`info`) |
+| `GetReviews.Warn` | shop 미매칭·1:N (`logger.warning`, 행 드랍) |
 | `Sentiment` | 감성 분석 컬럼 누락, 처리 대상 0건 |
 | `LlmKeywords` | LLM 키워드 컬럼 누락, 처리 대상 0건, 행별 실패 로그 |
+| `Pipeline` | 단계 시작/실패/완료 로그, `max_rows` 검증 |
 | `Db` | `python -m postgresql` 연결 성공/실패 메시지 |
 
 ### 환경변수
@@ -318,9 +346,9 @@ sequenceDiagram
 | 스크립트 | 사유 |
 |----------|------|
 | `analyze_keywords.py` (Kiwi) | LLM 키워드 추출(`analyze_keywords_by_llm`)로 대체 |
-| `classify_keywords.py` | `positive_kw` / `negative_kw` 분리 미사용 |
+| `classify_keywords.py` | 긍·부정 키워드 분리 — DB에도 `positive_kw`/`negative_kw` 컬럼 없음 |
 
-필요 시 Git 이력에서 복구 가능. 스키마의 `positive_kw`·`negative_kw` 컬럼과 MERGE SQL 해당 필드는 DB 호환을 위해 유지한다.
+필요 시 Git 이력에서 스크립트 복구 가능. DB 스키마 변경(`ALTER TABLE`) 없이는 긍·부정 컬럼 분리는 지원하지 않는다.
 
 ---
 

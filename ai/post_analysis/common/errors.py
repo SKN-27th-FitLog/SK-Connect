@@ -59,3 +59,44 @@ class PostAnalysisErrors:
         @staticmethod
         def missing_analysis_columns(missing: Iterable[str]) -> str:
             return _missing_columns_message("analysis", "crawling_id 중복 조회", missing)
+
+        @staticmethod
+        def no_rows_after_shop_resolve() -> str:
+            return "shop 매칭 후 analysis 적재 대상 행이 없습니다."
+
+        class Warn:
+            """``logger.warning`` 수준 — 행 드랍 후 파이프라인은 계속 진행."""
+
+            @staticmethod
+            def shop_not_found(crawling_id: object, map_id: object) -> str:
+                return (
+                    f"shop 미매칭으로 행 제외 (crawling_id={crawling_id}, map_id={map_id})"
+                )
+
+            @staticmethod
+            def ambiguous_shop(
+                crawling_id: object, map_id: object, shop_count: int
+            ) -> str:
+                return (
+                    f"shop 1:1이 아니어서 행 제외 "
+                    f"(crawling_id={crawling_id}, map_id={map_id}, shop_count={shop_count})"
+                )
+
+    class Pipeline:
+        @staticmethod
+        def step_start(step: int, total: int, name: str) -> str:
+            return f"{step}/{total} {name}"
+
+        @staticmethod
+        def step_failed(
+            step: int, total: int, name: str, exc: BaseException
+        ) -> str:
+            return f"파이프라인 {step}/{total}단계({name}) 실패: {exc}"
+
+        @staticmethod
+        def completed() -> str:
+            return "파이프라인 종료."
+
+        @staticmethod
+        def invalid_max_rows(value: int | None) -> str:
+            return f"max_rows는 None 또는 0보다 큰 정수여야 합니다: {value!r}"

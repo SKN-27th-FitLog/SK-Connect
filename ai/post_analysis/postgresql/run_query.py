@@ -11,6 +11,15 @@ from postgresql.config import MergeAnalysisConfig, PostgreSqlTable
 from postgresql.connection import PostgreDB
 
 
+def _read_table(table: str) -> pd.DataFrame:
+    db = PostgreDB()
+    with db.conn.cursor() as cur:
+        cur.execute(f"SELECT * FROM {table}")
+        columns = [col.name for col in cur.description]
+        rows = cur.fetchall()
+    return pd.DataFrame(rows, columns=columns)
+
+
 ##############################################
 # 서버에서 crwaling 테이블 데이터 로드
 ##############################################
@@ -24,13 +33,15 @@ def get_crawling_data() -> pd.DataFrame:
     db = PostgreDB()
     table = PostgreSqlTable.CRAWLING.value
     # 컬럼값 까지 확인
-    with db.conn.cursor() as cur:
-        cur.execute(f"SELECT * FROM {table}")
-        columns = [col.name for col in cur.description]
-        rows = cur.fetchall()
+    return _read_table(table)
 
-    # 데이터 프레임으로 반환
-    return pd.DataFrame(rows, columns=columns)
+
+##############################################
+# 서버에서 shop 테이블 데이터 로드
+##############################################
+def get_shop_data() -> pd.DataFrame:
+    """`shop` 테이블 전체를 읽어 `map_id` → `shop_id`/`shop_cd` 조회에 사용한다."""
+    return _read_table(PostgreSqlTable.SHOP.value)
 
 
 ##############################################
@@ -45,13 +56,7 @@ def get_analysis_data() -> pd.DataFrame:
     """
     db = PostgreDB()
     table = PostgreSqlTable.ANALYSIS.value
-    with db.conn.cursor() as cur:
-        cur.execute(f"SELECT * FROM {table}")
-        columns = [col.name for col in cur.description]
-        rows = cur.fetchall()
-
-    # 데이터 프레임으로 반환
-    return pd.DataFrame(rows, columns=columns)
+    return _read_table(table)
 
 
 ##################################################################
