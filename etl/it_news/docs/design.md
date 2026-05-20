@@ -256,4 +256,5 @@ DB 쓰기 배치는 테스트 통과와 별도로, 로컬 DB 기동 후 위 명�
 
 ## 9. 함수 계약·인벤토리
 
-공개 API의 유형(A~F)·안전성(Level 0~3)·docstring `Note:`는 [function-inventory.md](./function-inventory.md)를 따른다.
+공개 API의 유형(A~F)·안전성(Level 0~3)·docstring `Note:`는 [function-inventory.md](./function-inventory.md)를 따른다.  
+테스트 시나리오·가드레일은 [testing.md](./testing.md)를 따른다.

@@ -175,12 +175,15 @@ flowchart LR
 
 ---
 
-## 테스트 우선순위 (후속)
+## 테스트
 
-| 우선순위 | 대상 |
-|----------|------|
-| 높음 | L0 — `korean_relative_time`, `build_csv_path`, `separate_success_and_fail`, `coalesce_last_created_at` |
-| 중간 | L2 mock — `insert_crawling_batch`, `save_threads` thread 필터 |
-| 낮음 | L3 mock — `parse_article`, `get_article_list` |
+시나리오 ID·상세 케이스·가드레일: [testing.md](./testing.md)  
+불변 규칙·완료 조건: [integrity-and-testing-standards.md](./integrity-and-testing-standards.md)
 
-테스트 정책 문서(`docs/testing.md`)는 미작성 — 인벤토리 확정 후 추가.
+| 우선순위 | 시나리오 (예) |
+|----------|----------------|
+| P0 | IT-L0-UTIL-003, IT-L0-PRE-006~008, IT-L0-CST-003 |
+| P2 | IT-L2-MRG-002, IT-L2-SAVE-002, IT-L2-CRAWL-002 |
+| P3 | IT-L3-GEEK-002, IT-L3-PLN-001 |
+
+`tests/` **59건 구현** — [testing.md](./testing.md) §1·§7 참고.

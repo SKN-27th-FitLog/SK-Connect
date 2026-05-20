@@ -66,6 +66,7 @@ python -m postgresql
 
 - 설계·flow·단계 동작: [design.md](./design.md)
 - 함수 인벤토리·docstring `Note:`: [function-inventory.md](./function-inventory.md)
+- 테스트 케이스·가드레일: [testing.md](./testing.md)
 - 본 기준 문서 수정 시 Skill 배포본(`code-structure-standards`)도 필요 시 동기화한다.
 
 ## 9. docstring
