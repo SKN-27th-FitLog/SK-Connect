@@ -53,6 +53,30 @@ def evaluate_post_completion(result: dict) -> dict:
                 "reason": f"템플릿/placeholder 문구가 포함되어 있습니다: {', '.join(found_banned_tokens)}",
             }
 
+        for line in post_text.splitlines():
+            line_text = str(line or "").strip()
+            compact_line = re.sub(r"[\s\*\[\]\(\){}<>:：`\"'“”‘’]+", "", line_text)
+            meta_hit_count = sum(
+                1 for marker in (
+                    "참고",
+                    "요청하신",
+                    "형식",
+                    "예시",
+                    "실제사용",
+                    "사용하실때",
+                    "톤앤매너",
+                    "수정하시면",
+                    "작성된",
+                    "위내용",
+                )
+                if marker in compact_line
+            )
+            if meta_hit_count >= 2:
+                return {
+                    "is_pass": False,
+                    "reason": f"본문 외 메타 안내문이 포함되어 있습니다: {line_text[:80]}",
+                }
+
         local_quality_issue = None
         awkward_phrase = "갈 때까지도"
         for match in re.finditer(re.escape(awkward_phrase), post_text):
@@ -139,7 +163,8 @@ def evaluate_post_completion(result: dict) -> dict:
             3. 지나치게 진부하거나 반복적인 표현이 없는가
             4. 실제 사람이 작성한 것 같은 자연스러운 말투인가
             5. 부정적인 내용으로 작성하지 않았는가
-            6. '[장소 이름]', '[참고]', '여기에', 'xxxxx' 같은 placeholder가 없는가
+            6. '[장소 이름]', '[참고]', '여기에', 'xxxxx' 같은 placeholder나 본문 밖 메타 안내문이 없는가
+               - "요청하신 형식", "작성된 예시", "실제 사용하실 때", "톤앤매너", "수정하시면 됩니다"처럼 작성물 자체를 설명하는 문장은 fail.
             7. **(GROUNDING)** POST에 등장하는 메뉴명, 재료, 고유명사, 특정 수식어가
                [SOURCES]에 등장하거나 자연스럽게 추론 가능해야 한다.
                - SOURCES에 한 번도 나오지 않는 고유명사·메뉴명·재료명·지명이 POST에 나오면 fail.

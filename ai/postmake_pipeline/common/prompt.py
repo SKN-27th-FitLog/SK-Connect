@@ -7,7 +7,7 @@ logger = set_logging()
 
 
 class Create_Prompt:
-    def __init__(self, data: str = "", similar_post: Optional[list[str]] = None, reason: Optional[str] = None, image_list: Optional[list] = None):
+    def __init__(self, data: str = "", reason: Optional[str] = None, image_list: Optional[list] = None):
         self.master_template = ["""
 # [SYSTEM ROLE]
 당신은 실제 사용자가 직접 작성한 것처럼 자연스러운 식당 게시글을 작성하는 작가입니다.
@@ -41,6 +41,7 @@ class Create_Prompt:
 15. KEYWORDS는 보조 신호이고, SOURCE FACTS와 충돌하면 SOURCE FACTS를 우선하세요.
 16. SOURCE FACTS나 TOP SOURCE REVIEWS 섹션 제목, 번호, bullet은 출력하지 마세요.
 17. image_html과 link_html은 SOURCE FACTS 제한과 별개로 반드시 그대로 포함해야 하는 출력 요소입니다.
+18. 본문 밖의 안내문, 참고문, 예시 설명, 사용 안내, 수정 안내를 출력하지 마세요. "요청하신 형식", "작성된 예시", "실제 사용하실 때", "톤앤매너", "수정하시면 됩니다"처럼 작성물 자체를 설명하는 문장은 본문에 절대 넣지 마세요.
 """]
 
         self.title_template = ["""
@@ -134,16 +135,20 @@ class Create_Prompt:
 """,
         ]
 
-        self.regenerate_similar_sub_prompts: list[str] = [
-            """
-# [CONTEXT]
-다음은 기존 유사 게시글입니다.
-{similar_post}
+        self.writing_angle_prompts: list[str] = [
+            "메뉴/음식 자체를 중심으로 쓰세요. 메뉴명과 맛/식감/양 같은 평가를 앞쪽에 배치하세요.",
+            "가성비나 양, 한 끼 만족감을 중심으로 쓰세요. 가격 숫자를 새로 만들지 말고 리뷰에서 확인되는 느낌만 사용하세요.",
+            "방문 상황이나 함께 간 대상을 중심으로 쓰세요. 부모님, 친구, 혼밥 같은 대상은 SOURCE FACTS에 있을 때만 사용하세요.",
+            "서비스, 주차, 웨이팅, 매장 분위기 중 SOURCE FACTS에 있는 보조 경험을 중심으로 쓰세요.",
+            "주문 흐름과 먹는 순서를 따라가듯 쓰세요. 메뉴에서 시작해 반찬/양념/마무리 인상으로 자연스럽게 이어가세요.",
+        ]
 
-# [SYSTEM ROLE]
-위 유사 게시글과 문장 구조, 표현, 전개 방식, 강조 포인트가 겹치지 않게 새 게시글을 작성하세요.
-유사 게시글의 문장을 복사하거나 살짝 바꿔 쓰지 마세요.
-"""
+        self.sentence_structure_prompts: list[str] = [
+            "첫 문장은 구체 메뉴명이나 대상어로 바로 시작하고, 두 번째 문장에서 평가 이유를 붙이세요.",
+            "첫 문장은 방문 상황으로 짧게 시작하고, 다음 문장에서 메뉴와 평가를 구체화하세요.",
+            "짧은 문장과 긴 문장을 섞어 쓰세요. 같은 종결 표현을 연속으로 반복하지 마세요.",
+            "기대나 인상으로 시작하되, 바로 다음 문장에 SOURCE FACTS의 구체 메뉴/대상 평가를 넣으세요.",
+            "문단 흐름은 메뉴 평가 -> 보조 경험 -> 전체 인상 순서로 구성하세요.",
         ]
 
         self.regenerate_reason_sub_prompts: list[str] = [
@@ -277,6 +282,10 @@ class Create_Prompt:
                 cls._format_negative_keywords(negative_keywords),
                 "# [AVOID KEYWORD RULE]",
                 "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
+                "# [WRITING ANGLE]",
+                random.choice(prompt.writing_angle_prompts),
+                "# [SENTENCE STRUCTURE]",
+                random.choice(prompt.sentence_structure_prompts),
                 "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
                 "# [SOURCE REVIEW RULE]",
@@ -286,7 +295,8 @@ class Create_Prompt:
                 str(source_facts or "").strip(),
                 "# [SOURCE FACT RULE]",
                 "본문은 SOURCE FACTS의 사실만 조합해서 작성하세요.\n"
-                "SOURCE FACTS가 부족하면 TOP SOURCE REVIEWS에서 직접 확인되는 표현만 보완하고, 추측으로 메뉴명/재료명/장소명을 만들지 마세요.",
+                "SOURCE FACTS가 부족하면 TOP SOURCE REVIEWS에서 직접 확인되는 표현만 보완하고, 추측으로 메뉴명/재료명/장소명을 만들지 마세요.\n"
+                "SOURCE FACTS를 모두 나열하지 말고 메뉴/맛·식감·양/서비스·분위기·가격·상황 중 서로 다른 축 3개 안팎을 골라 조합하세요.",
                 random.choice(prompt.casual_sub_prompts),
             ])
         except Exception as e:
@@ -299,51 +309,6 @@ class Create_Prompt:
     def get_title_prompt(cls, data: str) -> str:
         prompt = cls()
         return prompt.title_template[0].format(data=data)
-
-    @classmethod
-    def get_regenerate_prompt(
-        cls,
-        data: list[str],
-        keyword: Optional[list[str]] = None,
-        image_list: Optional[list] = None,
-        url: Optional[str] = None,
-        sample_data: Optional[dict | list[dict]] = None,
-        keyword_stats: Optional[list[dict]] = None,
-        negative_keywords: Optional[list[str]] = None,
-        source_facts: Optional[str] = None,
-    ) -> str:
-        try:
-            prompt = cls()
-            sub_prompt = random.choice(prompt.regenerate_similar_sub_prompts).format(
-                similar_post="\n".join(data)
-            )
-            return "\n".join([
-                cls._master_prompt(prompt, image_list, url, sample_data),
-                "# [KEYWORDS]",
-                ", ".join(keyword or []),
-                "# [KEYWORD PRIORITY]",
-                cls._format_keyword_stats(keyword_stats),
-                "# [KEYWORD PRIORITY RULE]",
-                "final_weight가 높은 키워드를 우선 반영하되, 숫자나 점수 자체를 본문에 쓰지 마세요.\n"
-                "메뉴명이나 대상어가 붙은 키워드는 해당 메뉴/대상에 대한 평가로만 사용하고, 일반 맛 평가처럼 섞어 쓰지 마세요.",
-                "# [AVOID KEYWORDS]",
-                cls._format_negative_keywords(negative_keywords),
-                "# [AVOID KEYWORD RULE]",
-                "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
-                "# [TOP SOURCE REVIEWS]",
-                cls._format_sample_data(sample_data),
-                "# [SOURCE FACTS]",
-                str(source_facts or "").strip(),
-                sub_prompt,
-                "# [REGENERATION RULE]",
-                "keyword, image_html, link_html, TOP SOURCE REVIEWS, SOURCE FACTS 정보는 유지해서 반영하되, 기존 유사 게시글과 다르게 작성하세요.\n"
-                "SOURCE FACTS 밖의 메뉴명/재료명/고유명사는 새로 만들지 마세요.",
-            ])
-        except Exception as e:
-            sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data
-            crawling_id = (sample_for_log or {}).get("crawling_id")
-            logger.error(f"get_regenerate_prompt | Error={e} | crawling_id={crawling_id}")
-            return ""
 
     @classmethod
     def get_regenerate_reason_prompt(
@@ -374,6 +339,10 @@ class Create_Prompt:
                 cls._format_negative_keywords(negative_keywords),
                 "# [AVOID KEYWORD RULE]",
                 "AVOID KEYWORDS에 있는 요소는 장점처럼 강조하지 말고, 가능한 한 언급하지 마세요.",
+                "# [WRITING ANGLE]",
+                random.choice(prompt.writing_angle_prompts),
+                "# [SENTENCE STRUCTURE]",
+                random.choice(prompt.sentence_structure_prompts),
                 "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
                 "# [SOURCE FACTS]",
@@ -383,7 +352,8 @@ class Create_Prompt:
                 sub_prompt,
                 "# [REGENERATION RULE]",
                 "PREVIOUS POST를 그대로 고치지 말고, 실패 사유가 된 표현을 제거한 뒤 SOURCE FACTS에 있는 사실만 사용해서 새로 작성하세요.\n"
-                "구체적인 대상+평가를 최소 2개 이상 포함하고, 상투적인 칭찬만 반복하지 마세요.",
+                "구체적인 대상+평가를 최소 2개 이상 포함하고, 상투적인 칭찬만 반복하지 마세요.\n"
+                "PREVIOUS POST와 다른 관점/문장 순서로 쓰고, SOURCE FACTS 중 서로 다른 축의 사실을 골라 조합하세요.",
             ])
         except Exception as e:
             sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data

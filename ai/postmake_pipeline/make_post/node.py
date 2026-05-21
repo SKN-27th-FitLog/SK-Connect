@@ -1,12 +1,11 @@
 from langgraph.graph import StateGraph, START, END
 from typing import Optional, TypedDict
 from common.logging_config import set_logging
-from common.connection import PGVectorStore
 from make_post.evaluation import evaluate_post_completion
-from common.llm_factory import get_llm
-from get_data.get_another import get_similar_post
+from common.llm_factory import get_llm, get_post_make_llm, get_regenerate_llm
 from common.prompt import Create_Prompt
 from get_data.get_another import get_image
+import ast
 import time
 import random
 import re
@@ -14,8 +13,6 @@ from urllib.parse import urlparse
 
 logger = set_logging()
 
-INITIAL_SIMILARITY_DISTANCE_THRESHOLD = 0.18
-REGENERATED_SIMILARITY_DISTANCE_THRESHOLD = 0.12
 RESERVED_URL_HOSTS = {"example.com", "www.example.com", "example.org", "www.example.org", "example.net", "www.example.net"}
 RESERVED_URL_SUFFIXES = (".example.com", ".example.org", ".example.net", ".example", ".test", ".invalid", ".localhost")
 HTTP_URL_PATTERN = re.compile(r"https?://[^\s<>\")\]]+")
@@ -32,7 +29,6 @@ class State(TypedDict):
     data: list[dict]
     post: Optional[str]
     title: Optional[str]
-    similar_post: Optional[list[str]]
     reason: Optional[str]
     sample_data: Optional[dict | list[dict]]
     source_facts: Optional[str]
@@ -45,6 +41,7 @@ def make_post(state: State) -> State:
     try:
         logger.info(f"make_post start | shop_id={state['data'][0].get('shop_id')}")
         llm = get_llm()
+        post_llm = get_post_make_llm()
         image_list = get_image(state['data'])
 
         # 선정 키워드와 많이 겹치고 대상어+평가 키워드가 있는 리뷰를 우선 샘플로 보낸다.
@@ -119,7 +116,31 @@ def make_post(state: State) -> State:
             scored_rows.append((total_score, overlap_score, target_keyword_count, row_score, -index, row))
 
         scored_rows.sort(reverse=True, key=lambda item: item[:-1])
-        sample_data = [row for *_, row in scored_rows[:5]]
+        sample_data = []
+        review_pool = scored_rows[:max(8, 5 * 2)]
+        selected_row_ids = set()
+        if review_pool:
+            first_row = review_pool[0][-1]
+            sample_data.append(first_row)
+            selected_row_ids.add(first_row.get("crawling_id") or id(first_row))
+        while len(sample_data) < 5:
+            choices = [
+                item for item in review_pool
+                if (item[-1].get("crawling_id") or id(item[-1])) not in selected_row_ids
+            ]
+            if not choices:
+                break
+            weights = []
+            for total_score, overlap_score, target_keyword_count, row_score, _, row in choices:
+                weight = max(float(total_score or 0), 0.01)
+                if not target_keyword_count:
+                    weight *= 0.65
+                if not overlap_score:
+                    weight *= 0.7
+                weights.append(weight)
+            picked = random.choices(choices, weights=weights, k=1)[0][-1]
+            sample_data.append(picked)
+            selected_row_ids.add(picked.get("crawling_id") or id(picked))
         if not sample_data and state['data']:
             sample_data = [random.choice(state['data'])]
         url_candidates = []
@@ -156,8 +177,9 @@ def make_post(state: State) -> State:
 3. 각 bullet은 반드시 "구체 대상어 + 평가/맥락" 형태로 쓰세요. 예: "김치뽀글이는 매콤하다는 평가가 있다."
 4. "메인 메뉴", "반찬 구성", "음식", "요리", "메뉴" 같은 넓은 일반명사만으로 대상어를 대체하지 마세요.
 5. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
-6. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
-7. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
+6. 메뉴/맛·식감·양/가격·서비스·분위기·상황 중 서로 다른 축의 사실을 섞어 뽑으세요.
+7. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
+8. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
 """
             facts_response = llm.invoke(facts_prompt)
             source_facts = str(facts_response)
@@ -176,10 +198,60 @@ def make_post(state: State) -> State:
             state.get('negative_keywords'),
             source_facts,
         )
-        response = llm.invoke(prompt)
+        response = post_llm.invoke(prompt)
         post = str(response)
         if hasattr(response, "content"):
             post = response.content
+        post = str(post or "").strip()
+        for _ in range(2):
+            content_match = re.match(
+                r"^content=(?P<quoted>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")(?:\s+\w+=.*)?$",
+                post,
+                flags=re.DOTALL,
+            )
+            if not content_match:
+                break
+            try:
+                post = ast.literal_eval(content_match.group("quoted"))
+            except (SyntaxError, ValueError):
+                post = content_match.group("quoted")[1:-1]
+            post = str(post or "").strip()
+
+        post = re.sub(r"(?is)<think\b[^>]*>.*?</think\s*>", "", post).strip()
+        think_index = post.lower().find("<think")
+        if think_index != -1:
+            after_think = post[think_index:]
+            html_start = re.search(
+                r"(?is)<(?:p|div|section|article|h[1-6]|ul|ol|li|blockquote|strong|br|img|a)\b",
+                after_think,
+            )
+            if html_start:
+                post = (post[:think_index] + after_think[html_start.start():]).strip()
+            else:
+                split_post = re.split(r"\n\s*\n", after_think, maxsplit=1)
+                post = (post[:think_index] + split_post[-1]).strip() if len(split_post) > 1 else post[:think_index].strip()
+
+        fence_match = re.search(r"(?is)```(?:html|markdown|text)?\s*(?P<body>.*?)\s*```", post)
+        if fence_match:
+            post = fence_match.group("body").strip()
+        else:
+            post = re.sub(r"(?im)^\s*```(?:html|markdown|text)?\s*$", "", post).strip()
+            post = re.sub(r"(?im)^\s*```\s*$", "", post).strip()
+
+        for _ in range(3):
+            normalized_post = re.sub(
+                r"(?is)^\s*(?:assistant|ai|answer|final|답변|본문|게시글|출력)\s*[:：]\s*",
+                "",
+                post,
+            ).strip()
+            normalized_post = re.sub(
+                r"(?is)^\s*(?:여기 있습니다|작성했습니다|완성했습니다|아래와 같습니다)\s*[:：]?\s*",
+                "",
+                normalized_post,
+            ).strip()
+            if normalized_post == post:
+                break
+            post = normalized_post
         post = HTTP_URL_PATTERN.sub(
             lambda match: (
                 match.group(0)
@@ -206,6 +278,29 @@ def make_post(state: State) -> State:
             ),
             str(post or ""),
         ).strip()
+        cleaned_lines = []
+        for line in post.splitlines():
+            line_text = str(line or "").strip()
+            compact_line = re.sub(r"[\s\*\[\]\(\){}<>:：`\"'“”‘’]+", "", line_text)
+            meta_hit_count = sum(
+                1 for marker in (
+                    "참고",
+                    "요청하신",
+                    "형식",
+                    "예시",
+                    "실제사용",
+                    "사용하실때",
+                    "톤앤매너",
+                    "수정하시면",
+                    "작성된",
+                    "위내용",
+                )
+                if marker in compact_line
+            )
+            if meta_hit_count >= 2:
+                continue
+            cleaned_lines.append(line)
+        post = "\n".join(cleaned_lines).strip()
         image_urls = []
         for image in image_list or []:
             image_url = None
@@ -255,48 +350,15 @@ def make_title(state: State) -> State:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
         return state
 
-def embedding(state: State, similarity_distance_threshold: float = INITIAL_SIMILARITY_DISTANCE_THRESHOLD) -> State:
-    """생성 게시글과 기존 벡터 문서의 유사도를 조회한다."""
-    try:
-        logger.info(f"embedding start | shop_id={state['data'][0].get('shop_id')}")
-        vectorstore = PGVectorStore().get_vectorstore()
-        results = vectorstore.similarity_search_with_score(state['post'], k=5)
-        retry_count = state.get('retry_count', 0)
-        threshold = similarity_distance_threshold
-        if retry_count > 0:
-            threshold = REGENERATED_SIMILARITY_DISTANCE_THRESHOLD
-
-        # PGVector cosine score는 distance라서 값이 낮을수록 기존 글과 더 유사하다.
-        similar_results = [
-            document
-            for document, score in results
-            if score <= threshold
-        ]
-        state['similar_post'] = None
-        if similar_results and retry_count == 0:
-            state['similar_post'] = get_similar_post(similar_results)
-        best_score = min((score for _, score in results), default=None)
-        top_scores = [round(score, 4) for _, score in results]
-        logger.info(
-            f"embedding end | shop_id={state['data'][0].get('shop_id')} | "
-            f"similar_count={len(similar_results)} | "
-            f"similar_prompt_count={len(state.get('similar_post') or [])} | "
-            f"best_score={best_score} | threshold={threshold} | "
-            f"retry_count={retry_count} | top_scores={top_scores}"
-        )
-        return state
-    except Exception as e:
-        logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
-        return state
-
 def regenerate_post(state: State) -> State:
-    """평가 실패 사유 또는 유사 게시글을 반영해 게시글을 다시 생성한다."""
+    """평가 실패 사유를 반영해 게시글을 다시 생성한다."""
     try:
         retry_count = state.get('retry_count', 0)
         if retry_count >= 2:
             return state
         logger.info(f"regenerate_post start | shop_id={state['data'][0].get('shop_id')} | retry_count={retry_count}")
         llm = get_llm()
+        post_llm = get_regenerate_llm()
         image_list = get_image(state['data'])
         sample_data = state.get('sample_data')
         if not sample_data:
@@ -371,7 +433,31 @@ def regenerate_post(state: State) -> State:
                 scored_rows.append((total_score, overlap_score, target_keyword_count, row_score, -index, row))
 
             scored_rows.sort(reverse=True, key=lambda item: item[:-1])
-            sample_data = [row for *_, row in scored_rows[:5]]
+            sample_data = []
+            review_pool = scored_rows[:max(8, 5 * 2)]
+            selected_row_ids = set()
+            if review_pool:
+                first_row = review_pool[0][-1]
+                sample_data.append(first_row)
+                selected_row_ids.add(first_row.get("crawling_id") or id(first_row))
+            while len(sample_data) < 5:
+                choices = [
+                    item for item in review_pool
+                    if (item[-1].get("crawling_id") or id(item[-1])) not in selected_row_ids
+                ]
+                if not choices:
+                    break
+                weights = []
+                for total_score, overlap_score, target_keyword_count, row_score, _, row in choices:
+                    weight = max(float(total_score or 0), 0.01)
+                    if not target_keyword_count:
+                        weight *= 0.65
+                    if not overlap_score:
+                        weight *= 0.7
+                    weights.append(weight)
+                picked = random.choices(choices, weights=weights, k=1)[0][-1]
+                sample_data.append(picked)
+                selected_row_ids.add(picked.get("crawling_id") or id(picked))
             if not sample_data and state['data']:
                 sample_data = [random.choice(state['data'])]
         url_candidates = []
@@ -409,8 +495,9 @@ def regenerate_post(state: State) -> State:
 3. 각 bullet은 반드시 "구체 대상어 + 평가/맥락" 형태로 쓰세요. 예: "김치뽀글이는 매콤하다는 평가가 있다."
 4. "메인 메뉴", "반찬 구성", "음식", "요리", "메뉴" 같은 넓은 일반명사만으로 대상어를 대체하지 마세요.
 5. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
-6. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
-7. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
+6. 메뉴/맛·식감·양/가격·서비스·분위기·상황 중 서로 다른 축의 사실을 섞어 뽑으세요.
+7. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
+8. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
 """
                 facts_response = llm.invoke(facts_prompt)
                 source_facts = str(facts_response)
@@ -420,7 +507,7 @@ def regenerate_post(state: State) -> State:
             except Exception as e:
                 logger.error(f"source facts extraction error | Error={e} | shop_id={state['data'][0].get('shop_id')}")
 
-        # 실패 사유가 있으면 품질 보정 프롬프트를, 유사 게시글이 있으면 중복 회피 프롬프트를 우선한다.
+        # 실패 사유가 있으면 품질 보정 프롬프트를 우선한다.
         prompt = Create_Prompt.get_prompt(
             state['keyword'],
             image_list,
@@ -430,17 +517,6 @@ def regenerate_post(state: State) -> State:
             state.get('negative_keywords'),
             source_facts,
         )
-        if state['similar_post']:
-            prompt = Create_Prompt.get_regenerate_prompt(
-                state['similar_post'],
-                state['keyword'],
-                image_list,
-                url,
-                sample_data,
-                state.get('keyword_stats'),
-                state.get('negative_keywords'),
-                source_facts,
-            )
         if state['reason']:
             prompt = Create_Prompt.get_regenerate_reason_prompt(
                 state['reason'],
@@ -453,10 +529,60 @@ def regenerate_post(state: State) -> State:
                 source_facts,
                 state.get('post'),
             )
-        response = llm.invoke(prompt)
+        response = post_llm.invoke(prompt)
         post = str(response)
         if hasattr(response, "content"):
             post = response.content
+        post = str(post or "").strip()
+        for _ in range(2):
+            content_match = re.match(
+                r"^content=(?P<quoted>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")(?:\s+\w+=.*)?$",
+                post,
+                flags=re.DOTALL,
+            )
+            if not content_match:
+                break
+            try:
+                post = ast.literal_eval(content_match.group("quoted"))
+            except (SyntaxError, ValueError):
+                post = content_match.group("quoted")[1:-1]
+            post = str(post or "").strip()
+
+        post = re.sub(r"(?is)<think\b[^>]*>.*?</think\s*>", "", post).strip()
+        think_index = post.lower().find("<think")
+        if think_index != -1:
+            after_think = post[think_index:]
+            html_start = re.search(
+                r"(?is)<(?:p|div|section|article|h[1-6]|ul|ol|li|blockquote|strong|br|img|a)\b",
+                after_think,
+            )
+            if html_start:
+                post = (post[:think_index] + after_think[html_start.start():]).strip()
+            else:
+                split_post = re.split(r"\n\s*\n", after_think, maxsplit=1)
+                post = (post[:think_index] + split_post[-1]).strip() if len(split_post) > 1 else post[:think_index].strip()
+
+        fence_match = re.search(r"(?is)```(?:html|markdown|text)?\s*(?P<body>.*?)\s*```", post)
+        if fence_match:
+            post = fence_match.group("body").strip()
+        else:
+            post = re.sub(r"(?im)^\s*```(?:html|markdown|text)?\s*$", "", post).strip()
+            post = re.sub(r"(?im)^\s*```\s*$", "", post).strip()
+
+        for _ in range(3):
+            normalized_post = re.sub(
+                r"(?is)^\s*(?:assistant|ai|answer|final|답변|본문|게시글|출력)\s*[:：]\s*",
+                "",
+                post,
+            ).strip()
+            normalized_post = re.sub(
+                r"(?is)^\s*(?:여기 있습니다|작성했습니다|완성했습니다|아래와 같습니다)\s*[:：]?\s*",
+                "",
+                normalized_post,
+            ).strip()
+            if normalized_post == post:
+                break
+            post = normalized_post
         post = HTTP_URL_PATTERN.sub(
             lambda match: (
                 match.group(0)
@@ -483,6 +609,29 @@ def regenerate_post(state: State) -> State:
             ),
             str(post or ""),
         ).strip()
+        cleaned_lines = []
+        for line in post.splitlines():
+            line_text = str(line or "").strip()
+            compact_line = re.sub(r"[\s\*\[\]\(\){}<>:：`\"'“”‘’]+", "", line_text)
+            meta_hit_count = sum(
+                1 for marker in (
+                    "참고",
+                    "요청하신",
+                    "형식",
+                    "예시",
+                    "실제사용",
+                    "사용하실때",
+                    "톤앤매너",
+                    "수정하시면",
+                    "작성된",
+                    "위내용",
+                )
+                if marker in compact_line
+            )
+            if meta_hit_count >= 2:
+                continue
+            cleaned_lines.append(line)
+        post = "\n".join(cleaned_lines).strip()
         image_urls = []
         for image in image_list or []:
             image_url = None
@@ -504,7 +653,6 @@ def regenerate_post(state: State) -> State:
             'post': post,
             'sample_data': sample_data,
             'source_facts': source_facts,
-            'similar_post': None,
             'reason': None,
             'is_pass': None,
             'retry_count': retry_count + 1,
@@ -532,15 +680,6 @@ def evaluate_post(state: State) -> State:
         logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
         return state
 
-def route_after_embedding(state: State) -> str:
-    """유사 게시글이 발견되면 바로 재생성으로 보내 중복을 줄인다."""
-    if state.get('similar_post'):
-        if state.get('retry_count', 0) > 0:
-            return "evaluate_post"
-        return "regenerate_post"
-    return "evaluate_post"
-
-
 def route_after_evaluation(state: State) -> str:
     """평가 통과 또는 최대 재시도 도달 시 그래프를 종료한다."""
     if state.get('is_pass'):
@@ -555,26 +694,14 @@ def build_graph():
     graph = StateGraph(State)
     graph.add_node("make_post", make_post)
     graph.add_node("make_title", make_title)
-    graph.add_node("embedding", embedding)
     graph.add_node("regenerate_post", regenerate_post)
     graph.add_node("evaluate_post", evaluate_post)
     graph.add_edge(START, "make_post")
     graph.add_edge("make_post", "make_title")
-    graph.add_edge("make_title", "embedding")
-
-    # 기존 게시글과 유사하면 평가 전에 먼저 재생성한다.
-    graph.add_conditional_edges(
-        "embedding",
-        route_after_embedding,
-        {
-            "regenerate_post": "regenerate_post",
-            "evaluate_post": "evaluate_post",
-            "end": END,
-        }
-    )
+    graph.add_edge("make_title", "evaluate_post")
     graph.add_edge("regenerate_post", "make_title")
 
-    # 평가 실패 시 최대 retry_count까지 재생성하고, 다시 제목/유사도 검사를 거친다.
+    # 평가 실패 시 최대 retry_count까지 재생성하고 다시 제목 생성 후 평가한다.
     graph.add_conditional_edges(
         "evaluate_post",
         route_after_evaluation,

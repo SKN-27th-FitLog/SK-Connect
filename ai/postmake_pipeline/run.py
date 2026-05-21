@@ -42,7 +42,7 @@ def run_pipeline():
                 logger.info(f"생성 키워드 없음 | shop_id={shop_id}")
                 continue
 
-            # 게시글 생성 그래프는 생성 -> 제목 생성 -> 유사도 검사 -> 재생성 -> 재검사 -> 평가를 수행한다.
+            # 게시글 생성 그래프는 생성 -> 제목 생성 -> 평가 -> 필요 시 재생성을 수행한다.
             logger.info(f"graph invoke start | shop_id={shop_id} | rows={len(shop_data)} | keywords={keyword_data}")
             post_data = graph.invoke({
                 "keyword": keyword_data,
@@ -51,7 +51,6 @@ def run_pipeline():
                 "data": shop_data,
                 "post": None,
                 "title": None,
-                "similar_post": None,
                 "reason": None,
                 "sample_data": None,
                 "source_facts": None,

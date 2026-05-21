@@ -9,6 +9,7 @@ from langchain_core.documents import Document
 from math import log1p, sqrt
 from functools import lru_cache
 from kiwipiepy import Kiwi
+import random
 import time
 
 logger = set_logging()
@@ -492,11 +493,65 @@ def select_keyword(
             rules,
         )
 
-        selected_stats = [
+        ratio_candidates = [
             data for data in keyword_stats
             if data["batch_count"] / len(positive_rows) >= keyword_ratio
-        ][:max_keywords]
-        selected_keywords = {data["keyword"] for data in selected_stats}
+        ]
+        top_weight = max((float(data.get("final_weight") or 0) for data in keyword_stats), default=0.0)
+        pool_limit = max(max_keywords * 3, 8)
+        candidate_pool = []
+        for data in keyword_stats:
+            if len(candidate_pool) >= pool_limit:
+                break
+            weight = float(data.get("final_weight") or 0)
+            if data in ratio_candidates or (top_weight and weight >= top_weight * 0.55):
+                candidate_pool.append(data)
+        if not candidate_pool:
+            candidate_pool = keyword_stats[:pool_limit]
+
+        selected_stats = []
+        selected_keywords = set()
+        selected_categories = {}
+        if candidate_pool:
+            first = candidate_pool[0]
+            selected_stats.append(first)
+            selected_keywords.add(first["keyword"])
+            first_category = first.get("category") or next(iter(first.get("categories") or []), "general")
+            selected_categories[first_category] = selected_categories.get(first_category, 0) + 1
+
+        target_candidates = [
+            data for data in candidate_pool
+            if data.get("has_target_keyword") and data["keyword"] not in selected_keywords
+        ]
+        if target_candidates and len(selected_stats) < max_keywords:
+            weights = [max(float(data.get("final_weight") or 0), 0.01) for data in target_candidates]
+            picked = random.choices(target_candidates, weights=weights, k=1)[0]
+            selected_stats.append(picked)
+            selected_keywords.add(picked["keyword"])
+            picked_category = picked.get("category") or next(iter(picked.get("categories") or []), "general")
+            selected_categories[picked_category] = selected_categories.get(picked_category, 0) + 1
+
+        while len(selected_stats) < max_keywords:
+            choices = [data for data in candidate_pool if data["keyword"] not in selected_keywords]
+            if not choices:
+                break
+            weights = []
+            for data in choices:
+                category = data.get("category") or next(iter(data.get("categories") or []), "general")
+                weight = max(float(data.get("final_weight") or 0), 0.01)
+                if data not in ratio_candidates:
+                    weight *= 0.65
+                if selected_categories.get(category):
+                    weight /= 1 + (selected_categories[category] * 1.2)
+                if not data.get("has_target_keyword") and category == "general":
+                    weight *= 0.75
+                weights.append(weight)
+            picked = random.choices(choices, weights=weights, k=1)[0]
+            selected_stats.append(picked)
+            selected_keywords.add(picked["keyword"])
+            picked_category = picked.get("category") or next(iter(picked.get("categories") or []), "general")
+            selected_categories[picked_category] = selected_categories.get(picked_category, 0) + 1
+
         for data in keyword_stats:
             if len(selected_stats) >= max_keywords:
                 break
