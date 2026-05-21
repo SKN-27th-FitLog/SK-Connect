@@ -1,17 +1,13 @@
 from langgraph.graph import StateGraph, START, END
-from langchain_huggingface import HuggingFaceEmbeddings
-from typing import TypedDict
+from typing import Optional, TypedDict
 from common.logging_config import set_logging
-from common.connection import Connection, PGVectorStore
+from common.connection import PGVectorStore
 from make_post.evaluation import evaluate_post_completion
 from common.llm_factory import get_llm
-from typing import Optional
 from get_data.get_another import get_similar_post
 from common.prompt import Create_Prompt
 from get_data.get_another import get_image
-from get_data.select_shop import _keyword_has_topic, _split_keywords
 import time
-import os
 import random
 import re
 from urllib.parse import urlparse
@@ -23,92 +19,6 @@ REGENERATED_SIMILARITY_DISTANCE_THRESHOLD = 0.12
 RESERVED_URL_HOSTS = {"example.com", "www.example.com", "example.org", "www.example.org", "example.net", "www.example.net"}
 RESERVED_URL_SUFFIXES = (".example.com", ".example.org", ".example.net", ".example", ".test", ".invalid", ".localhost")
 HTTP_URL_PATTERN = re.compile(r"https?://[^\s<>\")\]]+")
-
-
-def get_embeddings():
-    model = HuggingFaceEmbeddings(
-        model_name='sentence-transformers/all-mpnet-base-v2',
-        model_kwargs={
-            "token": os.getenv("HF_TOKEN"),
-        },
-    )
-    return model
-
-def get_vectorstore():
-    return PGVectorStore().get_vectorstore()
-
-def get_connection():
-    return Connection().get_connection()
-
-
-def _clean_external_url(url: Optional[str]) -> Optional[str]:
-    text = str(url or "").strip()
-    if not text or any(char.isspace() for char in text):
-        return None
-
-    parse_target = text if "://" in text else f"https://{text}"
-    parsed = urlparse(parse_target)
-    scheme = (parsed.scheme or "").lower()
-    host = (parsed.hostname or "").lower().rstrip(".")
-
-    if scheme and scheme not in {"http", "https"}:
-        return None
-    if not host:
-        return None
-    if host in RESERVED_URL_HOSTS or any(host.endswith(suffix) for suffix in RESERVED_URL_SUFFIXES):
-        return None
-    return text
-
-
-def _strip_reserved_urls(content: str) -> str:
-    def replace(match: re.Match) -> str:
-        return match.group(0) if _clean_external_url(match.group(0)) else ""
-
-    return HTTP_URL_PATTERN.sub(replace, content)
-
-
-def _select_article_url(data: Optional[list[dict]], sample_data: Optional[dict | list[dict]]) -> Optional[str]:
-    candidates = []
-    if sample_data:
-        if isinstance(sample_data, list):
-            candidates.extend(row.get('article_url') for row in sample_data if isinstance(row, dict))
-        else:
-            candidates.append(sample_data.get('article_url'))
-    if data:
-        candidates.append(data[0].get('article_url'))
-
-    for candidate in candidates:
-        text = str(candidate or "").strip()
-        if text:
-            return text
-    return None
-
-
-def _extract_image_urls(image_list: Optional[list]) -> list[str]:
-    """DB 조회 결과 또는 문자열 목록에서 이미지 HTML/URL 조각을 그대로 추출한다."""
-    urls = []
-    for image in image_list or []:
-        url = None
-        if isinstance(image, dict):
-            url = image.get('image_url') or image.get('url')
-        elif image is not None:
-            url = str(image)
-        text = str(url or "").strip()
-        if text:
-            urls.append(text)
-    return urls
-
-
-def _ensure_media(post: str, image_list: Optional[list], url: Optional[str]) -> str:
-    """LLM 응답에 이미지 HTML과 원문 링크 HTML이 빠졌으면 본문 끝에 보강한다."""
-    content = _strip_reserved_urls(str(post or "")).strip()
-    image_urls = _extract_image_urls(image_list)
-    if image_urls and not any(image_url in content for image_url in image_urls):
-        content = f"{content}\n\n{image_urls[0]}"
-    link_html = str(url or "").strip()
-    if link_html and link_html not in content:
-        content = f"{content}\n\n{link_html}"
-    return content
 
 
 """===================================================================="""
@@ -139,16 +49,21 @@ def make_post(state: State) -> State:
 
         # 선정 키워드와 많이 겹치고 대상어+평가 키워드가 있는 리뷰를 우선 샘플로 보낸다.
         selected_keywords = {str(keyword).strip() for keyword in state.get('keyword') or [] if str(keyword).strip()}
+        target_keywords = set()
         for keyword_stat in state.get('keyword_stats') or []:
             if not isinstance(keyword_stat, dict):
                 continue
             keyword = str(keyword_stat.get("keyword") or "").strip()
             if keyword:
                 selected_keywords.add(keyword)
+                if keyword_stat.get("has_target_keyword"):
+                    target_keywords.add(keyword)
             for grouped_keyword in keyword_stat.get("keywords") or []:
                 grouped_keyword = str(grouped_keyword).strip()
                 if grouped_keyword:
                     selected_keywords.add(grouped_keyword)
+                    if keyword_stat.get("has_target_keyword"):
+                        target_keywords.add(grouped_keyword)
 
         rows = [row for row in state.get('data') or [] if isinstance(row, dict)]
         candidates = [row for row in rows if row.get("sentimental") == "positive"] or rows
@@ -164,7 +79,13 @@ def make_post(state: State) -> State:
             if not content:
                 continue
 
-            row_keywords = _split_keywords(row.get("keywords") or "")
+            keywords_value = row.get("keywords") or ""
+            if isinstance(keywords_value, str):
+                row_keywords = [kw.strip() for kw in keywords_value.split("#") if kw.strip()]
+            elif isinstance(keywords_value, list):
+                row_keywords = [str(kw).strip() for kw in keywords_value if str(kw).strip()]
+            else:
+                row_keywords = []
             overlap_score = 0
             for row_keyword in row_keywords:
                 for selected_keyword in selected_keywords:
@@ -175,11 +96,13 @@ def make_post(state: State) -> State:
 
             target_keyword_count = 0
             for row_keyword in row_keywords:
-                try:
-                    if _keyword_has_topic(row_keyword):
-                        target_keyword_count += 1
-                except Exception as e:
-                    logger.error(f"make_post source review scoring | Error={e} | keyword={row_keyword}")
+                if any(
+                    row_keyword == target_keyword
+                    or row_keyword in target_keyword
+                    or target_keyword in row_keyword
+                    for target_keyword in target_keywords
+                ):
+                    target_keyword_count += 1
 
             try:
                 row_score = float(row.get("score") or 0)
@@ -199,7 +122,20 @@ def make_post(state: State) -> State:
         sample_data = [row for *_, row in scored_rows[:5]]
         if not sample_data and state['data']:
             sample_data = [random.choice(state['data'])]
-        url = _select_article_url(state.get('data'), sample_data)
+        url_candidates = []
+        if sample_data:
+            if isinstance(sample_data, list):
+                url_candidates.extend(row.get('article_url') for row in sample_data if isinstance(row, dict))
+            elif isinstance(sample_data, dict):
+                url_candidates.append(sample_data.get('article_url'))
+        if state.get('data'):
+            url_candidates.append(state['data'][0].get('article_url'))
+        url = None
+        for candidate_url in url_candidates:
+            candidate_url = str(candidate_url or "").strip()
+            if candidate_url:
+                url = candidate_url
+                break
         source_review_block = Create_Prompt._format_sample_data(sample_data)
         source_facts = ""
         try:
@@ -216,10 +152,12 @@ def make_post(state: State) -> State:
 
 # [RULES]
 1. 리뷰에 직접 나오거나 자연스럽게 확인되는 사실만 쓰세요.
-2. 메뉴명/재료명/식감/양/가격/서비스/매장 분위기처럼 구체적인 대상과 평가를 우선하세요.
-3. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
-4. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
-5. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
+2. 리뷰에 메뉴명/음식명/대상어가 있으면 최소 2개 이상을 원문 표기 그대로 포함하세요.
+3. 각 bullet은 반드시 "구체 대상어 + 평가/맥락" 형태로 쓰세요. 예: "김치뽀글이는 매콤하다는 평가가 있다."
+4. "메인 메뉴", "반찬 구성", "음식", "요리", "메뉴" 같은 넓은 일반명사만으로 대상어를 대체하지 마세요.
+5. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
+6. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
+7. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
 """
             facts_response = llm.invoke(facts_prompt)
             source_facts = str(facts_response)
@@ -242,7 +180,47 @@ def make_post(state: State) -> State:
         post = str(response)
         if hasattr(response, "content"):
             post = response.content
-        post = _ensure_media(post, image_list, url)
+        post = HTTP_URL_PATTERN.sub(
+            lambda match: (
+                match.group(0)
+                if (
+                    str(match.group(0) or "").strip()
+                    and not any(char.isspace() for char in str(match.group(0) or "").strip())
+                    and (
+                        (
+                            parsed := urlparse(
+                                str(match.group(0)).strip()
+                                if "://" in str(match.group(0)).strip()
+                                else f"https://{str(match.group(0)).strip()}"
+                            )
+                        ).scheme.lower() in {"http", "https"}
+                    )
+                    and parsed.hostname
+                    and parsed.hostname.lower().rstrip(".") not in RESERVED_URL_HOSTS
+                    and not any(
+                        parsed.hostname.lower().rstrip(".").endswith(suffix)
+                        for suffix in RESERVED_URL_SUFFIXES
+                    )
+                )
+                else ""
+            ),
+            str(post or ""),
+        ).strip()
+        image_urls = []
+        for image in image_list or []:
+            image_url = None
+            if isinstance(image, dict):
+                image_url = image.get('image_url') or image.get('url')
+            elif image is not None:
+                image_url = str(image)
+            image_url = str(image_url or "").strip()
+            if image_url:
+                image_urls.append(image_url)
+        if image_urls and not any(image_url in post for image_url in image_urls):
+            post = f"{post}\n\n{image_urls[0]}"
+        link_html = str(url or "").strip()
+        if link_html and link_html not in post:
+            post = f"{post}\n\n{link_html}"
         logger.info(f"make_post end | shop_id={state['data'][0].get('shop_id')} | post_len={len(post)}")
         
         return {
@@ -281,7 +259,7 @@ def embedding(state: State, similarity_distance_threshold: float = INITIAL_SIMIL
     """생성 게시글과 기존 벡터 문서의 유사도를 조회한다."""
     try:
         logger.info(f"embedding start | shop_id={state['data'][0].get('shop_id')}")
-        vectorstore = get_vectorstore()
+        vectorstore = PGVectorStore().get_vectorstore()
         results = vectorstore.similarity_search_with_score(state['post'], k=5)
         retry_count = state.get('retry_count', 0)
         threshold = similarity_distance_threshold
@@ -323,16 +301,21 @@ def regenerate_post(state: State) -> State:
         sample_data = state.get('sample_data')
         if not sample_data:
             selected_keywords = {str(keyword).strip() for keyword in state.get('keyword') or [] if str(keyword).strip()}
+            target_keywords = set()
             for keyword_stat in state.get('keyword_stats') or []:
                 if not isinstance(keyword_stat, dict):
                     continue
                 keyword = str(keyword_stat.get("keyword") or "").strip()
                 if keyword:
                     selected_keywords.add(keyword)
+                    if keyword_stat.get("has_target_keyword"):
+                        target_keywords.add(keyword)
                 for grouped_keyword in keyword_stat.get("keywords") or []:
                     grouped_keyword = str(grouped_keyword).strip()
                     if grouped_keyword:
                         selected_keywords.add(grouped_keyword)
+                        if keyword_stat.get("has_target_keyword"):
+                            target_keywords.add(grouped_keyword)
 
             rows = [row for row in state.get('data') or [] if isinstance(row, dict)]
             candidates = [row for row in rows if row.get("sentimental") == "positive"] or rows
@@ -348,7 +331,13 @@ def regenerate_post(state: State) -> State:
                 if not content:
                     continue
 
-                row_keywords = _split_keywords(row.get("keywords") or "")
+                keywords_value = row.get("keywords") or ""
+                if isinstance(keywords_value, str):
+                    row_keywords = [kw.strip() for kw in keywords_value.split("#") if kw.strip()]
+                elif isinstance(keywords_value, list):
+                    row_keywords = [str(kw).strip() for kw in keywords_value if str(kw).strip()]
+                else:
+                    row_keywords = []
                 overlap_score = 0
                 for row_keyword in row_keywords:
                     for selected_keyword in selected_keywords:
@@ -359,11 +348,13 @@ def regenerate_post(state: State) -> State:
 
                 target_keyword_count = 0
                 for row_keyword in row_keywords:
-                    try:
-                        if _keyword_has_topic(row_keyword):
-                            target_keyword_count += 1
-                    except Exception as e:
-                        logger.error(f"regenerate_post source review scoring | Error={e} | keyword={row_keyword}")
+                    if any(
+                        row_keyword == target_keyword
+                        or row_keyword in target_keyword
+                        or target_keyword in row_keyword
+                        for target_keyword in target_keywords
+                    ):
+                        target_keyword_count += 1
 
                 try:
                     row_score = float(row.get("score") or 0)
@@ -383,7 +374,20 @@ def regenerate_post(state: State) -> State:
             sample_data = [row for *_, row in scored_rows[:5]]
             if not sample_data and state['data']:
                 sample_data = [random.choice(state['data'])]
-        url = _select_article_url(state.get('data'), sample_data)
+        url_candidates = []
+        if sample_data:
+            if isinstance(sample_data, list):
+                url_candidates.extend(row.get('article_url') for row in sample_data if isinstance(row, dict))
+            elif isinstance(sample_data, dict):
+                url_candidates.append(sample_data.get('article_url'))
+        if state.get('data'):
+            url_candidates.append(state['data'][0].get('article_url'))
+        url = None
+        for candidate_url in url_candidates:
+            candidate_url = str(candidate_url or "").strip()
+            if candidate_url:
+                url = candidate_url
+                break
         source_facts = str(state.get('source_facts') or "").strip()
         if not source_facts:
             source_review_block = Create_Prompt._format_sample_data(sample_data)
@@ -401,10 +405,12 @@ def regenerate_post(state: State) -> State:
 
 # [RULES]
 1. 리뷰에 직접 나오거나 자연스럽게 확인되는 사실만 쓰세요.
-2. 메뉴명/재료명/식감/양/가격/서비스/매장 분위기처럼 구체적인 대상과 평가를 우선하세요.
-3. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
-4. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
-5. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
+2. 리뷰에 메뉴명/음식명/대상어가 있으면 최소 2개 이상을 원문 표기 그대로 포함하세요.
+3. 각 bullet은 반드시 "구체 대상어 + 평가/맥락" 형태로 쓰세요. 예: "김치뽀글이는 매콤하다는 평가가 있다."
+4. "메인 메뉴", "반찬 구성", "음식", "요리", "메뉴" 같은 넓은 일반명사만으로 대상어를 대체하지 마세요.
+5. "맛있다", "좋다", "만족스럽다" 같은 일반 칭찬만 있는 항목은 피하세요.
+6. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
+7. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
 """
                 facts_response = llm.invoke(facts_prompt)
                 source_facts = str(facts_response)
@@ -451,7 +457,47 @@ def regenerate_post(state: State) -> State:
         post = str(response)
         if hasattr(response, "content"):
             post = response.content
-        post = _ensure_media(post, image_list, url)
+        post = HTTP_URL_PATTERN.sub(
+            lambda match: (
+                match.group(0)
+                if (
+                    str(match.group(0) or "").strip()
+                    and not any(char.isspace() for char in str(match.group(0) or "").strip())
+                    and (
+                        (
+                            parsed := urlparse(
+                                str(match.group(0)).strip()
+                                if "://" in str(match.group(0)).strip()
+                                else f"https://{str(match.group(0)).strip()}"
+                            )
+                        ).scheme.lower() in {"http", "https"}
+                    )
+                    and parsed.hostname
+                    and parsed.hostname.lower().rstrip(".") not in RESERVED_URL_HOSTS
+                    and not any(
+                        parsed.hostname.lower().rstrip(".").endswith(suffix)
+                        for suffix in RESERVED_URL_SUFFIXES
+                    )
+                )
+                else ""
+            ),
+            str(post or ""),
+        ).strip()
+        image_urls = []
+        for image in image_list or []:
+            image_url = None
+            if isinstance(image, dict):
+                image_url = image.get('image_url') or image.get('url')
+            elif image is not None:
+                image_url = str(image)
+            image_url = str(image_url or "").strip()
+            if image_url:
+                image_urls.append(image_url)
+        if image_urls and not any(image_url in post for image_url in image_urls):
+            post = f"{post}\n\n{image_urls[0]}"
+        link_html = str(url or "").strip()
+        if link_html and link_html not in post:
+            post = f"{post}\n\n{link_html}"
         logger.info(f"regenerate_post end | shop_id={state['data'][0].get('shop_id')} | retry_count={retry_count + 1} | post_len={len(post)}")
         return {
             **state,

@@ -341,11 +341,7 @@ def _keyword_signal_values(
         for value in predicates | actions | nouns
         if str(value).strip()
     }
-    values |= {
-        _strip_nominal_copula(value)
-        for value in values
-        if _strip_nominal_copula(value) != value
-    }
+    values |= {value[:-2] for value in values if value.endswith("이다")}
     return values
 
 
@@ -361,19 +357,6 @@ def _has_containment_signal(left_values: set, right_values: set, min_length: int
             if shorter in longer:
                 return True
     return False
-
-
-def _can_use_strict_embedding_fallback(scope: str, group_scope: str) -> bool:
-    """시그니처가 다를 때 임베딩만으로 병합해도 되는 좁은 경우를 제한한다."""
-    return scope == group_scope == "general"
-
-
-def _strip_nominal_copula(value: str) -> str:
-    """지정사 결합 표현의 명사부를 일반 신호로 함께 사용한다."""
-    text = str(value or "").strip()
-    if text.endswith("이다"):
-        return text[:-2]
-    return text
 
 
 def select_shop(shop_data: list[dict], positive_ratio: float = 0.7) -> bool:
@@ -412,15 +395,85 @@ def select_keyword(
     긍정 row의 keywords를 집계해 게시글 생성용 키워드와 vector 저장용 통계를 만든다.
     """
     try:
-        rules = _resolve_keyword_rules(keyword_rules)
+        rules = {
+            # 과거 유사 키워드 누적 카운트에 따른 가중치 부스트
+            "history_boost_rate": 0.03,
+            "max_history_boost": 0.1,
+            # 동일 키워드가 반복 등장하면 weight를 줄여 다양성 확보
+            "repeat_penalty": 0.6,
+            # 한 번만 등장한 키워드 weight를 약간 깎음
+            "singleton_penalty": 0.7,
+            # 메뉴명/대상어 + 평가가 함께 있는 키워드는 게시글 재료로 더 구체적이므로 가중
+            "target_keyword_boost": 1.2,
+            # 대상 없이 "맛있다/좋다"처럼 일반 평가만 있는 키워드는 대표 키워드에서 약간 후순위
+            "generic_keyword_penalty": 0.85,
+            # 과거 vector 조회 시 거리 컷오프
+            "similarity_distance_threshold": 0.25,
+            # 시그니처가 없는 키워드 배치 그룹핑 시 임베딩 거리 컷오프
+            "batch_similarity_distance_threshold": 0.3,
+            # 시그니처가 서로 다른 일반 평가끼리 임베딩만으로 묶을 때의 보수적 컷오프
+            "strict_batch_similarity_distance_threshold": 0.18,
+            # 단독 서술형 키워드 제외용 접미사 패턴 — 운영 단계에서만 설정
+            "contextless_statement_suffix": None,
+            "keyword_schema_version": 2,
+        }
+        if keyword_rules:
+            rules.update(keyword_rules)
+
         positive_rows = [shop for shop in shop_data if shop.get('sentimental') == 'positive']
         negative_rows = [shop for shop in shop_data if shop.get('sentimental') == 'negative']
 
         if not positive_rows:
             return {"keywords": [], "keyword_stats": [], "negative_keywords": []}
 
-        raw_keyword_score = _count_positive_keywords(positive_rows, rules)
-        negative_keywords = _count_negative_keywords(negative_rows)
+        statement_suffix = rules["contextless_statement_suffix"]
+        compact_suffix = "".join(str(statement_suffix or "").split())
+        raw_keyword_score = {}
+        for shop in positive_rows:
+            try:
+                score = float(shop.get('score') or 0)
+            except (TypeError, ValueError):
+                score = 0.0
+
+            keywords_value = shop.get('keywords') or ''
+            if isinstance(keywords_value, str):
+                keywords = [kw.strip() for kw in keywords_value.split('#') if kw.strip()]
+            elif isinstance(keywords_value, list):
+                keywords = [str(kw).strip() for kw in keywords_value if str(kw).strip()]
+            else:
+                keywords = []
+
+            for keyword in set(keywords):
+                compact_keyword = "".join(str(keyword).split())
+                if (
+                    compact_suffix
+                    and " " not in str(keyword).strip()
+                    and compact_keyword.endswith(compact_suffix)
+                ):
+                    continue
+                data = raw_keyword_score.setdefault(keyword, {"batch_count": 0, "score_sum": 0.0})
+                data["batch_count"] += 1
+                data["score_sum"] += score
+
+        negative_keyword_count = {}
+        for shop in negative_rows:
+            keywords_value = shop.get('keywords') or ''
+            if isinstance(keywords_value, str):
+                keywords = [kw.strip() for kw in keywords_value.split('#') if kw.strip()]
+            elif isinstance(keywords_value, list):
+                keywords = [str(kw).strip() for kw in keywords_value if str(kw).strip()]
+            else:
+                keywords = []
+            for keyword in set(keywords):
+                negative_keyword_count[keyword] = negative_keyword_count.get(keyword, 0) + 1
+        negative_keywords = [
+            keyword for keyword, _ in sorted(
+                negative_keyword_count.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+        ]
+
         vectorstore = PGVectorStore(collection_name=collection_name).get_vectorstore()
         keyword_score = _group_similar_keywords(
             raw_keyword_score,
@@ -438,12 +491,19 @@ def select_keyword(
             vectorstore,
             rules,
         )
-        selected_stats = _select_keyword_stats(
-            keyword_stats,
-            len(positive_rows),
-            keyword_ratio,
-            max_keywords,
-        )
+
+        selected_stats = [
+            data for data in keyword_stats
+            if data["batch_count"] / len(positive_rows) >= keyword_ratio
+        ][:max_keywords]
+        selected_keywords = {data["keyword"] for data in selected_stats}
+        for data in keyword_stats:
+            if len(selected_stats) >= max_keywords:
+                break
+            if data["keyword"] in selected_keywords:
+                continue
+            selected_stats.append(data)
+            selected_keywords.add(data["keyword"])
 
         save_keyword_vector(shop_data, keyword_stats, vectorstore, collection_name)
         return {
@@ -458,81 +518,6 @@ def select_keyword(
             crawling_id = shop_data[0].get("crawling_id")
         logger.error(f"select_keyword | Error={e} | time={time.time()} | crawling_id={crawling_id}")
         return {"keywords": [], "keyword_stats": [], "negative_keywords": []}
-
-
-def _resolve_keyword_rules(keyword_rules: dict | None) -> dict:
-    """키워드 병합 기준을 한 곳에서 정리한다."""
-    rules = {
-        # 과거 유사 키워드 누적 카운트에 따른 가중치 부스트
-        "history_boost_rate": 0.03,
-        "max_history_boost": 0.1,
-        # 동일 키워드가 반복 등장하면 weight를 줄여 다양성 확보
-        "repeat_penalty": 0.6,
-        # 한 번만 등장한 키워드 weight를 약간 깎음
-        "singleton_penalty": 0.7,
-        # 메뉴명/대상어 + 평가가 함께 있는 키워드는 게시글 재료로 더 구체적이므로 가중
-        "target_keyword_boost": 1.2,
-        # 대상 없이 "맛있다/좋다"처럼 일반 평가만 있는 키워드는 대표 키워드에서 약간 후순위
-        "generic_keyword_penalty": 0.85,
-        # 과거 vector 조회 시 거리 컷오프
-        "similarity_distance_threshold": 0.25,
-        # 시그니처가 없는 키워드 배치 그룹핑 시 임베딩 거리 컷오프
-        "batch_similarity_distance_threshold": 0.3,
-        # 시그니처가 서로 다른 일반 평가끼리 임베딩만으로 묶을 때의 보수적 컷오프
-        "strict_batch_similarity_distance_threshold": 0.18,
-        # 단독 서술형 키워드 제외용 접미사 패턴 — 운영 단계에서만 설정
-        "contextless_statement_suffix": None,
-        "keyword_schema_version": 2,
-    }
-    if keyword_rules:
-        rules.update(keyword_rules)
-    return rules
-
-
-def _split_keywords(keywords) -> list[str]:
-    """keywords 컬럼 값을 # 기준 리스트로 정리한다."""
-    if isinstance(keywords, str):
-        return [kw.strip() for kw in keywords.split('#') if kw.strip()]
-    if isinstance(keywords, list):
-        return [str(kw).strip() for kw in keywords if str(kw).strip()]
-    return []
-
-
-def _safe_float(value) -> float:
-    """score가 비어 있어도 계산이 끊기지 않게 숫자로 변환한다."""
-    try:
-        return float(value or 0)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _count_positive_keywords(positive_rows: list[dict], rules: dict) -> dict:
-    """이번 batch의 positive row에서 키워드별 등장 수와 score 합계를 계산한다."""
-    keyword_score = {}
-    for shop in positive_rows:
-        score = _safe_float(shop.get('score'))
-        for keyword in set(_split_keywords(shop.get('keywords') or '')):
-            if _is_contextless_statement(keyword, rules["contextless_statement_suffix"]):
-                continue
-            data = keyword_score.setdefault(keyword, {"batch_count": 0, "score_sum": 0.0})
-            data["batch_count"] += 1
-            data["score_sum"] += score
-    return keyword_score
-
-
-def _count_negative_keywords(negative_rows: list[dict]) -> list[str]:
-    """negative row의 키워드는 프롬프트에서 피할 요소로만 사용한다."""
-    keyword_count = {}
-    for shop in negative_rows:
-        for keyword in set(_split_keywords(shop.get('keywords') or '')):
-            keyword_count[keyword] = keyword_count.get(keyword, 0) + 1
-    return [
-        keyword for keyword, _ in sorted(
-            keyword_count.items(),
-            key=lambda item: item[1],
-            reverse=True,
-        )
-    ]
 
 
 def _group_similar_keywords(
@@ -662,7 +647,7 @@ def _group_similar_keywords(
             for group in groups:
                 distance_threshold = rules["batch_similarity_distance_threshold"]
                 if signatures and group["signatures"] and not (signatures & group["signatures"]):
-                    if not _can_use_strict_embedding_fallback(scope, group["scope"]):
+                    if not (scope == group["scope"] == "general"):
                         continue
                     distance_threshold = rules["strict_batch_similarity_distance_threshold"]
                 if not group["embedding_count"]:
@@ -731,26 +716,66 @@ def _build_keyword_stats(
 ) -> list[dict]:
     """그룹핑된 키워드에 과거 유사 키워드 이력을 반영해 최종 weight를 만든다."""
     keyword_stats = []
+    statement_suffix = rules["contextless_statement_suffix"]
+    compact_suffix = "".join(str(statement_suffix or "").split())
     for keyword, data in keyword_score.items():
         batch_count = data["batch_count"]
-        similar_documents = _get_similar_keyword_documents(
+        similar_documents = []
+        similar_results = vectorstore.similarity_search_with_score(
             keyword,
-            shop_data[0].get("shop_id"),
-            vectorstore,
-            rules,
+            k=20,
+            filter={
+                "shop_id": shop_data[0].get("shop_id"),
+                "sentiment": "positive",
+                "keyword_schema_version": rules["keyword_schema_version"],
+            },
         )
+        for document, score in similar_results:
+            document_keywords = document.metadata.get("keywords") or [document.page_content]
+            if isinstance(document_keywords, list):
+                document_keywords = [
+                    str(document_keyword).strip()
+                    for document_keyword in document_keywords
+                    if str(document_keyword).strip()
+                ]
+            else:
+                document_keywords = [str(document_keywords).strip()]
+
+            has_contextless_keyword = False
+            if compact_suffix:
+                for document_keyword in document_keywords:
+                    compact_keyword = "".join(str(document_keyword).split())
+                    if (
+                        " " not in str(document_keyword).strip()
+                        and compact_keyword.endswith(compact_suffix)
+                    ):
+                        has_contextless_keyword = True
+                        break
+
+            if (
+                score <= rules["similarity_distance_threshold"]
+                and not has_contextless_keyword
+                and _can_merge_keyword(keyword, document_keywords, rules)
+            ):
+                similar_documents.append((document, document_keywords))
+
         historical_count = sum(
             int(document.metadata.get("batch_count") or 0)
-            for document in similar_documents
+            for document, _ in similar_documents
         )
         keywords = [keyword]
         for grouped_keyword in data.get("keywords", []):
             if not _can_merge_keyword(keyword, [grouped_keyword], rules):
                 continue
             keywords.append(grouped_keyword)
-        for document in similar_documents:
-            for document_keyword in _get_document_keywords(document):
-                if _is_contextless_statement(document_keyword, rules["contextless_statement_suffix"]):
+        for _, document_keywords in similar_documents:
+            for document_keyword in document_keywords:
+                compact_keyword = "".join(str(document_keyword).split())
+                if (
+                    compact_suffix
+                    and " " not in str(document_keyword).strip()
+                    and compact_keyword.endswith(compact_suffix)
+                ):
                     continue
                 if not _can_merge_keyword(keyword, [document_keyword], rules):
                     continue
@@ -806,56 +831,6 @@ def _build_keyword_stats(
             "has_target_keyword": has_target_keyword,
         })
     return sorted(keyword_stats, key=lambda item: item["final_weight"], reverse=True)
-
-
-def _get_similar_keyword_documents(keyword: str, shop_id: int, vectorstore, rules: dict) -> list:
-    """keyword_vector에서 같은 가게의 유사 키워드 이력을 가져온다."""
-    similar_documents = vectorstore.similarity_search_with_score(
-        keyword,
-        k=20,
-        filter={
-            "shop_id": shop_id,
-            "sentiment": "positive",
-            "keyword_schema_version": rules["keyword_schema_version"],
-        },
-    )
-    return [
-        document
-        for document, score in similar_documents
-        if score <= rules["similarity_distance_threshold"]
-        and not any(
-            _is_contextless_statement(document_keyword, rules["contextless_statement_suffix"])
-            for document_keyword in _get_document_keywords(document)
-        )
-        and _can_merge_keyword(
-            keyword,
-            _get_document_keywords(document),
-            rules,
-        )
-    ]
-
-
-def _select_keyword_stats(
-    keyword_stats: list[dict],
-    positive_row_count: int,
-    keyword_ratio: float,
-    max_keywords: int,
-) -> list[dict]:
-    """기준 통과 키워드를 먼저 고르고, 부족하면 weight 순으로 채운다."""
-    candidate_stats = [
-        data for data in keyword_stats
-        if data["batch_count"] / positive_row_count >= keyword_ratio
-    ]
-    selected_stats = candidate_stats[:max_keywords]
-    selected_keywords = {data["keyword"] for data in selected_stats}
-    for data in keyword_stats:
-        if len(selected_stats) >= max_keywords:
-            break
-        if data["keyword"] in selected_keywords:
-            continue
-        selected_stats.append(data)
-        selected_keywords.add(data["keyword"])
-    return selected_stats
 
 
 def _can_merge_keyword(
@@ -930,62 +905,6 @@ def _can_merge_keyword(
     return False
 
 
-def _get_document_keywords(document) -> list[str]:
-    """keyword_vector metadata의 원본 키워드 목록을 리스트로 정리한다."""
-    document_keywords = document.metadata.get("keywords") or [document.page_content]
-    if isinstance(document_keywords, list):
-        return [str(keyword).strip() for keyword in document_keywords if str(keyword).strip()]
-    return [str(document_keywords).strip()]
-
-
-def _is_contextless_statement(keyword: str, statement_suffix: str) -> bool:
-    """대상 없이 단독 서술형으로만 들어온 키워드는 게시글 재료에서 제외한다."""
-    if not statement_suffix:
-        return False
-    keyword_text = str(keyword).strip()
-    if " " in keyword_text:
-        return False
-    compact_keyword = "".join(str(keyword).split())
-    compact_suffix = "".join(str(statement_suffix).split())
-    if not compact_suffix:
-        return False
-    if compact_keyword.endswith(compact_suffix):
-        return True
-    return False
-
-
-def _delete_existing_keyword_vectors(
-    shop_id: int,
-    keyword_stats: list[dict],
-    collection_name: str,
-) -> int:
-    """같은 batch에서 이미 저장된 keyword_vector row를 제거한다."""
-    deleted_count = 0
-    for data in keyword_stats:
-        cursor = get_cursor(
-            """
-            DELETE FROM langchain_pg_embedding AS e
-            USING langchain_pg_collection AS c
-            WHERE e.collection_id = c.uuid
-              AND c.name = %s
-              AND e.cmetadata ->> 'shop_id' = %s
-              AND e.cmetadata ->> 'keyword_schema_version' = %s
-              AND e.cmetadata ->> 'keyword' = %s
-              AND e.cmetadata ->> 'latest_crawling_created_at' = %s
-            """,
-            (
-                collection_name,
-                str(shop_id),
-                str(data["keyword_schema_version"]),
-                str(data["keyword"]),
-                str(data.get("latest_crawling_created_at") or ""),
-            ),
-        )
-        if cursor:
-            deleted_count += max(cursor.rowcount, 0)
-    return deleted_count
-
-
 def save_keyword_vector(
     shop_data: list[dict],
     keyword_stats: list[dict],
@@ -1024,7 +943,30 @@ def save_keyword_vector(
             }
             documents.append(Document(page_content=data["keyword"], metadata=metadata))
 
-        deleted_count = _delete_existing_keyword_vectors(shop_id, keyword_stats, collection_name)
+        deleted_count = 0
+        for data in keyword_stats:
+            cursor = get_cursor(
+                """
+                DELETE FROM langchain_pg_embedding AS e
+                USING langchain_pg_collection AS c
+                WHERE e.collection_id = c.uuid
+                  AND c.name = %s
+                  AND e.cmetadata ->> 'shop_id' = %s
+                  AND e.cmetadata ->> 'keyword_schema_version' = %s
+                  AND e.cmetadata ->> 'keyword' = %s
+                  AND e.cmetadata ->> 'latest_crawling_created_at' = %s
+                """,
+                (
+                    collection_name,
+                    str(shop_id),
+                    str(data["keyword_schema_version"]),
+                    str(data["keyword"]),
+                    str(data.get("latest_crawling_created_at") or ""),
+                ),
+            )
+            if cursor:
+                deleted_count += max(cursor.rowcount, 0)
+
         vectorstore.add_documents(documents)
         logger.info(
             f"keyword_vector inserted | shop_id={shop_id} | "

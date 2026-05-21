@@ -29,69 +29,6 @@ _GENERIC_CLICHE_PHRASES = (
 )
 
 
-def _find_local_quality_issue(post_text: str) -> str | None:
-    """LLM 평가 전에 명확한 비문/어색한 연결 표현을 빠르게 차단한다."""
-    awkward_phrase = "갈 때까지도"
-    for match in re.finditer(re.escape(awkward_phrase), post_text):
-        before = post_text[:match.start()].rstrip()
-        previous_word = before.split()[-1] if before.split() else ""
-        if (
-            not previous_word
-            or previous_word in {"그리고", "또", "또한", "그래도"}
-            or previous_word.endswith((".", "!", "?", "。", "！", "？"))
-        ):
-            return (
-                "'갈 때까지도'는 목적지나 재방문 맥락 없이 쓰여 어색합니다. "
-                "'다시 갈 때까지' 또는 '돌아오는 길에도'처럼 고쳐야 합니다."
-            )
-
-    compact_text = re.sub(r"\s+", " ", post_text)
-    cliche_hits = [
-        phrase for phrase in _GENERIC_CLICHE_PHRASES
-        if phrase in compact_text
-    ]
-    repeated_cliches = [
-        phrase for phrase in _GENERIC_CLICHE_PHRASES
-        if compact_text.count(phrase) >= 2
-    ]
-    if repeated_cliches:
-        return f"상투적인 표현이 반복됩니다: {', '.join(repeated_cliches[:3])}"
-    if len(cliche_hits) >= 4:
-        return f"상투적인 표현이 너무 많습니다: {', '.join(cliche_hits[:4])}"
-    return None
-
-
-def _collect_source_texts(result: dict) -> list[str]:
-    """평가 시 grounding 근거로 사용할 원본 리뷰 본문들을 모은다."""
-    data = result.get("data") or []
-    if isinstance(data, dict):
-        data = [data]
-
-    source_texts: list[str] = []
-    for row in data:
-        if not isinstance(row, dict):
-            continue
-        content = str(row.get("content") or "").strip()
-        if not content:
-            continue
-        if len(content) > _MAX_SOURCE_CHARS_PER_ROW:
-            content = content[:_MAX_SOURCE_CHARS_PER_ROW] + "..."
-        source_texts.append(content)
-        if len(source_texts) >= _MAX_SOURCE_ROWS:
-            break
-    return source_texts
-
-
-def _build_sources_block(source_texts: list[str]) -> str:
-    """프롬프트에 넣을 source 블록 문자열을 만든다."""
-    if not source_texts:
-        return "(원본 리뷰 없음)"
-    lines = []
-    for idx, text in enumerate(source_texts, start=1):
-        lines.append(f"[{idx}] {text}")
-    return "\n".join(lines)
-
-
 def evaluate_post_completion(result: dict) -> dict:
     """게시글 완성도를 검사하고 통과 여부와 실패 사유를 반환한다."""
     try:
@@ -116,7 +53,37 @@ def evaluate_post_completion(result: dict) -> dict:
                 "reason": f"템플릿/placeholder 문구가 포함되어 있습니다: {', '.join(found_banned_tokens)}",
             }
 
-        local_quality_issue = _find_local_quality_issue(post_text)
+        local_quality_issue = None
+        awkward_phrase = "갈 때까지도"
+        for match in re.finditer(re.escape(awkward_phrase), post_text):
+            before = post_text[:match.start()].rstrip()
+            previous_word = before.split()[-1] if before.split() else ""
+            if (
+                not previous_word
+                or previous_word in {"그리고", "또", "또한", "그래도"}
+                or previous_word.endswith((".", "!", "?", "。", "！", "？"))
+            ):
+                local_quality_issue = (
+                    "'갈 때까지도'는 목적지나 재방문 맥락 없이 쓰여 어색합니다. "
+                    "'다시 갈 때까지' 또는 '돌아오는 길에도'처럼 고쳐야 합니다."
+                )
+                break
+
+        if not local_quality_issue:
+            compact_text = re.sub(r"\s+", " ", post_text)
+            cliche_hits = [
+                phrase for phrase in _GENERIC_CLICHE_PHRASES
+                if phrase in compact_text
+            ]
+            repeated_cliches = [
+                phrase for phrase in _GENERIC_CLICHE_PHRASES
+                if compact_text.count(phrase) >= 2
+            ]
+            if repeated_cliches:
+                local_quality_issue = f"상투적인 표현이 반복됩니다: {', '.join(repeated_cliches[:3])}"
+            elif len(cliche_hits) >= 4:
+                local_quality_issue = f"상투적인 표현이 너무 많습니다: {', '.join(cliche_hits[:4])}"
+
         if local_quality_issue:
             return {
                 "is_pass": False,
@@ -124,8 +91,30 @@ def evaluate_post_completion(result: dict) -> dict:
             }
 
         # 원본 리뷰(grounding 근거)를 모아 LLM 평가에 함께 넘긴다.
-        source_texts = _collect_source_texts(result)
-        sources_block = _build_sources_block(source_texts)
+        source_data = result.get("data") or []
+        if isinstance(source_data, dict):
+            source_data = [source_data]
+
+        source_texts: list[str] = []
+        for row in source_data:
+            if not isinstance(row, dict):
+                continue
+            content = str(row.get("content") or "").strip()
+            if not content:
+                continue
+            if len(content) > _MAX_SOURCE_CHARS_PER_ROW:
+                content = content[:_MAX_SOURCE_CHARS_PER_ROW] + "..."
+            source_texts.append(content)
+            if len(source_texts) >= _MAX_SOURCE_ROWS:
+                break
+
+        if source_texts:
+            sources_block = "\n".join(
+                f"[{idx}] {text}"
+                for idx, text in enumerate(source_texts, start=1)
+            )
+        else:
+            sources_block = "(원본 리뷰 없음)"
 
         prompt = ChatPromptTemplate.from_template(
             """
