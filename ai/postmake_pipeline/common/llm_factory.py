@@ -1,7 +1,12 @@
 from langchain_ollama import ChatOllama
-from langchain_groq import ChatGroq
+from dotenv import load_dotenv
 from functools import lru_cache
+from pathlib import Path
 
+env_path = Path(__file__).resolve().parents[3] / "database" / ".env"
+load_dotenv(env_path, override=False)
+pipeline_env_path = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(pipeline_env_path, override=False)
 
 @lru_cache(maxsize=1)
 def get_llm():
@@ -16,15 +21,25 @@ def get_llm():
 @lru_cache(maxsize=1)
 def get_post_make_llm():
     return ChatOllama(
-        model = 'qwen3.5:4b',
+        model="gemma3:4b",
+        temperature=0.3,
         keep_alive="60m",
-
     )
 
 
 @lru_cache(maxsize=1)
 def get_regenerate_llm():
-    return ChatGroq(
-        model = 'openai/gpt-oss-120b',
+    return ChatOllama(
+        model="gemma3:4b",
+        temperature=0.3,
+        keep_alive="60m",
+    )
+
+
+@lru_cache(maxsize=1)
+def get_evaluation_llm():
+    return ChatOllama(
+        model="gemma4:e4b",
+        temperature=0.1,
         keep_alive="60m",
     )

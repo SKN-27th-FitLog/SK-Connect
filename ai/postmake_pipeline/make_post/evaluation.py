@@ -2,7 +2,7 @@ import json
 import re
 import time
 
-from common.llm_factory import get_llm
+from common.llm_factory import get_evaluation_llm
 from common.logging_config import set_logging
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -32,7 +32,7 @@ _GENERIC_CLICHE_PHRASES = (
 def evaluate_post_completion(result: dict) -> dict:
     """게시글 완성도를 검사하고 통과 여부와 실패 사유를 반환한다."""
     try:
-        llm = get_llm()
+        llm = get_evaluation_llm()
         data = result.get("data") or {}
         if isinstance(data, list):
             selected_data = {}
@@ -112,6 +112,30 @@ def evaluate_post_completion(result: dict) -> dict:
             return {
                 "is_pass": False,
                 "reason": local_quality_issue,
+            }
+
+        visible_post_text = re.sub(r"(?is)<[^>]+>", " ", post_text)
+        visible_post_text = re.sub(r"https?://\S+", " ", visible_post_text)
+        visible_post_text = re.sub(r"\s+", " ", visible_post_text).strip()
+        sentence_parts = [
+            sentence.strip()
+            for sentence in re.split(
+                r"(?:[.!?。！？]+|\n+|(?<=[가-힣])(다|요|죠|임|함|네|음|됨|였다|했다|었다|았다|더라|더라고요|습니다|네요|어요|아요|예요|이에요)(?=\s|$))",
+                visible_post_text,
+            )
+            if sentence and len(sentence.strip()) >= 8
+        ]
+        if len(visible_post_text) < 180 or len(sentence_parts) < 3:
+            logger.warning(
+                f"local evaluation short text | chars={len(visible_post_text)} | "
+                f"sentences={len(sentence_parts)} | preview={visible_post_text[:160]}"
+            )
+            return {
+                "is_pass": False,
+                "reason": (
+                    "본문 텍스트가 부족합니다. 이미지/링크를 제외하고 "
+                    f"{len(visible_post_text)}자, {len(sentence_parts)}문장입니다."
+                ),
             }
 
         # 원본 리뷰(grounding 근거)를 모아 LLM 평가에 함께 넘긴다.

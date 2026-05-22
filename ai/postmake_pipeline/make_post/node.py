@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph, START, END
 from typing import Optional, TypedDict
 from common.logging_config import set_logging
 from make_post.evaluation import evaluate_post_completion
-from common.llm_factory import get_llm, get_post_make_llm, get_regenerate_llm
+from common.llm_factory import get_post_make_llm, get_regenerate_llm
 from common.prompt import Create_Prompt
 from get_data.get_another import get_image
 import ast
@@ -16,6 +16,10 @@ logger = set_logging()
 RESERVED_URL_HOSTS = {"example.com", "www.example.com", "example.org", "www.example.org", "example.net", "www.example.net"}
 RESERVED_URL_SUFFIXES = (".example.com", ".example.org", ".example.net", ".example", ".test", ".invalid", ".localhost")
 HTTP_URL_PATTERN = re.compile(r"https?://[^\s<>\")\]]+")
+MAX_REGENERATION_COUNT = 1
+LLM_RATE_LIMIT_RETRY_COUNT = 3
+LLM_RATE_LIMIT_DEFAULT_WAIT_SECONDS = 12.0
+LLM_RATE_LIMIT_BUFFER_SECONDS = 1.0
 
 
 """===================================================================="""
@@ -40,8 +44,8 @@ def make_post(state: State) -> State:
     """키워드, 이미지, 샘플 analysis row를 기반으로 게시글 초안을 만든다."""
     try:
         logger.info(f"make_post start | shop_id={state['data'][0].get('shop_id')}")
-        llm = get_llm()
         post_llm = get_post_make_llm()
+        llm = post_llm
         image_list = get_image(state['data'])
 
         # 선정 키워드와 많이 겹치고 대상어+평가 키워드가 있는 리뷰를 우선 샘플로 보낸다.
@@ -181,7 +185,32 @@ def make_post(state: State) -> State:
 7. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
 8. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
 """
-            facts_response = llm.invoke(facts_prompt)
+            for attempt in range(LLM_RATE_LIMIT_RETRY_COUNT):
+                try:
+                    facts_response = llm.invoke(facts_prompt)
+                    break
+                except Exception as e:
+                    error_text = str(e)
+                    error_text_lower = error_text.lower()
+                    is_rate_limit = (
+                        "rate_limit" in error_text_lower
+                        or "rate limit" in error_text_lower
+                        or "429" in error_text_lower
+                        or "too many requests" in error_text_lower
+                    )
+                    if not is_rate_limit or attempt + 1 >= LLM_RATE_LIMIT_RETRY_COUNT:
+                        raise
+                    retry_match = re.search(r"try again in\s+([0-9.]+)s", error_text, flags=re.IGNORECASE)
+                    wait_seconds = LLM_RATE_LIMIT_DEFAULT_WAIT_SECONDS
+                    if retry_match:
+                        wait_seconds = max(float(retry_match.group(1)) + LLM_RATE_LIMIT_BUFFER_SECONDS, 1.0)
+                    logger.warning(
+                        f"llm rate limit | node=make_post.source_facts | "
+                        f"shop_id={state['data'][0].get('shop_id')} | "
+                        f"attempt={attempt + 1}/{LLM_RATE_LIMIT_RETRY_COUNT} | "
+                        f"wait_seconds={wait_seconds:.1f} | error={error_text[:300]}"
+                    )
+                    time.sleep(wait_seconds)
             source_facts = str(facts_response)
             if hasattr(facts_response, "content"):
                 source_facts = facts_response.content
@@ -198,7 +227,32 @@ def make_post(state: State) -> State:
             state.get('negative_keywords'),
             source_facts,
         )
-        response = post_llm.invoke(prompt)
+        for attempt in range(LLM_RATE_LIMIT_RETRY_COUNT):
+            try:
+                response = post_llm.invoke(prompt)
+                break
+            except Exception as e:
+                error_text = str(e)
+                error_text_lower = error_text.lower()
+                is_rate_limit = (
+                    "rate_limit" in error_text_lower
+                    or "rate limit" in error_text_lower
+                    or "429" in error_text_lower
+                    or "too many requests" in error_text_lower
+                )
+                if not is_rate_limit or attempt + 1 >= LLM_RATE_LIMIT_RETRY_COUNT:
+                    raise
+                retry_match = re.search(r"try again in\s+([0-9.]+)s", error_text, flags=re.IGNORECASE)
+                wait_seconds = LLM_RATE_LIMIT_DEFAULT_WAIT_SECONDS
+                if retry_match:
+                    wait_seconds = max(float(retry_match.group(1)) + LLM_RATE_LIMIT_BUFFER_SECONDS, 1.0)
+                logger.warning(
+                    f"llm rate limit | node=make_post.body | "
+                    f"shop_id={state['data'][0].get('shop_id')} | "
+                    f"attempt={attempt + 1}/{LLM_RATE_LIMIT_RETRY_COUNT} | "
+                    f"wait_seconds={wait_seconds:.1f} | error={error_text[:300]}"
+                )
+                time.sleep(wait_seconds)
         post = str(response)
         if hasattr(response, "content"):
             post = response.content
@@ -325,7 +379,10 @@ def make_post(state: State) -> State:
             'source_facts': source_facts,
         }
     except Exception as e:
-        logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
+        logger.error(
+            f"make_post failed | Error={e} | time={time.time()} | "
+            f"crawling_id={state['data'][0].get('crawling_id')}"
+        )
         return {
             **state,
             'retry_count': state.get('retry_count', 0) + 1,
@@ -335,9 +392,34 @@ def make_title(state: State) -> State:
     """생성된 게시글 본문을 바탕으로 제목을 만든다."""
     try:
         logger.info(f"make_title start | shop_id={state['data'][0].get('shop_id')}")
-        llm = get_llm()
+        llm = get_post_make_llm()
         prompt = Create_Prompt.get_title_prompt(state['post'])
-        response = llm.invoke(prompt)
+        for attempt in range(LLM_RATE_LIMIT_RETRY_COUNT):
+            try:
+                response = llm.invoke(prompt)
+                break
+            except Exception as e:
+                error_text = str(e)
+                error_text_lower = error_text.lower()
+                is_rate_limit = (
+                    "rate_limit" in error_text_lower
+                    or "rate limit" in error_text_lower
+                    or "429" in error_text_lower
+                    or "too many requests" in error_text_lower
+                )
+                if not is_rate_limit or attempt + 1 >= LLM_RATE_LIMIT_RETRY_COUNT:
+                    raise
+                retry_match = re.search(r"try again in\s+([0-9.]+)s", error_text, flags=re.IGNORECASE)
+                wait_seconds = LLM_RATE_LIMIT_DEFAULT_WAIT_SECONDS
+                if retry_match:
+                    wait_seconds = max(float(retry_match.group(1)) + LLM_RATE_LIMIT_BUFFER_SECONDS, 1.0)
+                logger.warning(
+                    f"llm rate limit | node=make_title | "
+                    f"shop_id={state['data'][0].get('shop_id')} | "
+                    f"attempt={attempt + 1}/{LLM_RATE_LIMIT_RETRY_COUNT} | "
+                    f"wait_seconds={wait_seconds:.1f} | error={error_text[:300]}"
+                )
+                time.sleep(wait_seconds)
         title = str(response)
         if hasattr(response, "content"):
             title = response.content
@@ -347,18 +429,21 @@ def make_title(state: State) -> State:
             'title': title,
         }
     except Exception as e:
-        logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
+        logger.error(
+            f"make_title failed | Error={e} | time={time.time()} | "
+            f"crawling_id={state['data'][0].get('crawling_id')}"
+        )
         return state
 
 def regenerate_post(state: State) -> State:
     """평가 실패 사유를 반영해 게시글을 다시 생성한다."""
     try:
         retry_count = state.get('retry_count', 0)
-        if retry_count >= 2:
+        if retry_count >= MAX_REGENERATION_COUNT:
             return state
         logger.info(f"regenerate_post start | shop_id={state['data'][0].get('shop_id')} | retry_count={retry_count}")
-        llm = get_llm()
         post_llm = get_regenerate_llm()
+        llm = post_llm
         image_list = get_image(state['data'])
         sample_data = state.get('sample_data')
         if not sample_data:
@@ -475,7 +560,9 @@ def regenerate_post(state: State) -> State:
                 url = candidate_url
                 break
         source_facts = str(state.get('source_facts') or "").strip()
-        if not source_facts:
+        # 재생성 단계에서 source_facts를 다시 Groq로 뽑으면 TPM 소모가 커서 임시 중단한다.
+        # 필요하면 아래 조건을 `if not source_facts:`로 되돌리면 된다.
+        if False and not source_facts:
             source_review_block = Create_Prompt._format_sample_data(sample_data)
             try:
                 facts_prompt = f"""
@@ -499,7 +586,32 @@ def regenerate_post(state: State) -> State:
 7. 없는 메뉴명, 재료명, 지명, 고유명사를 새로 만들지 마세요.
 8. 출력은 bullet 3~5개만 작성하세요. 설명문은 쓰지 마세요.
 """
-                facts_response = llm.invoke(facts_prompt)
+                for attempt in range(LLM_RATE_LIMIT_RETRY_COUNT):
+                    try:
+                        facts_response = llm.invoke(facts_prompt)
+                        break
+                    except Exception as e:
+                        error_text = str(e)
+                        error_text_lower = error_text.lower()
+                        is_rate_limit = (
+                            "rate_limit" in error_text_lower
+                            or "rate limit" in error_text_lower
+                            or "429" in error_text_lower
+                            or "too many requests" in error_text_lower
+                        )
+                        if not is_rate_limit or attempt + 1 >= LLM_RATE_LIMIT_RETRY_COUNT:
+                            raise
+                        retry_match = re.search(r"try again in\s+([0-9.]+)s", error_text, flags=re.IGNORECASE)
+                        wait_seconds = LLM_RATE_LIMIT_DEFAULT_WAIT_SECONDS
+                        if retry_match:
+                            wait_seconds = max(float(retry_match.group(1)) + LLM_RATE_LIMIT_BUFFER_SECONDS, 1.0)
+                        logger.warning(
+                            f"llm rate limit | node=regenerate_post.source_facts | "
+                            f"shop_id={state['data'][0].get('shop_id')} | "
+                            f"attempt={attempt + 1}/{LLM_RATE_LIMIT_RETRY_COUNT} | "
+                            f"wait_seconds={wait_seconds:.1f} | error={error_text[:300]}"
+                        )
+                        time.sleep(wait_seconds)
                 source_facts = str(facts_response)
                 if hasattr(facts_response, "content"):
                     source_facts = facts_response.content
@@ -529,7 +641,32 @@ def regenerate_post(state: State) -> State:
                 source_facts,
                 state.get('post'),
             )
-        response = post_llm.invoke(prompt)
+        for attempt in range(LLM_RATE_LIMIT_RETRY_COUNT):
+            try:
+                response = post_llm.invoke(prompt)
+                break
+            except Exception as e:
+                error_text = str(e)
+                error_text_lower = error_text.lower()
+                is_rate_limit = (
+                    "rate_limit" in error_text_lower
+                    or "rate limit" in error_text_lower
+                    or "429" in error_text_lower
+                    or "too many requests" in error_text_lower
+                )
+                if not is_rate_limit or attempt + 1 >= LLM_RATE_LIMIT_RETRY_COUNT:
+                    raise
+                retry_match = re.search(r"try again in\s+([0-9.]+)s", error_text, flags=re.IGNORECASE)
+                wait_seconds = LLM_RATE_LIMIT_DEFAULT_WAIT_SECONDS
+                if retry_match:
+                    wait_seconds = max(float(retry_match.group(1)) + LLM_RATE_LIMIT_BUFFER_SECONDS, 1.0)
+                logger.warning(
+                    f"llm rate limit | node=regenerate_post.body | "
+                    f"shop_id={state['data'][0].get('shop_id')} | "
+                    f"attempt={attempt + 1}/{LLM_RATE_LIMIT_RETRY_COUNT} | "
+                    f"wait_seconds={wait_seconds:.1f} | error={error_text[:300]}"
+                )
+                time.sleep(wait_seconds)
         post = str(response)
         if hasattr(response, "content"):
             post = response.content
@@ -658,7 +795,11 @@ def regenerate_post(state: State) -> State:
             'retry_count': retry_count + 1,
         }
     except Exception as e:
-        logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
+        logger.error(
+            f"regenerate_post failed | retry_count={state.get('retry_count', 0)} | "
+            f"reason={state.get('reason')} | Error={e} | time={time.time()} | "
+            f"crawling_id={state['data'][0].get('crawling_id')}"
+        )
         return {
             **state,
             'retry_count': state.get('retry_count', 0) + 1,
@@ -670,6 +811,11 @@ def evaluate_post(state: State) -> State:
         logger.info(f"evaluate_post start | shop_id={state['data'][0].get('shop_id')}")
         result = evaluate_post_completion(state)
         logger.info(f"evaluate_post end | shop_id={state['data'][0].get('shop_id')} | is_pass={result.get('is_pass')} | reason={result.get('reason')}")
+        if not result.get('is_pass'):
+            logger.warning(
+                f"post evaluation failed | shop_id={state['data'][0].get('shop_id')} | "
+                f"retry_count={state.get('retry_count', 0)} | reason={result.get('reason')}"
+            )
         return {
             **state,
             'is_pass': result.get('is_pass'),
@@ -677,14 +823,17 @@ def evaluate_post(state: State) -> State:
         }
 
     except Exception as e:
-        logger.error(f"Error={e} | time={time.time()} | crawling_id={state['data'][0].get('crawling_id')}")
+        logger.error(
+            f"evaluate_post failed | Error={e} | time={time.time()} | "
+            f"crawling_id={state['data'][0].get('crawling_id')}"
+        )
         return state
 
 def route_after_evaluation(state: State) -> str:
     """평가 통과 또는 최대 재시도 도달 시 그래프를 종료한다."""
     if state.get('is_pass'):
-        return "end"
-    if state.get('retry_count', 0) >= 2:
+        return "make_title"
+    if state.get('retry_count', 0) >= MAX_REGENERATION_COUNT:
         return "end"
     return "regenerate_post"
 
@@ -697,15 +846,16 @@ def build_graph():
     graph.add_node("regenerate_post", regenerate_post)
     graph.add_node("evaluate_post", evaluate_post)
     graph.add_edge(START, "make_post")
-    graph.add_edge("make_post", "make_title")
-    graph.add_edge("make_title", "evaluate_post")
-    graph.add_edge("regenerate_post", "make_title")
+    graph.add_edge("make_post", "evaluate_post")
+    graph.add_edge("regenerate_post", "evaluate_post")
+    graph.add_edge("make_title", END)
 
-    # 평가 실패 시 최대 retry_count까지 재생성하고 다시 제목 생성 후 평가한다.
+    # 평가를 통과한 본문에만 제목을 만들고, 실패 시 최대 retry_count까지 재생성한다.
     graph.add_conditional_edges(
         "evaluate_post",
         route_after_evaluation,
         {
+            "make_title": "make_title",
             "regenerate_post": "regenerate_post",
             "end": END,
         }

@@ -1,9 +1,14 @@
+import csv
 import random
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 from common.logging_config import set_logging
 
 logger = set_logging()
+
+REFERENCE_EXAMPLE_CSV_PATH = Path(__file__).resolve().parents[1] / "temp" / "output_file.csv"
 
 
 class Create_Prompt:
@@ -25,7 +30,7 @@ class Create_Prompt:
 
 # [COMMON RULES]
 1. 본문만 작성하세요. 제목, 목록, 설명문, 시스템 메시지는 출력하지 마세요.
-2. 최소 3문장, 200자 이상으로 작성하세요.
+2. 이미지/링크를 제외한 본문 텍스트는 최소 4문장, 230자 이상으로 작성하세요.
 3. '안녕하세요', '추천합니다', '참고하세요', '방문해보세요', '이상입니다' 같은 상투적인 표현을 쓰지 마세요.
 4. '[장소 이름]', '[여기에 식당 이름]', '[참고]', '**[참고]**', '여기에', 'xxxxx' 같은 placeholder를 절대 쓰지 마세요.
 5. shop_name이 있으면 실제 식당명으로 자연스럽게 포함하세요. 값이 비어 있으면 장소 정보 섹션을 만들지 마세요.
@@ -60,78 +65,68 @@ class Create_Prompt:
 """]
 
         self.casual_sub_prompts: list[str] = [
-            #MODE 1
             """
-# [MODE: DE-STRUCTURING]
-- 페르소나: 유행에 민감하고 말투가 가벼운 SNS 중독자.
-- 말투 특징: 'ㄹㅇ', '맛도리', '~함', '~네' 혼용. 맞춤법보다 속도감 중시.
-- 출력 예시: "와 미쳤네? 성수동 족발 ㄹㅇ 맛도리임;; 껍데기 쫀득함이 장난 아님 ㅠㅠ"
+# [MODE: CASUAL NOTE]
+- 페르소나: 친구에게 짧게 후기 남기는 사람.
+- 말투 특징: 과한 감탄은 줄이고 '~더라', '~했음', '~괜찮았다'를 자연스럽게 섞으세요.
+- 주의: '진짜', '맛있다', '좋다'만 반복하지 말고 구체 메뉴/식감/양을 붙이세요.
 """,
-            #MODE 2
             """
-# [MODE: CYNICAL]
-- 페르소나: 미사여구 질색하는 냉정한 게시글 작성자.
-- 말투 특징: 감정 절제, 'ㅋㅋ' 외 이모지 사용 금지, 짧은 문장 위주.
-- 출력 예시: "한줄요약: 족발 하나는 제대로임. 군더더기 없는 맛인데 사람 너무 많아서 빡셈 ㅋㅋ"
+# [MODE: QUICK REVIEW]
+- 페르소나: 군더더기 없이 핵심만 적는 방문자.
+- 말투 특징: 짧은 문장 2개와 조금 긴 문장 1개를 섞고, 결론을 앞쪽에 둡니다.
+- 주의: 한줄요약, 총평, 결론 같은 라벨은 쓰지 마세요.
 """,
-            #MODE 3
             """
-# [MODE: HYPER-EMOTION]
-- 페르소나: 리액션이 크고 진심을 다해 표현하는 사람.
-- 말투 특징: 느낌표(!!!) 남발, '진심', '진짜루' 반복, 여운 남기기(...).
-- 출력 예시: "미친 거 아냐??? 여기 족발 진심 미쳤음!!! 사장님 적게 일하고 많이 버세요... 입맛 저격 탕탕ㅠㅠㅠ"
+# [MODE: SMALL TALK]
+- 페르소나: 먹으면서 느낀 순서를 편하게 적는 사람.
+- 말투 특징: '처음엔', '먹다 보니', '마지막엔' 같은 흐름 표현을 1개만 사용하세요.
+- 주의: 방문 상황은 SOURCE FACTS에 있을 때만 넣으세요.
 """,
-            #MODE 4
             """
-# [MODE: MONOLOGUE]
-- 페르소나: 남 신경 안 쓰고 혼자 중얼거리는 사람.
-- 말투 특징: 혼잣말(~함, ~임), 갑작스러운 의식의 흐름(딴소리 섞기).
-- 출력 예시: "오늘 족발 먹었는데 개쫀득함. 근데 아까 비 올 뻔해서 그런지 사람 왤케 많음? 담엔 포장해야지."
+# [MODE: REALISTIC]
+- 페르소나: 장점은 말하지만 광고처럼 보이는 말을 싫어하는 사람.
+- 말투 특징: 담백한 '~했다', '~느낌이었다', '~편이었다'를 섞습니다.
+- 주의: 재방문 의사는 근거 없이 쓰지 마세요.
 """,
-            #MODE 5
             """
-# [MODE: RAW EMOTION]
-- 페르소나: 타이핑도 귀찮아서 핵심만 던지는 사람.
-- 말투 특징: 주어 생략, 감탄사 위주, 이모지 3개 이상 중복 사용.
-- 출력 예시: "걍 미침;; 비주얼 무엇...? 폼 미친거 아님? 🔥🔥🔥 ㅠㅠㅠㅠ"
+# [MODE: LIGHT REACTION]
+- 페르소나: 감탄은 있지만 과하게 들뜨지 않는 사람.
+- 말투 특징: 느낌표는 최대 1개만 쓰고, 구체 평가 뒤에 짧은 반응을 붙입니다.
+- 주의: 이모지, 초성, 과격한 표현은 쓰지 마세요.
 """,
         ]
 
         self.formal_sub_prompts: list[str] = [
-            #MODE 1
             """
-# [MODE: TECH-LOG]
-- 페르소나: 담백하게 핵심 기술 정보를 기록하는 엔지니어.
-- 말투 특징: '~다'로 끝나는 건조한 문어체. 수식어는 최대한 배제하고 '구조', '성능' 등 팩트 중심 서술.
-- 출력 예시: "이번 패치로 렌더링 성능이 눈에 띄게 개선됐다. 특히 메모리 점유율을 낮춘 점이 고무적이다. 실무 환경에서의 최적화 효율이 좋을 것으로 보인다."
+# [MODE: OBSERVATION]
+- 페르소나: 방문 기록을 차분하게 남기는 사람.
+- 말투 특징: '~습니다'보다 '~다', '~였다' 중심의 담백한 문장으로 씁니다.
+- 주의: 평가 포인트는 메뉴명/대상어와 붙여서 씁니다.
 """,
-            #MODE 2
             """
-# [MODE: BRIEF-EXPERT]
-- 페르소나: 바쁜 동료들에게 정보를 간결히 공유하는 전문가.
-- 말투 특징: 문장을 짧게 끊어 치는 스타일. 명료하게 결론부터 전달하는 톤.
-- 출력 예시: "인터페이스가 훨씬 직관적으로 변했습니다. 복잡한 설정 없이도 즉시 도입 가능한 수준입니다. 보안성 측면에서도 충분히 합격점입니다."
+# [MODE: BALANCED REVIEW]
+- 페르소나: 음식과 매장 경험을 균형 있게 적는 리뷰어.
+- 말투 특징: 메뉴 평가 2문장, 보조 경험 1문장, 전체 인상 1문장으로 구성합니다.
+- 주의: 숫자, 가격, 메뉴 구성은 SOURCE FACTS에 있을 때만 씁니다.
 """,
-            #MODE 3
             """
-# [MODE: INSIGHT-CURATOR]
-- 페르소나: 기술 트렌드를 읽기 쉽게 정리해주는 큐레이터.
-- 말투 특징: '~입니다' 체를 쓰되, '~인 듯합니다'나 '~로 읽힙니다'처럼 정중하면서도 유연한 표현 사용.
-- 출력 예시: "단순한 기능 개선보다는 사용자 편의성에 집중한 모습입니다. 기존의 번거로운 절차를 대폭 간소화한 점이 이번 업데이트의 핵심으로 보입니다."
+# [MODE: DETAIL FIRST]
+- 페르소나: 맛의 세부를 먼저 짚는 사람.
+- 말투 특징: 첫 문장에 구체 대상어를 넣고, 다음 문장에서 식감/양/국물/간 같은 평가를 설명합니다.
+- 주의: 추상적인 칭찬보다 확인 가능한 표현을 우선합니다.
 """,
-            #MODE 4
             """
-# [MODE: PRACTICAL-REVIEW]
-- 페르소나: 실무 활용도를 냉정하게 평가하는 실무자.
-- 말투 특징: 장단점을 명확히 구분. '현실적으로', '실제로' 같은 부사 활용.
-- 출력 예시: "현실적으로 도입했을 때 리소스 절감 효과가 확실합니다. 다만 초기 학습 비용이 발생할 수 있다는 점은 사전에 고려할 필요가 있습니다."
+# [MODE: PLACE MEMORY]
+- 페르소나: 매장의 분위기나 식사 장면을 자연스럽게 기억하는 사람.
+- 말투 특징: 공간/응대/구성 중 SOURCE FACTS에 있는 보조 요소를 한 문장만 넣습니다.
+- 주의: 없는 웨이팅, 주차, 가격 정보는 쓰지 마세요.
 """,
-            #MODE 5
             """
-# [MODE: MODERN-FORMAL]
-- 페르소나: 군더더기 없는 세련된 문장을 선호하는 지식 전달자.
-- 말투 특징: 종결 어미를 '~네요', '~군요' 대신 정갈한 '~다' 또는 '~습니다'로 통일.
-- 출력 예시: "기술적 완성도가 상당히 높습니다. 특히 아키텍처의 확장성이 좋아 향후 다양한 프로젝트에 유연하게 대응할 수 있을 것으로 판단합니다."
+# [MODE: CLEAN BLOG]
+- 페르소나: 블로그 본문처럼 읽히되 광고 문구를 피하는 사람.
+- 말투 특징: 자연스러운 존댓말을 쓰되 '~습니다'만 반복하지 말고 '~었어요', '~더라고요'를 섞습니다.
+- 주의: 추천, 꼭 가보세요, 인생맛집 같은 표현은 쓰지 마세요.
 """,
         ]
 
@@ -149,6 +144,8 @@ class Create_Prompt:
             "짧은 문장과 긴 문장을 섞어 쓰세요. 같은 종결 표현을 연속으로 반복하지 마세요.",
             "기대나 인상으로 시작하되, 바로 다음 문장에 SOURCE FACTS의 구체 메뉴/대상 평가를 넣으세요.",
             "문단 흐름은 메뉴 평가 -> 보조 경험 -> 전체 인상 순서로 구성하세요.",
+            "첫 문장을 음식 평가로 쓰고, 마지막 문장은 매장 인상이나 식사 만족감으로 닫으세요.",
+            "문장마다 주어를 반복하지 말고, 메뉴명은 필요한 곳에만 1~2회 사용하세요.",
         ]
 
         self.regenerate_reason_sub_prompts: list[str] = [
@@ -166,6 +163,50 @@ class Create_Prompt:
     @staticmethod
     def _clip_text(value: Optional[str], limit: int = 700) -> str:
         return str(value or "").strip()[:limit]
+
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _load_reference_example_pool(csv_path: str = str(REFERENCE_EXAMPLE_CSV_PATH), pool_size: int = 200) -> tuple[tuple[str, str], ...]:
+        if not Path(csv_path).exists():
+            return ()
+
+        pool: list[tuple[str, str]] = []
+        seen_count = 0
+        try:
+            with Path(csv_path).open("r", encoding="utf-8-sig", newline="") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    review = str(row.get("Review") or row.get("review") or "").strip()
+                    if not review:
+                        continue
+                    rating = str(row.get("Rating") or row.get("rating") or "").strip()
+                    seen_count += 1
+                    item = (rating, review)
+                    if len(pool) < pool_size:
+                        pool.append(item)
+                        continue
+                    replace_index = random.randint(0, seen_count - 1)
+                    if replace_index < pool_size:
+                        pool[replace_index] = item
+        except Exception as e:
+            logger.error(f"load_reference_example_pool | Error={e} | csv_path={csv_path}")
+            return ()
+        return tuple(pool)
+
+    @classmethod
+    def _format_reference_examples(cls, row_count: int = 3) -> str:
+        pool = list(cls._load_reference_example_pool())
+        if not pool:
+            return ""
+
+        examples = random.sample(pool, k=min(row_count, len(pool)))
+        lines = []
+        for idx, (rating, review) in enumerate(examples, start=1):
+            rating_line = f"  - rating: {rating}" if rating else ""
+            review_line = f"  - review: {cls._clip_text(review, 180)}"
+            body = "\n".join(line for line in (rating_line, review_line) if line)
+            lines.append(f"[{idx}]\n{body}")
+        return "\n".join(lines)
 
     @staticmethod
     def _clean_shop_name(value: Optional[str]) -> str:
@@ -199,7 +240,7 @@ class Create_Prompt:
                     continue
                 fields = [
                     ("title", review.get("title")),
-                    ("content", cls._clip_text(review.get("content"), 500)),
+                    ("content", cls._clip_text(review.get("content"), 280)),
                     ("keywords", review.get("keywords")),
                     ("sentimental", review.get("sentimental")),
                     ("score", review.get("score")),
@@ -216,7 +257,7 @@ class Create_Prompt:
         fields = [
             ("shop_id", sample_data.get("shop_id")),
             ("title", sample_data.get("title")),
-            ("content", cls._clip_text(sample_data.get("content"))),
+            ("content", cls._clip_text(sample_data.get("content"), 280)),
             ("keywords", sample_data.get("keywords")),
             ("sentimental", sample_data.get("sentimental")),
             ("score", sample_data.get("score")),
@@ -228,7 +269,7 @@ class Create_Prompt:
         if not keyword_stats:
             return ""
         lines = []
-        for data in keyword_stats:
+        for data in keyword_stats[:10]:
             lines.append(
                 "- {keyword} | batch_count={batch_count} | average_score={average_score} | final_weight={final_weight}".format(
                     keyword=data.get("keyword"),
@@ -286,6 +327,11 @@ class Create_Prompt:
                 random.choice(prompt.writing_angle_prompts),
                 "# [SENTENCE STRUCTURE]",
                 random.choice(prompt.sentence_structure_prompts),
+                "# [REFERENCE WRITING EXAMPLES]",
+                cls._format_reference_examples(),
+                "# [REFERENCE EXAMPLE RULE]",
+                "REFERENCE WRITING EXAMPLES는 문장 밀도와 구체성 참고용입니다.\n"
+                "예시의 메뉴명, 장소명, 사실관계는 절대 가져오지 말고 SOURCE FACTS와 TOP SOURCE REVIEWS에 있는 사실만 사용하세요.",
                 "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
                 "# [SOURCE REVIEW RULE]",
@@ -297,7 +343,11 @@ class Create_Prompt:
                 "본문은 SOURCE FACTS의 사실만 조합해서 작성하세요.\n"
                 "SOURCE FACTS가 부족하면 TOP SOURCE REVIEWS에서 직접 확인되는 표현만 보완하고, 추측으로 메뉴명/재료명/장소명을 만들지 마세요.\n"
                 "SOURCE FACTS를 모두 나열하지 말고 메뉴/맛·식감·양/서비스·분위기·가격·상황 중 서로 다른 축 3개 안팎을 골라 조합하세요.",
-                random.choice(prompt.casual_sub_prompts),
+                "# [PASS CHECK BEFORE OUTPUT]",
+                "출력 전 스스로 확인하세요. 본문 텍스트가 이미지/링크를 제외하고 4문장 이상, 230자 이상이어야 합니다.\n"
+                "SOURCE FACTS 또는 TOP SOURCE REVIEWS에서 확인되는 구체 대상어+평가를 최소 2개 넣어야 합니다.\n"
+                "가격, 메뉴 구성, 무한리필, 주차, 웨이팅 같은 정보는 근거에 정확히 있을 때만 씁니다.",
+                random.choice(prompt.casual_sub_prompts + prompt.formal_sub_prompts),
             ])
         except Exception as e:
             sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data
@@ -343,6 +393,11 @@ class Create_Prompt:
                 random.choice(prompt.writing_angle_prompts),
                 "# [SENTENCE STRUCTURE]",
                 random.choice(prompt.sentence_structure_prompts),
+                "# [REFERENCE WRITING EXAMPLES]",
+                cls._format_reference_examples(),
+                "# [REFERENCE EXAMPLE RULE]",
+                "REFERENCE WRITING EXAMPLES는 문장 밀도와 구체성 참고용입니다.\n"
+                "예시의 메뉴명, 장소명, 사실관계는 절대 가져오지 말고 SOURCE FACTS와 TOP SOURCE REVIEWS에 있는 사실만 사용하세요.",
                 "# [TOP SOURCE REVIEWS]",
                 cls._format_sample_data(sample_data),
                 "# [SOURCE FACTS]",
@@ -354,6 +409,10 @@ class Create_Prompt:
                 "PREVIOUS POST를 그대로 고치지 말고, 실패 사유가 된 표현을 제거한 뒤 SOURCE FACTS에 있는 사실만 사용해서 새로 작성하세요.\n"
                 "구체적인 대상+평가를 최소 2개 이상 포함하고, 상투적인 칭찬만 반복하지 마세요.\n"
                 "PREVIOUS POST와 다른 관점/문장 순서로 쓰고, SOURCE FACTS 중 서로 다른 축의 사실을 골라 조합하세요.",
+                "# [PASS CHECK BEFORE OUTPUT]",
+                "출력 전 스스로 확인하세요. 본문 텍스트가 이미지/링크를 제외하고 4문장 이상, 230자 이상이어야 합니다.\n"
+                "평가 실패 사유에 나온 문제를 반복하지 말고, 근거 없는 가격/메뉴/시설 정보는 모두 빼세요.",
+                random.choice(prompt.casual_sub_prompts + prompt.formal_sub_prompts),
             ])
         except Exception as e:
             sample_for_log = sample_data[0] if isinstance(sample_data, list) and sample_data else sample_data

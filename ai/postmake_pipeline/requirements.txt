@@ -12,3 +12,7 @@ psycopg2-binary
 scipy
 sentence-transformers
 kiwipiepy
+
+pandas
+jupyter
+openpyxl

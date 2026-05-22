@@ -7,6 +7,7 @@ from make_post.node import graph
 from make_post.to_post import to_post, to_post_vector
 
 logger = set_logging()
+GROQ_SHOP_COOLDOWN_SECONDS = 2.0
 
 
 def run_pipeline():
@@ -63,6 +64,8 @@ def run_pipeline():
                 f"post_len={len(str(post_data.get('post') or ''))} | "
                 f"is_pass={post_data.get('is_pass')} | retry_count={post_data.get('retry_count')}"
             )
+            if GROQ_SHOP_COOLDOWN_SECONDS:
+                time.sleep(GROQ_SHOP_COOLDOWN_SECONDS)
 
             if not post_data or not post_data.get("is_pass"):
                 logger.info(f"post evaluation failed after retries, skip save | shop_id={shop_id}")
