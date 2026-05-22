@@ -5,7 +5,8 @@ import logging
 
 from cleaning.cleaning import cleaning_threads
 from common.constant import Service
-from common.utils import get_last_success_date, get_run_time
+from common.utils import get_run_time
+from postgresql.watermark import get_last_success_date
 from crawling.crawling_thread_geeknews import crawling_thread_geeknews
 from crawling.crawling_thread_pytorch import crawling_thread_pytorch
 from save.save import save_threads
@@ -14,7 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline() -> None:
-    """한 프로세스에서 1) 두 소스 크롤, 2) 클리닝, 3) 저장 순으로 실행."""
+    """한 프로세스에서 geeknews·pytorch 크롤 → 클리닝 → save를 순서대로 실행한다.
+
+    Note:
+        함수 유형: F — 파이프라인 오케스트레이션
+        안전성: Level 3(통합) — 하위 크롤(HTTP)·DB 쓰기·CSV 쓰기 호출
+        불변 규칙: 동일 `run_time`으로 두 크롤 출력이 같은 run 폴더에 쌓임
+        부작용: raw/cleaning/save CSV, `crawling` MERGE
+    """
     # 같은 `run_time`으로 두 크롤 출력이 동일 run 폴더에 쌓이도록
     run_time = get_run_time()
     last_geek = get_last_success_date(Service.GEEKNEWS)

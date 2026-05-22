@@ -1,3 +1,5 @@
+"""post_analysis 배치·DB·모델에서 공통으로 쓰는 컬럼명·코드·설정 상수."""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -6,6 +8,7 @@ from enum import Enum
 class CrawlingColumn(str, Enum):
     """크롤·클리닝·`crawling` INSERT 공통 DataFrame/행 키."""
 
+    CRAWLING_ID = "crawling_id"
     TITLE = "title"
     CONTENT = "content"
     THREAD = "thread"
@@ -25,10 +28,40 @@ class CrawlingColumn(str, Enum):
 
     @classmethod
     def allowed_crawling_columns(cls) -> frozenset[str]:
-        return frozenset({cls.TITLE, cls.CONTENT, cls.THREAD, cls.ARTICLE_URL, cls.CREATED_AT, cls.VIEW_COUNT, cls.COMMENT_COUNT, cls.POINT, cls.AUTHOR, cls.MAP_ID, cls.CATEGORY_CD})
+        """DB/INSERT용으로 허용되는 본문 칼럼 집합(클리닝 전용·에러 필드 제외).
+
+        Note:
+            함수 유형: A — 순수 계산
+            안전성: Level 0 — 외부 상태 접근·변경 없음
+        """
+        return frozenset(
+            {
+                cls.TITLE,
+                cls.CONTENT,
+                cls.THREAD,
+                cls.ARTICLE_URL,
+                cls.CREATED_AT,
+                cls.VIEW_COUNT,
+                cls.COMMENT_COUNT,
+                cls.POINT,
+                cls.AUTHOR,
+                cls.MAP_ID,
+                cls.CATEGORY_CD,
+            }
+        )
+
+
+class ShopColumn(str, Enum):
+    """`shop` 테이블 DataFrame/행 키."""
+
+    SHOP_ID = "shop_id"
+    MAP_ID = "map_id"
+    SHOP_CD = "shop_cd"
+
 
 class AnalysisColumn(str, Enum):
-    """분석·`analysis` INSERT 공통 DataFrame/행 키."""
+    """분석·`INSERT analysis` 공통 DataFrame/행 키."""
+
     CRAWLING_ID = "crawling_id"
     TITLE = "title"
     CONTENT = "content"
@@ -36,17 +69,95 @@ class AnalysisColumn(str, Enum):
     MAP_ID = "map_id"
     SHOP_ID = "shop_id"
     CATEGORY_CD = "category_cd"
+    INFORMATION_CD = "information_cd"
     CREATED_DT = "created_dt"
     SENTIMENTAL = "sentimental"
     SCORE = "score"
     KEYWORDS = "keywords"
-    POSITIVE_KW = "positive_kw"
-    NEGATIVE_KW = "negative_kw"
+    SHOP_CD = "shop_cd"
 
     @classmethod
     def allowed_analysis_columns(cls) -> frozenset[str]:
-        return frozenset({cls.CRAWLING_ID, cls.TITLE, cls.CONTENT, cls.ARTICLE_URL, cls.MAP_ID, cls.SHOP_ID, cls.CATEGORY_CD, cls.CREATED_DT, cls.SENTIMENTAL, cls.SCORE, cls.KEYWORDS, cls.POSITIVE_KW, cls.NEGATIVE_KW})
+        """파이프라인 MERGE SQL에 대응하는 분석 칼럼 집합.
+
+        Note:
+            함수 유형: A — 순수 계산
+            안전성: Level 0 — 외부 상태 접근·변경 없음
+        """
+        return frozenset(
+            {
+                cls.CRAWLING_ID,
+                cls.TITLE,
+                cls.CONTENT,
+                cls.ARTICLE_URL,
+                cls.MAP_ID,
+                cls.SHOP_ID,
+                cls.CATEGORY_CD,
+                cls.INFORMATION_CD,
+                cls.SHOP_CD,
+                cls.CREATED_DT,
+                cls.SENTIMENTAL,
+                cls.SCORE,
+                cls.KEYWORDS,
+            }
+        )
 
 
-class CodeTable(Enum):
-    IT_NEWS = "IC02"
+class CodeTable(str, Enum):
+    """코드 테이블 문자열 참조(database/data/codeT, etl/it_news 규격과 동일).
+
+    - ``CATEGORY_ETC`` (**CA07**): ``category_cd`` 축. IT 크롤 스트림에
+      ``etl.it_news.common.constant.CategoryCdCode.ETC`` / ``CodeTable.CATEGORY_ETC`` 와 동일.
+    - ``INFORMATION_IT_INFO`` (**IC02**): ``information_cd`` 축 IT 정보글.
+      ``etl.it_news.common.constant.InformationCdCode.IT_INFO`` 와 동일.
+    - ``INFORMATION_RESTAURANT`` (**IC01**): ``information_cd`` 축 맛집·리뷰 정보글.
+      ``etl.it_news.common.constant.InformationCdCode.RESTAURANT_INFO`` 와 동일.
+    """
+
+    CATEGORY_ETC = "CA07"
+    INFORMATION_RESTAURANT = "IC01"
+    INFORMATION_IT_INFO = "IC02"
+
+
+class SentimentLabel(str, Enum):
+    """감성 분류 결과 라벨."""
+
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+
+
+class SentimentResultKey(str, Enum):
+    """`predict_sentiment` 등 결과 dict 키."""
+
+    SENTIMENTAL = "sentimental"
+    SCORE = "score"
+    POSITIVE_SCORE = "positive_score"
+    NEGATIVE_SCORE = "negative_score"
+
+
+class AnalyzeKeywordsByLlmConfig:
+    """LLM 키워드 추출 배치(`analyze_keywords_by_llm`) 설정.
+
+    LLM 호출 상한은 ``analyze_keywords_by_llm(max_rows=...)`` 인자로 제어한다.
+    기본(``None``)은 제한 없음. 테스트·batch 청크 시에만 값을 넘긴다.
+    """
+
+    OPENAI_MODEL = "gpt-5.4-mini"
+    DTYPE_OBJECT = "object"
+    CONTENT_EMPTY_PLACEHOLDERS: tuple[str, ...] = ("", "-", "N/A")
+
+
+class AnalyzeSentimentalConfig:
+    """BERT 감성 분류 배치(`analyze_sentimental`) 및 `BertTokenizer` 기본값."""
+
+    MODEL_NAME = "sangrimlee/bert-base-multilingual-cased-nsmc"
+    MAX_SEQUENCE_LENGTH = 512
+    SCORE_DECIMAL_PLACES = 4
+    DTYPE_OBJECT = "object"
+    DTYPE_SCORE = "float64"
+
+
+class GetReviewsConfig:
+    """크롤→분석 적재 배치(`get_reviews`)의 시간 문자열 형식."""
+
+    ISOFORMAT_TIMESPEC = "seconds"
