@@ -147,12 +147,29 @@ def evaluate_post_completion(result: dict) -> dict:
         for row in source_data:
             if not isinstance(row, dict):
                 continue
+            title = str(
+                row.get("shop_name")
+                or row.get("shop_nm")
+                or row.get("store_name")
+                or row.get("restaurant_name")
+                or row.get("title")
+                or ""
+            ).strip()
             content = str(row.get("content") or "").strip()
-            if not content:
+            if not title and not content:
                 continue
             if len(content) > _MAX_SOURCE_CHARS_PER_ROW:
                 content = content[:_MAX_SOURCE_CHARS_PER_ROW] + "..."
-            source_texts.append(content)
+            source_parts = []
+            if title:
+                source_parts.append(f"title/shop_name: {title}")
+                if title.lower().startswith("review -"):
+                    cleaned_title = title.split("-", 1)[1].strip()
+                    if cleaned_title:
+                        source_parts.append(f"shop_name_alias: {cleaned_title}")
+            if content:
+                source_parts.append(f"review: {content}")
+            source_texts.append(" | ".join(source_parts))
             if len(source_texts) >= _MAX_SOURCE_ROWS:
                 break
 
@@ -172,6 +189,8 @@ def evaluate_post_completion(result: dict) -> dict:
 
             [SOURCES]
             게시글이 근거로 삼아야 하는 원본 리뷰 모음입니다.
+            각 source의 title/shop_name/shop_name_alias는 가게명 또는 장소명 grounding으로 인정하세요.
+            단, title/shop_name은 가게명 grounding에만 사용할 수 있고 메뉴명, 가격, 주차, 웨이팅, 서비스 같은 세부 사실의 근거로 쓰면 안 됩니다.
             게시글의 사실(메뉴명, 재료, 평가 포인트 등)은 이 안에서 직접적으로 등장하거나
             자연스럽게 추론 가능해야 합니다.
             {sources}
