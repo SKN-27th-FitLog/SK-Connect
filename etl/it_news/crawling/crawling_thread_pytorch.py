@@ -27,20 +27,16 @@ from bs4 import BeautifulSoup
 
 # 모듈
 from common.constant import CodeTable
-from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status
+from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service
+from common.crawling_http import run_crawl_and_save, user_agent_headers
 from common.utils import (
-    build_csv_path,
     coalesce_last_created_at,
-    get_last_success_date,
-    get_run_time,
-    save_csv,
+    is_created_after_watermark,
+    parse_discourse_iso_datetime,
 )
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
-
-
-def _user_agent_headers() -> dict[str, str]:
-    return {C_Constant.USER_AGENT_HEADER: C_Constant.USER_AGENT}
 
 
 
@@ -48,33 +44,72 @@ def _user_agent_headers() -> dict[str, str]:
 # 게시글 전체 목록 주회 
 #########################################################################
 
-def get_article_list() -> list[str]:
-    '''기준 페이지에서 수집해야 할 게시글의 절대 URL 목록을 구하는 함수'''
-    article_urls = []
+def _topic_url_from_list_item(site_base: str, topic: dict) -> str:
+    """Discourse 목록 JSON 토픽 dict → 절대 게시글 URL."""
+    slug = topic.get("slug") or "topic"
+    return urljoin(site_base, f"t/{slug}/{topic['id']}")
+
+
+def _is_above_watermark(created_at: datetime, threshold: datetime) -> bool:
+    """목록 단계: 워터마크보다 최신(`created_at`)인 토픽만 수집 대상.
+
+    Note:
+        함수 유형: C — 판정(지역)
+        안전성: Level 0
+        불변 규칙: `common.utils.is_created_after_watermark`와 동일 (INV-04)
+    """
+    return is_created_after_watermark(created_at, threshold)
+
+
+def get_article_list(last_created_at: Optional[object] = None) -> list[str]:
+    """pytorch(Discourse) 목록 JSON을 순회해 워터마크 통과 URL만 수집한다.
+
+    Note:
+        함수 유형: E — HTTP·JSON
+        안전성: Level 3
+        불변 규칙: `created_at > threshold`만 URL 추가; pinned 제외; 비고정 토픽이
+            한 페이지에 없으면 다음 페이지 중단; page=0부터 최대 `PAGE_COUNT`
+        부작용: discuss.pytorch.kr 목록 `.json` 요청
+    """
+    threshold = coalesce_last_created_at(last_created_at)
+    article_urls: list[str] = []
     list_origin = urlparse(Service.PYTORCH.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
+    list_json_url = Service.PYTORCH.url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX
 
-    # discuss.pytorch.kr (Discourse) 목록은 ?page=0 이 첫 페이지 (0 인덱스)
     page_num = 0
 
     with tqdm(desc="pytorch 게시글 목록 URL 수집", unit="page") as pbar:
-        # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
-        while True:
-            url = Service.PYTORCH.url + f"?page={page_num}"
-            response = requests.get(url, headers=_user_agent_headers())
-            soup = BeautifulSoup(response.text, "html.parser")
+        while page_num <= C_Constant.PAGE_COUNT:
+            response = requests.get(
+                list_json_url,
+                params={"page": page_num},
+                headers=user_agent_headers(),
+            )
+            response.raise_for_status()
+            topics = response.json().get("topic_list", {}).get("topics", [])
 
-            # Discourse 토픽 목록: tr.topic-list-item … td.main-link 안의 a.title(클래스명 title; CrawlingColumn.TITLE 컬럼과 무관)
-            articles = soup.select("tr.topic-list-item td.main-link a.title")
-            # 게시글이 없으면 반복문을 종료한다.
-
-            if not articles:
+            if not topics:
                 break
-            for a in tqdm(articles, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
-                href = a.get("href")
-                if href:
-                    article_urls.append(urljoin(site_base, href))
+
+            page_has_new = False
+            for topic in tqdm(
+                topics,
+                desc="게시글 URL 수집(페이지 내)",
+                unit="개",
+                leave=False,
+            ):
+                if topic.get("pinned"):
+                    continue
+                created_at = parse_discourse_iso_datetime(topic["created_at"])
+                if not _is_above_watermark(created_at, threshold):
+                    continue
+                page_has_new = True
+                article_urls.append(_topic_url_from_list_item(site_base, topic))
+
             pbar.update(1)
+            if not page_has_new:
+                break
             if page_num >= C_Constant.PAGE_COUNT:
                 break
             time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
@@ -89,15 +124,22 @@ def get_article_list() -> list[str]:
 
 # 게시글 1개 soup된 내용 가지고 슬라이싱 해서 컬럼값 반환 
 def parse_article(url:str) -> dict:
-    '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 '''
+    """pytorch 토픽 URL 1건에서 HTML+JSON API로 `CrawlingColumn` dict를 추출한다.
+
+    Note:
+        함수 유형: E — HTTP·파싱
+        안전성: Level 3
+        불변 규칙: JSON/HTML 실패 시 예외 → fail 행
+        부작용: HTML GET + `{url}.json` GET
+    """
 
     # HTML 파싱
-    response = requests.get(url, headers=_user_agent_headers())
+    response = requests.get(url, headers=user_agent_headers())
     soup = BeautifulSoup(response.text, "html.parser")
 
     # JSON API: SSR HTML에 없는 조회수·작성자를 한 번의 요청으로 처리
     json_resp = requests.get(
-        url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX, headers=_user_agent_headers()
+        url + C_Constant.PYTORCH_DISCOURSE_JSON_SUFFIX, headers=user_agent_headers()
     )
     json_resp.raise_for_status()
     topic_data = json_resp.json()
@@ -129,14 +171,24 @@ def parse_article(url:str) -> dict:
 
 # 제목 슬라이싱 
 def slicing_title(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 제목을 추출하는 함수 (discuss.pytorch.kr Discourse 구조)'''
+    """Discourse HTML에서 제목을 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+    """
 
     title = soup.select_one("#topic-title h1 a")
     return title.get_text(strip=True)
 
 # 내용 슬라이싱 
 def slicing_content(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 내용을 추출하는 함수 (discuss.pytorch.kr Discourse 구조)'''
+    """Discourse meta description에서 본문 요약을 추출한다.
+
+    Note:
+        함수 유형: E — DOM/meta 추출
+        안전성: Level 0
+    """
 
     # 본문: div.cooked 는 JS 렌더링이므로, SSR로 제공되는 meta description 에서 추출
     content = soup.find('meta', {'name': 'description'})
@@ -144,24 +196,46 @@ def slicing_content(soup: BeautifulSoup) -> str:
 
 # 게시글 id 슬라이싱
 def slicing_thread(article_url: str) -> str:
-    """URL 경로 /t/slug/{id} 의 마지막 세그먼트에 pytorch_ 접두사."""
+    """URL 경로 마지막 세그먼트에 `pytorch_` 접두를 붙인 `thread`를 만든다.
+
+    Note:
+        함수 유형: A — URL 파싱
+        안전성: Level 0
+    """
     topic_id = urlparse(article_url).path.split('/')[-1]
     return f"{Service.PYTORCH.service}_{topic_id}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
-    """time.post-time[datetime] 의 ISO 8601 값을 datetime으로 반환."""
+    """`time.post-time[datetime]` ISO 값을 UTC datetime으로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+    """
     dt_str = soup.select_one("time.post-time")["datetime"]
     return datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ")
 
 # 조회수 슬라이싱
 def slicing_view_count(topic_data: dict) -> int:
-    """JSON API 응답의 views 값을 반환. 없으면 0."""
+    """Discourse JSON `views`를 정수로 반환한다.
+
+    Note:
+        함수 유형: E — JSON 필드
+        안전성: Level 0
+        불변 규칙: 없으면 `DEFAULT_INT`
+    """
     return int(topic_data.get("views", C_Constant.DEFAULT_INT))
 
 # 댓글 수 슬라이싱
 def slicing_comment_count(soup: BeautifulSoup) -> int:
-    """a[data-topic-comment-count] 정수값. 요소·속성 없음·변환 실패 시 0."""
+    """댓글 수 DOM 속성을 정수로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: 없음·변환 실패 시 `DEFAULT_INT`
+    """
     try:
         return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
     except (TypeError, KeyError, ValueError):
@@ -172,7 +246,13 @@ def slicing_comment_count(soup: BeautifulSoup) -> int:
 
 # 작성자 슬라이싱
 def slicing_author(topic_data: dict) -> str:
-    """JSON API 응답의 첫 번째 포스트 username을 반환. 키 없으면 예외로 실패."""
+    """Discourse JSON 첫 포스트 `username`을 반환한다.
+
+    Note:
+        함수 유형: E — JSON 필드
+        안전성: Level 0
+        불변 규칙: 키 없으면 예외
+    """
     # data-user-card 속성은 JS 렌더링 영역이라 SSR HTML에 없으므로 JSON API 사용
     return topic_data["post_stream"]["posts"][0]["username"]
 
@@ -185,43 +265,21 @@ def crawling_thread_pytorch(
     run_time: Optional[datetime] = None,
     last_created_at: Optional[object] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
-    if run_time is None:
-        run_time = get_run_time()
+    """pytorch 크롤 단계 진입: 목록 수집 후 `run_crawl_and_save`로 raw CSV 저장.
 
-    threshold = coalesce_last_created_at(last_created_at)
-
-    article_urls = get_article_list()
-    success_rows: list[dict] = []
-    fail_rows: list[dict] = []
-
-    for url in tqdm(article_urls, desc="pytorch 게시글 파싱", unit="개"):
-        try:
-            success_rows.append(parse_article(url))
-        except Exception as e:
-            c = CrawlingColumn
-            fail_rows.append({c.ARTICLE_URL.value: url, c.ERROR.value: str(e)})
-        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
-
-    df_success = pd.DataFrame(success_rows)
-    df_fail = pd.DataFrame(fail_rows)
-
-    # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링
-    if success_rows:
-        t = pd.Timestamp(threshold)
-        ca = CrawlingColumn.CREATED_AT.value
-        df_success = df_success[df_success[ca] > t].copy()
-
-    # 저장할 데이터들이 있을 때만 파일 저장 실행
-    if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLING, CodeTable.CATEGORY_ETC, Service.PYTORCH.service, Status.SUCCESS, run_time)
-        save_csv(df_success, path_success)
-
-    if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLING, CodeTable.CATEGORY_ETC, Service.PYTORCH.service, Status.FAIL, run_time)
-        save_csv(df_fail, path_fail)
-
-    return df_success, df_fail
+    Note:
+        함수 유형: F — 사이트별 크롤 진입
+        안전성: Level 2 — CSV 쓰기; 내부 HTTP는 L3
+        부작용: `process=raw` success/fail CSV
+    """
+    return run_crawl_and_save(
+        service=Service.PYTORCH,
+        article_urls=get_article_list(last_created_at=last_created_at),
+        parse_article=parse_article,
+        tqdm_desc="pytorch 게시글 파싱",
+        run_time=run_time,
+        last_created_at=last_created_at,
+    )
 
 
 
@@ -239,4 +297,3 @@ if __name__ == "__main__":
         len(df_ok),
         len(df_bad),
     )
-

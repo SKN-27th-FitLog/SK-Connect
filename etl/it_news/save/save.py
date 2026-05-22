@@ -3,10 +3,17 @@ import logging
 
 import pandas as pd
 
-from common.constant import CodeTable, CrawlingColumn, Stage, Status
-from common.postgresql.run_query import insert_crawling_batch, fetch_crawling_dataframe
+from common.constant import CrawlingColumn, ItNewsFilePrefix, Stage, Status
+from common.errors import EtlErrors
 from common.preprocess import get_cleaning_success_for_save
-from common.utils import get_last_success_date, get_run_time, build_csv_path, save_csv
+from common.utils import (
+    build_csv_path,
+    get_run_time,
+    information_cd_for_path,
+    save_csv,
+)
+from postgresql.run_query import fetch_crawling_dataframe, insert_crawling_batch
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +22,16 @@ logger = logging.getLogger(__name__)
 ####################################
 def save_threads(
     *,
-    save_file_prefix: str = "it_news",
+    save_file_prefix: str = ItNewsFilePrefix.DEFAULT,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """diagram 3단계: 전처리 CSV 로드·필터 → 저장 → success/fail CSV."""
+    """save 단계 진입: cleaning success CSV → DB MERGE → save CSV.
+
+    Note:
+        함수 유형: F — 단계 오케스트레이션
+        안전성: Level 2 — DB MERGE·CSV 쓰기
+        불변 규칙: DB에 이미 있는 `thread`는 적재 전 제외
+        부작용: `crawling` MERGE; 실패 시 전 배치를 fail CSV로 기록
+    """
 
 
     ##############################
@@ -56,7 +70,7 @@ def save_threads(
         insert_crawling_batch(df)
         df_success, df_fail = df, pd.DataFrame()
     except Exception:
-        logger.exception("save: crawling 일괄 MERGE·INSERT 실패 — 전부 fail 처리")
+        logger.exception(EtlErrors.Save.merge_insert_failed())
         df_success, df_fail = pd.DataFrame(), df
 
 
@@ -65,14 +79,22 @@ def save_threads(
     ##############################
     if not df_success.empty:
         path_success = build_csv_path(
-            Stage.SAVE, CodeTable.CATEGORY_ETC, save_file_prefix, Status.SUCCESS, run_time
+            Stage.SAVE,
+            information_cd_for_path(df_success),
+            save_file_prefix,
+            Status.SUCCESS,
+            run_time,
         )
         save_csv(df_success, path_success)
         logger.info("저장: 성공 CSV %s (%d행)", path_success.resolve(), len(df_success))
 
     if not df_fail.empty:
         path_fail = build_csv_path(
-            Stage.SAVE, CodeTable.CATEGORY_ETC, save_file_prefix, Status.FAIL, run_time
+            Stage.SAVE,
+            information_cd_for_path(df_fail),
+            save_file_prefix,
+            Status.FAIL,
+            run_time,
         )
         save_csv(df_fail, path_fail)
         logger.info("저장: 실패 CSV %s (%d행)", path_fail.resolve(), len(df_fail))
