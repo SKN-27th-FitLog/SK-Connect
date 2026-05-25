@@ -7,14 +7,17 @@ logger = set_logging()
 
 def get_image(data: list[dict]) -> list:
     try:
-        shop_id = data[0]["shop_id"]
+        crawling_id = data[0]["crawling_id"]
         query = """
         SELECT i.image_url
         FROM images AS i
-        WHERE i.table_name = 'shop'
-          AND i.table_id = %s
+        JOIN "codeT" AS c
+          ON c.cd = i.table_cd
+         AND c.cd_upper = 'TC00'
+         AND c.name = 'crawling'
+        WHERE i.table_id = %s
         """
-        image = get_cursor(query, (shop_id,))
+        image = get_cursor(query, (crawling_id,))
         image_list = image.fetchall() if image else []
         return image_list
     except Exception as e:

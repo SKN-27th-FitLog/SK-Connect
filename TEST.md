@@ -107,11 +107,18 @@ assert session.params[0]["article_url"] == (
 ```
 
 ```python
-stage._load_images(session, [{"url": "https://cdn.example.com/image.png"}], shop_id="20")
+stage._load_images(
+    session,
+    [{"url": "https://cdn.example.com/image.png"}],
+    source_table_name="crawling",
+    source_id="343",
+)
 
 assert session.params[0]["image_url"] == (
     '<img src="https://cdn.example.com/image.png" alt="식당 이미지"/>'
 )
+assert session.params[0]["table_cd"] == "TC10"
+assert session.params[0]["table_id"] == 343
 ```
 
 실행 명령:

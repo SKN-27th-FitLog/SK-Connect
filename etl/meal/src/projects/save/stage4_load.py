@@ -19,6 +19,7 @@ from src.core.constants import (
     QUERY_UPDATE_MAP_COORDINATES,
     QUERY_UPDATE_SHOP_RATING,
     RESTAURANT_CATEGORY_CD,
+    TABLE_NAME_CRAWLING,
 )
 from src.core.policy.exceptions import UndefinedCodeException
 from src.core.policy.fail_record import build_fail_record
@@ -151,14 +152,37 @@ class Stage4Load(BaseStage):
                 "price": menu["price"],
             })
 
-    def _load_images(self, session: Session, images: List[Any], shop_id: str):
+    def _resolve_table_code(self, table_name: str) -> str:
+        table_cd = self.code_repo.get_table_code(table_name)
+        if not table_cd:
+            raise UndefinedCodeException(
+                reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
+                stage=self.NAME,
+                entity_type="image",
+                detail=f"table_cd is missing or invalid in CodeTable: {table_name}",
+            )
+        return table_cd
+
+    def _load_images(
+        self,
+        session: Session,
+        images: List[Any],
+        source_table_name: str,
+        source_id: str,
+    ):
+        if source_id is None or str(source_id).strip() == "":
+            raise ValueError("image source_id is required")
+
+        table_cd = self._resolve_table_code(source_table_name)
+        table_id = int(source_id)
+
         for img in images:
             img_url = img.get("url", "") if isinstance(img, dict) else img
             if img_url:
                 session.execute(text(QUERY_INSERT_IMAGE), {
                     "image_url": self._build_image_tag(img_url),
-                    "table_name": "shop",
-                    "table_id": int(shop_id),
+                    "table_cd": table_cd,
+                    "table_id": table_id,
                 })
 
     def _limit_text(self, value: Any, max_length: int) -> str:
@@ -215,7 +239,7 @@ class Stage4Load(BaseStage):
         map_id: str,
         category_cd: str,
     ):
-        session.execute(text(QUERY_INSERT_CRAWLING), {
+        store_crawling_id = session.execute(text(QUERY_INSERT_CRAWLING), {
             "title": self._limit_text(f"Crawl - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
             "content": store.get("description", ""),
             "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
@@ -224,7 +248,7 @@ class Stage4Load(BaseStage):
             "author": "System",
             "keywords": "",
             "point": float(store.get("rating", 0.0)),
-        })
+        }).scalar()
 
         for review in reviews:
             session.execute(text(QUERY_INSERT_CRAWLING), {
@@ -237,6 +261,8 @@ class Stage4Load(BaseStage):
                 "keywords": self._join_keywords(review.get("keywords", [])),
                 "point": float(review.get("rating", 0.0)),
             })
+
+        return str(store_crawling_id) if store_crawling_id is not None else None
 
     def _record_partial_failure(
         self,
@@ -313,27 +339,35 @@ class Stage4Load(BaseStage):
                             self.logger.error(f"Menu partial failure for {store.get('name')}: {e}")
                             self._record_partial_failure(results, store, "menu", e, record.get("menus", []), batch_id, run_attempt)
 
-                    if change_plan["image"]:
+                    crawling_source_id = None
+                    if change_plan["image"] or change_plan["review"]:
                         try:
                             with session.begin_nested():
-                                self._load_images(session, record.get("images", []), shop_id)
-                        except Exception as e:
-                            self.logger.error(f"Images partial failure for {store.get('name')}: {e}")
-                            self._record_partial_failure(results, store, "image", e, record.get("images", []), batch_id, run_attempt)
-
-                    if change_plan["review"]:
-                        try:
-                            with session.begin_nested():
-                                self._load_crawling_and_reviews(
+                                crawling_source_id = self._load_crawling_and_reviews(
                                     session,
                                     store,
-                                    record.get("reviews", []),
+                                    record.get("reviews", []) if change_plan["review"] else [],
                                     map_id,
                                     RESTAURANT_CATEGORY_CD,
                                 )
                         except Exception as e:
-                            self.logger.error(f"Reviews partial failure for {store.get('name')}: {e}")
-                            self._record_partial_failure(results, store, "review", e, record.get("reviews", []), batch_id, run_attempt)
+                            entity_type = "review" if change_plan["review"] else "image"
+                            failure_data = record.get("reviews", []) if change_plan["review"] else record.get("images", [])
+                            self.logger.error(f"Crawling source partial failure for {store.get('name')}: {e}")
+                            self._record_partial_failure(results, store, entity_type, e, failure_data, batch_id, run_attempt)
+
+                    if change_plan["image"]:
+                        try:
+                            with session.begin_nested():
+                                self._load_images(
+                                    session,
+                                    record.get("images", []),
+                                    TABLE_NAME_CRAWLING,
+                                    crawling_source_id,
+                                )
+                        except Exception as e:
+                            self.logger.error(f"Images partial failure for {store.get('name')}: {e}")
+                            self._record_partial_failure(results, store, "image", e, record.get("images", []), batch_id, run_attempt)
 
                     session.commit()
                     loaded_count += 1
