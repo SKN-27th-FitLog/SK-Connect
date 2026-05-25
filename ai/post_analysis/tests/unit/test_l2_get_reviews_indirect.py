@@ -49,14 +49,16 @@ def test_pa_l2_grv_001_missing_crawling_column(
 @patch("get_reviews.get_shop_data")
 @patch("get_reviews.get_analysis_data")
 @patch("get_reviews.get_crawling_data")
-def test_pa_l2_grv_004_ic01_and_excludes_ca07(
+def test_pa_l2_grv_004_information_cd_by_category(
     mock_crawl: MagicMock,
     mock_an: MagicMock,
     mock_shop: MagicMock,
     mock_merge: MagicMock,
 ) -> None:
-    """PA-L2-GRV-004 [불변]: CA07 제외·IC01 적재, merge DataFrame 1건 간접 검증."""
+    """PA-L2-GRV-004 [불변]: CA01→IC01·shop 매칭, CA07→IC02·shop 스킵, merge 2건."""
     cid = CrawlingColumn.CRAWLING_ID.value
+    info_col = AnalysisColumn.INFORMATION_CD.value
+    shop_id_col = AnalysisColumn.SHOP_ID.value
     mock_crawl.return_value = _crawl_df(
         [
             {
@@ -72,7 +74,7 @@ def test_pa_l2_grv_004_ic01_and_excludes_ca07(
                 CrawlingColumn.TITLE.value: "it",
                 CrawlingColumn.CONTENT.value: "c",
                 CrawlingColumn.ARTICLE_URL.value: "u",
-                CrawlingColumn.MAP_ID.value: 100,
+                CrawlingColumn.MAP_ID.value: None,
                 CrawlingColumn.CATEGORY_CD.value: CodeTable.CATEGORY_ETC.value,
             },
         ]
@@ -84,8 +86,11 @@ def test_pa_l2_grv_004_ic01_and_excludes_ca07(
 
     mock_merge.assert_called_once()
     df = mock_merge.call_args[0][0]
-    assert len(df) == 1
-    assert (df[AnalysisColumn.INFORMATION_CD.value] == CodeTable.INFORMATION_RESTAURANT.value).all()
+    assert len(df) == 2
+    by_id = df.set_index(AnalysisColumn.CRAWLING_ID.value)
+    assert by_id.loc[-900000010, info_col] == CodeTable.INFORMATION_RESTAURANT.value
+    assert by_id.loc[-900000011, info_col] == CodeTable.INFORMATION_IT_INFO.value
+    assert pd.isna(by_id.loc[-900000011, shop_id_col])
 
 
 @patch("get_reviews.merge_analysis_data")
