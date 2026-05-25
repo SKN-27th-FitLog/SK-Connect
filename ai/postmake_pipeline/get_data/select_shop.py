@@ -1,363 +1,49 @@
 from common.logging_config import set_logging
 from common.connection import PGVectorStore, get_cursor
-from common.keyword_taxonomy import (
+from common.constants import RESTAURANT_INFORMATION_CD
+from common.text_utils import (
+    latest_crawling_created_at as get_latest_crawling_created_at,
+    parse_keywords,
+)
+from get_data.keyword_taxonomy import (
     canonicalize_signals,
     categories_of_keyword,
     primary_category,
 )
 from langchain_core.documents import Document
 from math import log1p, sqrt
-from functools import lru_cache
-from kiwipiepy import Kiwi
+from get_data.keyword_morphology import (
+    extract_keyword_actions as _extract_keyword_actions,
+    extract_keyword_nouns as _extract_keyword_nouns,
+    extract_keyword_signatures as _extract_keyword_signatures,
+    has_containment_signal as _has_containment_signal,
+    keyword_has_predicate_token as _keyword_has_predicate_token,
+    keyword_has_topic as _keyword_has_topic,
+    keyword_signal_values as _keyword_signal_values,
+    keyword_topic_anchors as _keyword_topic_anchors,
+)
 import random
 import time
 
 logger = set_logging()
 
-@lru_cache(maxsize=1)
-def _get_kiwi() -> Kiwi:
-    return Kiwi()
+
+def _first_row(shop_data: list[dict]) -> dict:
+    return shop_data[0] if shop_data else {}
 
 
-@lru_cache(maxsize=1)
-def _get_morph_config() -> dict:
-    """형태소 태그와 시그니처 추출 규칙을 반환한다."""
-    return {
-        "noun_tags": {'NNG', 'NNP', 'NNB'},
-        "topic_noun_tags": {'NNG', 'NNP'},
-        "noun_prefix_tags": {'XPN'},
-        "noun_suffix_tags": {'XSN'},
-        "predicate_tags": {'VV', 'VA', 'VX'},
-        "verbalizing_tags": {'XSV', 'XSA'},
-        "generic_predicate_stems": {'있', '없', '하', '되', '이', '같'},
-    }
+def _keyword_scope(shop_data: list[dict]) -> tuple[str, int | str | None]:
+    """키워드 이력 저장/조회 기준을 반환한다. 맛집은 shop_id, 그 외는 crawling_id 기준이다."""
+    row = _first_row(shop_data)
+    information_cd = row.get("information_cd")
 
-
-@lru_cache(maxsize=4096)
-def _extract_keyword_signatures(keyword: str) -> tuple[str, ...]:
-    """
-    형태소 분석으로 키워드의 의미 시그니처(술어 기반)를 추출.
-    """
-    text = str(keyword or '').strip()
-    if not text:
-        return ()
-    try:
-        tokens = _get_kiwi().tokenize(text)
-    except Exception as e:
-        logger.error(f"_extract_keyword_signatures | tokenize fail | keyword={keyword} | error={e}")
-        return ()
-
-    config = _get_morph_config()
-    signatures: list[str] = []
-    pending_noun_parts: list[str] = []
-    pending_mag: str | None = None  # 직전에 등장한 부사 (다음 XSV/XSA/VCP와 결합 후보)
-    pending_xr: str | None = None    # 직전 어근 (XR) - 다음 XSA/XSV와 결합 후보
-
-    for token in tokens:
-        form = token.form
-        tag = token.tag
-
-        # 명사 접두사 / 명사: 복합명사 후보로 누적, 부사는 명사가 새로 오면 사라짐
-        if tag in config["noun_prefix_tags"] or tag in config["noun_tags"]:
-            pending_noun_parts.append(form)
-            pending_mag = None
-            pending_xr = None
-            continue
-
-        # 명사 파생접미사: 직전 명사구의 일부로 흡수
-        if tag in config["noun_suffix_tags"] and pending_noun_parts:
-            pending_noun_parts.append(form)
-            continue
-
-        # 부사: 바로 뒤에 오는 파생접미사/지정사와 결합할 후보로 보관 (명사구는 유지)
-        if tag == 'MAG':
-            pending_mag = form
-            continue
-
-        # 어근(XR): "깔끔/깨끗/청결"처럼 단독으로 안 쓰이고 -하/되 와 결합해 술어가 되는 토큰
-        if tag == 'XR':
-            pending_xr = form
-            continue
-
-        # 명사/부사/어근 → 용언 파생접미사 (하/되). MAG/XR 우선.
-        if tag in config["verbalizing_tags"]:
-            if pending_xr:
-                signatures.append(f"{pending_xr}{form}다")
-                pending_xr = None
-                pending_mag = None
-                pending_noun_parts = []
-                continue
-            if pending_mag:
-                signatures.append(f"{pending_mag}{form}다")
-                pending_mag = None
-                continue
-            if pending_noun_parts:
-                noun = ''.join(pending_noun_parts)
-                pending_noun_parts = []
-                signatures.append(f"{noun}{form}다")
-                continue
-            continue
-
-        # 긍정 지정사(이/VCP): '이다' 형태로 결합
-        if tag == 'VCP':
-            if pending_mag:
-                signatures.append(f"{pending_mag}이다")
-                pending_mag = None
-                pending_noun_parts = []
-                pending_xr = None
-                continue
-            if pending_noun_parts:
-                noun = ''.join(pending_noun_parts)
-                pending_noun_parts = []
-                pending_xr = None
-                signatures.append(f"{noun}이다")
-                continue
-            continue
-
-        # 형용사/동사/보조용언 어간
-        if tag in config["predicate_tags"]:
-            if form in config["generic_predicate_stems"] and pending_noun_parts:
-                noun = ''.join(pending_noun_parts)
-                signatures.append(f"{noun}_{form}다")
-                pending_noun_parts = []
-                pending_mag = None
-                pending_xr = None
-                continue
-            signatures.append(f"{form}다")
-            pending_noun_parts = []
-            pending_mag = None
-            pending_xr = None
-            continue
-
-        # 조사/어미: 명사구·부사 누적 종료
-        if tag.startswith('J') or tag.startswith('E'):
-            pending_noun_parts = []
-            pending_mag = None
-            pending_xr = None
-
-    # 술어를 못 찾고 명사구만 남으면 명사구를 시그니처로 사용
-    if not signatures and pending_noun_parts:
-        signatures.append(''.join(pending_noun_parts))
-
-    return tuple(signatures)
-
-
-@lru_cache(maxsize=4096)
-def _extract_keyword_nouns(keyword: str) -> tuple[str, ...]:
-    """키워드에서 등장한 일반/고유 명사 어절을 순서대로 추출한다."""
-    text = str(keyword or '').strip()
-    if not text:
-        return ()
-    try:
-        tokens = _get_kiwi().tokenize(text)
-    except Exception as e:
-        logger.error(f"_extract_keyword_nouns | tokenize fail | keyword={keyword} | error={e}")
-        return ()
-    config = _get_morph_config()
-    return tuple(token.form for token in tokens if token.tag in config["topic_noun_tags"])
-
-
-@lru_cache(maxsize=4096)
-def _extract_keyword_actions(keyword: str) -> tuple[str, ...]:
-    """명사/부사에서 파생된 행동·의도 표현만 추출한다."""
-    text = str(keyword or '').strip()
-    if not text:
-        return ()
-    try:
-        tokens = _get_kiwi().tokenize(text)
-    except Exception as e:
-        logger.error(f"_extract_keyword_actions | tokenize fail | keyword={keyword} | error={e}")
-        return ()
-
-    config = _get_morph_config()
-    actions = []
-    nouns = []
-    has_predicate_token = False
-    pending_noun_parts = []
-    pending_mag = None
-    pending_xr = None
-    for token in tokens:
-        form = token.form
-        tag = token.tag
-        if tag in config["topic_noun_tags"]:
-            nouns.append(form)
-        if tag in config["noun_prefix_tags"] or tag in config["noun_tags"]:
-            pending_noun_parts.append(form)
-            pending_mag = None
-            pending_xr = None
-            continue
-        if tag in config["noun_suffix_tags"] and pending_noun_parts:
-            pending_noun_parts.append(form)
-            continue
-        if tag == 'MAG':
-            pending_mag = form
-            continue
-        if tag == 'XR':
-            pending_xr = form
-            continue
-        if tag in config["verbalizing_tags"]:
-            has_predicate_token = True
-            if pending_xr:
-                # 어근 + 하/되 → "깔끔하다" 같은 술어. 매장 같은 컨텍스트 명사는 그대로 두고
-                # actions로는 어근+하다만 기록한다.
-                actions.append(f"{pending_xr}{form}다")
-                pending_xr = None
-                pending_mag = None
-                pending_noun_parts = []
-                continue
-            if pending_mag:
-                actions.append(f"{pending_mag}{form}다")
-                pending_mag = None
-                continue
-            if pending_noun_parts:
-                actions.append(f"{''.join(pending_noun_parts)}{form}다")
-                pending_noun_parts = []
-                continue
-            continue
-        if tag == 'VV':
-            has_predicate_token = True
-            if pending_mag:
-                actions.append(f"{pending_mag}{form}다")
-            pending_noun_parts = []
-            pending_mag = None
-            pending_xr = None
-            continue
-        if tag in config["predicate_tags"]:
-            has_predicate_token = True
-            pending_noun_parts = []
-            pending_mag = None
-            pending_xr = None
-            continue
-        if tag == 'VCP':
-            has_predicate_token = True
-            pending_noun_parts = []
-            pending_mag = None
-            pending_xr = None
-            continue
-        if tag.startswith('J') or tag.startswith('E'):
-            pending_noun_parts = []
-            pending_mag = None
-            pending_xr = None
-    if not actions and not has_predicate_token and nouns:
-        actions.append(''.join(nouns))
-    return tuple(actions)
-
-
-@lru_cache(maxsize=4096)
-def _keyword_starts_with_noun(keyword: str) -> bool:
-    """첫 의미 단위가 명사 계열인지 확인한다."""
-    text = str(keyword or '').strip()
-    if not text:
-        return False
-    try:
-        tokens = _get_kiwi().tokenize(text)
-    except Exception as e:
-        logger.error(f"_keyword_starts_with_noun | tokenize fail | keyword={keyword} | error={e}")
-        return False
-    config = _get_morph_config()
-    for token in tokens:
-        if token.tag.startswith('J') or token.tag.startswith('E'):
-            continue
-        return token.tag in config["noun_tags"] or token.tag in config["noun_prefix_tags"]
-    return False
-
-
-@lru_cache(maxsize=4096)
-def _keyword_has_predicate_token(keyword: str) -> bool:
-    """키워드 안에 실제 술어/파생 술어가 있는지 확인한다."""
-    text = str(keyword or '').strip()
-    if not text:
-        return False
-    try:
-        tokens = _get_kiwi().tokenize(text)
-    except Exception as e:
-        logger.error(f"_keyword_has_predicate_token | tokenize fail | keyword={keyword} | error={e}")
-        return False
-    config = _get_morph_config()
-    for token in tokens:
-        if token.tag in config["predicate_tags"]:
-            return True
-        if token.tag in config["verbalizing_tags"]:
-            return True
-        if token.tag == 'VCP':
-            return True
-    return False
-
-
-def _keyword_has_topic(keyword: str) -> bool:
-    """대상어가 앞에 붙은 키워드인지 판단한다."""
-    if _is_nominal_predicate_statement(keyword):
-        return False
-    return (
-        _keyword_starts_with_noun(keyword)
-        and _keyword_has_predicate_token(keyword)
-        and bool(_extract_keyword_nouns(keyword))
-    )
-
-
-def _keyword_topic_anchors(keyword: str) -> set:
-    """대상어 그룹핑에 사용할 대표 명사를 반환한다."""
-    nouns = _extract_keyword_nouns(keyword)
-    if _keyword_has_topic(keyword) and nouns:
-        return {nouns[0]}
-    return set()
-
-
-@lru_cache(maxsize=4096)
-def _is_nominal_predicate_statement(keyword: str) -> bool:
-    """명사 하나가 지정사로 서술된 평가 표현인지 확인한다."""
-    text = str(keyword or '').strip()
-    if not text:
-        return False
-    try:
-        tokens = _get_kiwi().tokenize(text)
-    except Exception as e:
-        logger.error(f"_is_nominal_predicate_statement | tokenize fail | keyword={keyword} | error={e}")
-        return False
-
-    config = _get_morph_config()
-    nouns = []
-    has_copula = False
-    has_other_predicate = False
-    for token in tokens:
-        if token.tag in config["topic_noun_tags"]:
-            nouns.append(token.form)
-            continue
-        if token.tag == 'VCP':
-            has_copula = True
-            continue
-        if token.tag in config["predicate_tags"] or token.tag in config["verbalizing_tags"]:
-            has_other_predicate = True
-    return has_copula and not has_other_predicate and len(nouns) == 1
-
-
-def _keyword_signal_values(
-    predicates: set,
-    actions: set,
-    nouns: set,
-) -> set:
-    """키워드 병합에 쓸 형태소 기반 신호를 모은다."""
-    values = {
-        str(value).strip()
-        for value in predicates | actions | nouns
-        if str(value).strip()
-    }
-    values |= {value[:-2] for value in values if value.endswith("이다")}
-    return values
-
-
-def _has_containment_signal(left_values: set, right_values: set, min_length: int = 2) -> bool:
-    """복합명사/복합술어처럼 한 신호가 다른 신호를 포함하는지 확인한다."""
-    for left in left_values:
-        for right in right_values:
-            if left == right:
-                continue
-            shorter, longer = sorted((left, right), key=len)
-            if len(shorter) < min_length:
-                continue
-            if shorter in longer:
-                return True
-    return False
+    if information_cd == RESTAURANT_INFORMATION_CD:
+        return "shop_id", row.get("shop_id")
+    if row.get("crawling_id") is not None:
+        return "crawling_id", row.get("crawling_id")
+    if row.get("shop_id") is not None:
+        return "shop_id", row.get("shop_id")
+    return "unknown", None
 
 
 def select_shop(shop_data: list[dict], positive_ratio: float = 0.7) -> bool:
@@ -366,16 +52,10 @@ def select_shop(shop_data: list[dict], positive_ratio: float = 0.7) -> bool:
     => 해당 값이 0.7 이상인 음식점 선별
     """
     try:
-        positive_count = 0
-        total_count = 0
-
-        # 매장 단위로 모인 analysis row에서 긍정 비율을 계산한다.
-        for shop in shop_data:
-            if shop['sentimental'] == 'positive':
-                positive_count += 1
-            total_count += 1
+        total_count = len(shop_data)
         if not total_count:
             return False
+        positive_count = sum(1 for shop in shop_data if shop.get("sentimental") == "positive")
         return positive_count / total_count >= positive_ratio
     except Exception as e:
         crawling_id = None
@@ -417,6 +97,11 @@ def select_keyword(
             # 단독 서술형 키워드 제외용 접미사 패턴 — 운영 단계에서만 설정
             "contextless_statement_suffix": None,
             "keyword_schema_version": 2,
+
+            # 최종 weight에만 약한 랜덤 보정 적용
+            # 같은 shop_id + 수집시각 + keyword 기준으로는 같은 값이 나오게 한다.
+            "random_jitter_min": 0.9,
+            "random_jitter_max": 1.1,
         }
         if keyword_rules:
             rules.update(keyword_rules)
@@ -436,15 +121,7 @@ def select_keyword(
             except (TypeError, ValueError):
                 score = 0.0
 
-            keywords_value = shop.get('keywords') or ''
-            if isinstance(keywords_value, str):
-                keywords = [kw.strip() for kw in keywords_value.split('#') if kw.strip()]
-            elif isinstance(keywords_value, list):
-                keywords = [str(kw).strip() for kw in keywords_value if str(kw).strip()]
-            else:
-                keywords = []
-
-            for keyword in set(keywords):
+            for keyword in set(parse_keywords(shop)):
                 compact_keyword = "".join(str(keyword).split())
                 if (
                     compact_suffix
@@ -458,14 +135,7 @@ def select_keyword(
 
         negative_keyword_count = {}
         for shop in negative_rows:
-            keywords_value = shop.get('keywords') or ''
-            if isinstance(keywords_value, str):
-                keywords = [kw.strip() for kw in keywords_value.split('#') if kw.strip()]
-            elif isinstance(keywords_value, list):
-                keywords = [str(kw).strip() for kw in keywords_value if str(kw).strip()]
-            else:
-                keywords = []
-            for keyword in set(keywords):
+            for keyword in set(parse_keywords(shop)):
                 negative_keyword_count[keyword] = negative_keyword_count.get(keyword, 0) + 1
         negative_keywords = [
             keyword for keyword, _ in sorted(
@@ -481,10 +151,7 @@ def select_keyword(
             vectorstore,
             rules,
         )
-        latest_crawling_created_at = max(
-            str(shop.get("crawling_created_at") or shop.get("created_dt") or "")
-            for shop in shop_data
-        )
+        latest_crawling_created_at = get_latest_crawling_created_at(shop_data)
         keyword_stats = _build_keyword_stats(
             keyword_score,
             shop_data,
@@ -761,6 +428,37 @@ def _group_similar_keywords(
         }
     return grouped_keyword_score
 
+def _apply_weight_jitter(
+    weight: float,
+    keyword: str,
+    shop_data: list[dict],
+    latest_crawling_created_at: str,
+    rules: dict,
+) -> float:
+    """
+    최종 키워드 weight에 작은 랜덤 보정을 적용한다.
+    완전 랜덤이 아니라 shop_id + 수집시각 + keyword 기준으로 고정되어 재현 가능하다.
+    """
+    jitter_min = float(rules.get("random_jitter_min", 1.0))
+    jitter_max = float(rules.get("random_jitter_max", 1.0))
+
+    if jitter_min == 1.0 and jitter_max == 1.0:
+        return weight
+
+    if jitter_min > jitter_max:
+        jitter_min, jitter_max = jitter_max, jitter_min
+
+    scope_type, scope_id = _keyword_scope(shop_data)
+    seed = (
+        f"{scope_type}:{scope_id}:"
+        f"{latest_crawling_created_at}:"
+        f"{keyword}:"
+        f"{rules.get('keyword_schema_version')}"
+    )
+
+    rng = random.Random(seed)
+    return weight * rng.uniform(jitter_min, jitter_max)
+
 
 def _build_keyword_stats(
     keyword_score: dict,
@@ -773,17 +471,22 @@ def _build_keyword_stats(
     keyword_stats = []
     statement_suffix = rules["contextless_statement_suffix"]
     compact_suffix = "".join(str(statement_suffix or "").split())
+    scope_type, scope_id = _keyword_scope(shop_data)
+    base_filter_metadata = {
+        "sentiment": "positive",
+        "keyword_schema_version": rules["keyword_schema_version"],
+    }
+    if scope_id is not None:
+        base_filter_metadata[scope_type] = scope_id
     for keyword, data in keyword_score.items():
         batch_count = data["batch_count"]
         similar_documents = []
+        filter_metadata = dict(base_filter_metadata)
+
         similar_results = vectorstore.similarity_search_with_score(
             keyword,
             k=20,
-            filter={
-                "shop_id": shop_data[0].get("shop_id"),
-                "sentiment": "positive",
-                "keyword_schema_version": rules["keyword_schema_version"],
-            },
+            filter=filter_metadata,
         )
         for document, score in similar_results:
             document_keywords = document.metadata.get("keywords") or [document.page_content]
@@ -842,6 +545,7 @@ def _build_keyword_stats(
             log1p(historical_count) * rules["history_boost_rate"],
             rules["max_history_boost"],
         )
+
         final_weight = batch_weight * (1 + history_boost)
         if similar_documents:
             final_weight *= rules["repeat_penalty"]
@@ -856,10 +560,6 @@ def _build_keyword_stats(
             and _keyword_has_predicate_token(representative_keyword)
             and not _extract_keyword_nouns(representative_keyword)
         )
-        if has_target_keyword:
-            final_weight *= rules["target_keyword_boost"]
-        elif is_generic_predicate_keyword:
-            final_weight *= rules["generic_keyword_penalty"]
 
         # Layer 1: 정규형 토큰 집합, Layer 2: 상위 카테고리
         canonicals = sorted(set(data.get("canonicals") or []))
@@ -868,6 +568,19 @@ def _build_keyword_stats(
         representative_category = primary_category(
             set(canonicals),
             set(_extract_keyword_nouns(representative_keyword)),
+        )
+
+        if has_target_keyword:
+            final_weight *= rules["target_keyword_boost"]
+        elif is_generic_predicate_keyword:
+            final_weight *= rules["generic_keyword_penalty"]
+
+        final_weight = _apply_weight_jitter(
+            final_weight,
+            representative_keyword,
+            shop_data,
+            latest_crawling_created_at,
+            rules,
         )
 
         keyword_stats.append({
@@ -971,17 +684,22 @@ def save_keyword_vector(
         if not keyword_stats:
             return
 
-        shop = {}
-        if shop_data:
-            shop = shop_data[0]
+        shop = _first_row(shop_data)
+        scope_type, scope_id = _keyword_scope(shop_data)
         shop_id = shop.get("shop_id")
-        if shop_id is None:
+        crawling_id = shop.get("crawling_id")
+        if scope_id is None:
             return
 
         documents = []
         for data in keyword_stats:
             metadata = {
                 "shop_id": shop_id,
+                "crawling_id": crawling_id,
+                "information_cd": shop.get("information_cd"),
+                "category_cd": shop.get("category_cd"),
+                "keyword_scope_type": scope_type,
+                "keyword_scope_id": scope_id,
                 "keyword": data["keyword"],
                 "keywords": data["keywords"],
                 "sentiment": data["sentiment"],
@@ -998,33 +716,56 @@ def save_keyword_vector(
             }
             documents.append(Document(page_content=data["keyword"], metadata=metadata))
 
+        # 배치 내 모든 키워드는 동일한 scope·schema_version·latest_crawling_created_at를 공유하므로
+        # 개별 DELETE N회 대신 keyword = ANY(%s) 배열 조건으로 단일 쿼리로 처리한다.
+        keyword_names = [str(data["keyword"]) for data in keyword_stats]
+        schema_version = str(keyword_stats[0]["keyword_schema_version"])
+        latest_ts = str(keyword_stats[0].get("latest_crawling_created_at") or "")
         deleted_count = 0
-        for data in keyword_stats:
-            cursor = get_cursor(
-                """
-                DELETE FROM langchain_pg_embedding AS e
-                USING langchain_pg_collection AS c
-                WHERE e.collection_id = c.uuid
-                  AND c.name = %s
-                  AND e.cmetadata ->> 'shop_id' = %s
-                  AND e.cmetadata ->> 'keyword_schema_version' = %s
-                  AND e.cmetadata ->> 'keyword' = %s
-                  AND e.cmetadata ->> 'latest_crawling_created_at' = %s
-                """,
-                (
-                    collection_name,
-                    str(shop_id),
-                    str(data["keyword_schema_version"]),
-                    str(data["keyword"]),
-                    str(data.get("latest_crawling_created_at") or ""),
-                ),
-            )
-            if cursor:
-                deleted_count += max(cursor.rowcount, 0)
+        cursor = get_cursor(
+            """
+            DELETE FROM langchain_pg_embedding AS e
+            USING langchain_pg_collection AS c
+            WHERE e.collection_id = c.uuid
+              AND c.name = %s
+              AND (
+                  (
+                      e.cmetadata ->> 'keyword_scope_type' = %s
+                      AND e.cmetadata ->> 'keyword_scope_id' = %s
+                  )
+                  OR (
+                      %s = 'shop_id'
+                      AND e.cmetadata ->> 'shop_id' = %s
+                  )
+                  OR (
+                      %s = 'crawling_id'
+                      AND e.cmetadata ->> 'crawling_id' = %s
+                  )
+              )
+              AND e.cmetadata ->> 'keyword_schema_version' = %s
+              AND e.cmetadata ->> 'keyword' = ANY(%s)
+              AND e.cmetadata ->> 'latest_crawling_created_at' = %s
+            """,
+            (
+                collection_name,
+                scope_type,
+                str(scope_id),
+                scope_type,
+                str(scope_id),
+                scope_type,
+                str(scope_id),
+                schema_version,
+                keyword_names,
+                latest_ts,
+            ),
+        )
+        if cursor:
+            deleted_count = max(cursor.rowcount, 0)
 
         vectorstore.add_documents(documents)
         logger.info(
-            f"keyword_vector inserted | shop_id={shop_id} | "
+            f"keyword_vector inserted | scope={scope_type}:{scope_id} | "
+            f"shop_id={shop_id} | crawling_id={crawling_id} | "
             f"keyword_count={len(documents)} | deleted_existing={deleted_count}"
         )
     except Exception as e:

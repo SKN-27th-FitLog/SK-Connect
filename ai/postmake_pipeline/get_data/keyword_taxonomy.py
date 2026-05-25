@@ -270,11 +270,6 @@ def canonicalize_signals(
     return canonical
 
 
-def category_of_canonical(canonical: str) -> str | None:
-    """정규형 토큰의 상위 카테고리(맛/가성비/서비스/분위기/양 등)를 반환한다."""
-    return CANONICAL_CATEGORIES.get(canonical)
-
-
 def categories_of_keyword(
     canonical_signals_set: set[str],
     nouns: set[str],

@@ -1,18 +1,29 @@
 from langchain_core.documents import Document
 
 from common.connection import Connection, PGVectorStore, get_cursor
+from common.constants import (
+    ACTIVE_STATUS_CD,
+    DEFAULT_CATEGORY_CD,
+    DEFAULT_POST_CD,
+    RESTAURANT_INFORMATION_CD,
+)
 from common.logging_config import set_logging
+from common.text_utils import latest_crawling_created_at
 
 logger = set_logging()
 
 
-def to_post(result: dict, shop_data: dict) -> str:
+def to_post(result: dict, shop_data: dict) -> int | None:
     """결과를 게시글로 저장한다."""
     try:
         # DB 컬럼 길이와 빈 값 저장을 고려해 제목/본문/태그를 먼저 정리한다.
         title = str(result.get("title") or "").strip().splitlines()[0][:100]
         content = str(result.get("post") or "").strip()
         tag = "# ".join(result.get("keyword", []))[:100]
+        information_cd = shop_data.get("information_cd")
+        map_id = shop_data.get("map_id")
+        shop_id = shop_data.get("shop_id")
+        crawling_id = shop_data.get("crawling_id")
 
         # 제목 또는 본문이 비어 있으면 게시글로 저장하지 않는다.
         if not title or not content:
@@ -22,8 +33,18 @@ def to_post(result: dict, shop_data: dict) -> str:
             )
             return None
 
-        post_cd = shop_data.get("post_cd") or "PT01"
-        category_cd = shop_data.get("category_cd") or "CA07"
+        if information_cd == RESTAURANT_INFORMATION_CD and shop_id is None:
+            logger.error(f"to_post validation failed | missing shop_id | crawling_id={crawling_id}")
+            return None
+
+        if information_cd != RESTAURANT_INFORMATION_CD and crawling_id is None:
+            logger.error(
+                f"to_post validation failed | missing crawling_id | information_cd={information_cd}"
+            )
+            return None
+
+        post_cd = shop_data.get("post_cd") or DEFAULT_POST_CD
+        category_cd = shop_data.get("category_cd") or DEFAULT_CATEGORY_CD
         result["post_cd"] = post_cd
         result["category_cd"] = category_cd
 
@@ -38,12 +59,12 @@ def to_post(result: dict, shop_data: dict) -> str:
         cursor = get_cursor(query, (
             title,
             content,
-            "ST01",
+            ACTIVE_STATUS_CD,
             post_cd,
             category_cd,
-            shop_data["map_id"],
-            shop_data["shop_id"],
-            shop_data["crawling_id"],
+            map_id,
+            shop_id,
+            crawling_id,
             tag,
         ))
         row = None
@@ -54,7 +75,7 @@ def to_post(result: dict, shop_data: dict) -> str:
             post_id = row["post_id"]
         logger.info(
             f"to_post inserted | post_id={post_id} | "
-            f"shop_id={shop_data.get('shop_id')} | "
+            f"shop_id={shop_id} | crawling_id={crawling_id} | "
             f"post_cd={post_cd} | category_cd={category_cd}"
         )
         return post_id
@@ -74,13 +95,11 @@ def to_post_vector(
     """결과를 post_vector 컬렉션에 저장한다."""
     try:
         # 호출부가 매장 묶음 전체를 넘겨도 첫 row 기준 metadata로 맞춘다.
-        shop_rows = [shop_data]
         if isinstance(shop_data, list):
             shop_rows = shop_data
-            if shop_data:
-                shop_data = shop_data[0]
-            elif not shop_data:
-                shop_data = {}
+            shop_data = shop_data[0] if shop_data else {}
+        else:
+            shop_rows = [shop_data]
 
         # 검색/추천에서 필터링할 수 있도록 게시글과 매장 정보를 metadata에 함께 넣는다.
         metadata = {}
@@ -99,11 +118,7 @@ def to_post_vector(
         metadata["used_crawling_ids"] = [
             row.get("crawling_id") for row in shop_rows if row.get("crawling_id")
         ]
-        metadata["latest_crawling_created_at"] = max((
-            str(row.get("crawling_created_at") or row.get("created_dt") or "")
-            for row in shop_rows
-            if row
-        ), default="")
+        metadata["latest_crawling_created_at"] = latest_crawling_created_at(shop_rows)
         metadata["tag"] = " #".join(result.get("keyword", []))[:100]
         document = Document(
             page_content=result["post"],

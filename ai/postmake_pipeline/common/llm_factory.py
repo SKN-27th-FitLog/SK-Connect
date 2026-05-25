@@ -9,29 +9,11 @@ pipeline_env_path = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(pipeline_env_path, override=False)
 
 @lru_cache(maxsize=1)
-def get_llm():
-    """Return the shared post pipeline LLM client."""
-    return ChatOllama(
-        model="gemma4:e4b",
-        temperature=0.3,
-        keep_alive="60m",
-    )
-
-
-@lru_cache(maxsize=1)
-def get_post_make_llm():
+def get_post_generation_llm():
+    """Return the shared LLM client for initial post generation and regeneration."""
     return ChatOllama(
         model="gemma3:4b",
-        temperature=0.3,
-        keep_alive="60m",
-    )
-
-
-@lru_cache(maxsize=1)
-def get_regenerate_llm():
-    return ChatOllama(
-        model="gemma3:4b",
-        temperature=0.3,
+        temperature=0.5,
         keep_alive="60m",
     )
 
@@ -40,6 +22,6 @@ def get_regenerate_llm():
 def get_evaluation_llm():
     return ChatOllama(
         model="gemma4:e4b",
-        temperature=0.1,
+        temperature=0,
         keep_alive="60m",
     )
