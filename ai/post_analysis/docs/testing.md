@@ -54,7 +54,7 @@ Skill `code-integrity-and-testing` · [function-inventory.md](function-inventory
 
 | ID | 비고 |
 |----|------|
-| PA-L2-GRV-002, 003, 006~008 | get_reviews 추가 분기 |
+| PA-L2-GRV-002, 003, 006~008 | get_reviews 추가 분기 (004: CA07→IC02·shop 스킵 반영) |
 | PA-L2-SNT-001, 004~006 | analyze_sentimental |
 | PA-L3-LLM-001, 003~005, 007~009 | analyze_keywords_by_llm |
 | PA-L2-PLN-004, PA-L3-PLN-001~002 | pipeline 실패·E2E |

@@ -47,8 +47,8 @@ def analyze_sentimental() -> None:
     if missing:
         raise ValueError(PostAnalysisErrors.Sentiment.missing_columns(missing))
 
-    # information_cd 기준 IC02(IT 정보글) 제외 — category_cd(CA*) 축과 별개
-    df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
+    # # information_cd 기준 IC02(IT 정보글) 제외 — category_cd(CA*) 축과 별개
+    # df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # sentimental · score 둘 다 채워진 행은 스킵 (재전체 처리 방지)
     needs_mask = df[sent_col].isna() | df[score_col].isna()

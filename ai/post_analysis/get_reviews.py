@@ -138,9 +138,9 @@ def get_reviews() -> None:
     처리 순서:
         1. ``crawling`` / ``analysis`` / ``shop`` 조회
         2. 이미 ``analysis``에 있는 ``crawling_id`` 제외
-        3. ``category_cd=CA07``(IT) 제외
-        4. ``_filter_rows_by_shop_match``로 shop 1:1 매칭
-        5. analysis 컬럼 매핑, ``information_cd=IC01``, ``created_dt=now``
+        3. ``category_cd=CA07``(IT) → shop 매칭 생략, ``information_cd=IC02``
+        4. 그 외 → ``_filter_rows_by_shop_match``로 shop 1:1 매칭, ``information_cd=IC01``
+        5. analysis 컬럼 매핑, ``created_dt=now``
         6. ``merge_analysis_data`` UPSERT
 
     Raises:
@@ -149,7 +149,7 @@ def get_reviews() -> None:
     Note:
         함수 유형: B+D+F — 변환 + DB 조회·저장 + 배치 오케스트레이션
         안전성: Level 2 — ``analysis`` UPSERT (autocommit)
-        불변 규칙: 신규 ``crawling_id``만 insert, ``information_cd=IC01``(맛집)
+        불변 규칙: 신규 ``crawling_id``만 insert, CA07→IC02(적재만), 그 외→IC01
     """
     ###################################################
     # 데이터 설정
@@ -206,16 +206,26 @@ def get_reviews() -> None:
     # df_crawling에서 df_analysis_created 값과 같은 crawling_id가 있으면 드랍 (불리언 인덱싱)
     df_crawling_drop = df_crawling[~df_crawling[cid_crawl].isin(df_analysis_created[cid_an])]
 
-    # IT 스트림은 category_cd=CA07(ETL CategoryCdCode.ETC); analysis 적재 대상 제외 — 식당 리뷰 파이프라인 우선
-    df_crawling_drop = df_crawling_drop[
-        df_crawling_drop[cat_c] != CodeTable.CATEGORY_ETC.value
-    ]
+    # 기존에는 음식점 리뷰만 처리하도록 했는데 이제는 모든 카테고리에서 리뷰를 처리하도록 수정 
+    # 수정 시 음식점 리뷰와 IT 리뷰를 분리하여 처리하도록 함 
+    it_mask = df_crawling_drop[cat_c] == CodeTable.CATEGORY_ETC.value
+    df_it = df_crawling_drop[it_mask].copy()
+    df_shop_target = df_crawling_drop[~it_mask]
 
-    df_crawling_drop = _filter_rows_by_shop_match(
-        df_crawling_drop,
+    df_shop_matched = _filter_rows_by_shop_match(
+        df_shop_target,
         df_shop,
         crawling_id_col=cid_crawl,
         map_id_col=map_c,
+    )
+
+    if not df_it.empty:
+        df_it[shop_id_col] = pd.NA
+        df_it[shop_cd_col] = pd.NA
+
+    parts = [df for df in (df_shop_matched, df_it) if not df.empty]
+    df_crawling_drop = (
+        pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
     )
 
     if df_crawling_drop.empty:
@@ -232,8 +242,14 @@ def get_reviews() -> None:
     df_analysis_new[shop_a] = df_crawling_drop[shop_id_col]
     df_analysis_new[shop_cd_a] = df_crawling_drop[shop_cd_col]
     df_analysis_new[cat_a] = df_crawling_drop[cat_c]
-    # CA07(IT) 제외 후 적재되는 식당 리뷰 → information_cd=IC01 (맛집 정보)
-    df_analysis_new[info_a] = CodeTable.INFORMATION_RESTAURANT.value
+    info_by_category = {
+        CodeTable.CATEGORY_ETC.value: CodeTable.INFORMATION_IT_INFO.value,
+    }
+    df_analysis_new[info_a] = (
+        df_crawling_drop[cat_c]
+        .map(info_by_category)
+        .fillna(CodeTable.INFORMATION_RESTAURANT.value)
+    )
     df_analysis_new[created_a] = now
 
     #################################################
