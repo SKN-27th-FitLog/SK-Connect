@@ -118,3 +118,18 @@ def test_pa_l0_shp_007_warns_on_null_map_id(caplog: pytest.LogCaptureFixture) ->
             map_id_col=CrawlingColumn.MAP_ID.value,
         )
     assert any("shop 미매칭" in r.message for r in caplog.records)
+
+
+def test_pa_l0_shp_008_crawling_shop_cd_uses_master() -> None:
+    """PA-L0-SHP-008 [불변]: crawling.shop_cd가 있어도 shop 마스터 값을 쓴다."""
+    crawl = _crawl_row(6, 100)
+    crawl[ShopColumn.SHOP_CD.value] = ["WRONG"]
+    out = _filter_rows_by_shop_match(
+        crawl,
+        _shop_1to1(),
+        crawling_id_col=CrawlingColumn.CRAWLING_ID.value,
+        map_id_col=CrawlingColumn.MAP_ID.value,
+    )
+    assert len(out) == 1
+    assert out[ShopColumn.SHOP_CD.value].iloc[0] == "S01"
+    assert list(out.columns).count(ShopColumn.SHOP_CD.value) == 1

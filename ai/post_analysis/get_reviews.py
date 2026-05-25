@@ -36,7 +36,7 @@ def _filter_rows_by_shop_match(
 
     - ``map_id`` 결측·shop 0건 → ``GetReviews.Warn.shop_not_found`` 후 드랍
     - shop 2건 이상 → ``GetReviews.Warn.ambiguous_shop`` 후 드랍
-    - 1:1만 통과 (``shop_id``, ``shop_cd``는 호출 측에서 merge)
+    - 1:1만 통과 — ``shop_id``·``shop_cd``는 ``shop`` 마스터 값만 사용 (crawling 동명 컬럼 무시)
 
     Args:
         df_crawling: shop 매칭 대상 crawling 행.
@@ -57,6 +57,9 @@ def _filter_rows_by_shop_match(
         return df_crawling
 
     shop_map_col = ShopColumn.MAP_ID.value
+    shop_id_col = ShopColumn.SHOP_ID.value
+    shop_cd_col = ShopColumn.SHOP_CD.value
+    master_cols = (shop_id_col, shop_cd_col)
 
     #################################################
     # shop · crawling map_id 타입 정규화 (merge 키 일치)
@@ -109,11 +112,15 @@ def _filter_rows_by_shop_match(
     ok = merged[merged["_shop_n"] == 1].copy()
 
     #################################################
-    # 1:1 map_id에 shop_id · shop_cd 부여
+    # 1:1 map_id에 shop_id · shop_cd 부여 (shop 마스터만 사용, shop 테이블에서 직접 값을 가져와서 다시 머지함)
     #################################################
+    drop_from_crawl = [c for c in master_cols if c in ok.columns]
+    if drop_from_crawl:
+        ok = ok.drop(columns=drop_from_crawl)
+
     one_to_one_maps = shop_counts[shop_counts == 1].index
     shop_lookup = df_shop[df_shop[shop_map_col].isin(one_to_one_maps)][
-        [shop_map_col, ShopColumn.SHOP_ID.value, ShopColumn.SHOP_CD.value]
+        [shop_map_col, shop_id_col, shop_cd_col]
     ].drop_duplicates(subset=[shop_map_col])
 
     ok = ok.merge(
@@ -121,15 +128,15 @@ def _filter_rows_by_shop_match(
         left_on=map_id_col,
         right_on=shop_map_col,
         how="left",
-        suffixes=("", "_shop"),
     )
-    if shop_map_col + "_shop" in ok.columns:
-        ok = ok.drop(columns=[shop_map_col + "_shop"])
+    if shop_map_col in ok.columns and shop_map_col != map_id_col:
+        ok = ok.drop(columns=[shop_map_col])
 
-    # crawling 원본 컬럼 + shop 조회 결과만 반환
-    crawl_cols = [c for c in df_crawling.columns if c in ok.columns]
-    extra = [ShopColumn.SHOP_ID.value, ShopColumn.SHOP_CD.value]
-    return ok[crawl_cols + [c for c in extra if c in ok.columns]]
+    crawl_cols = [
+        c for c in df_crawling.columns
+        if c in ok.columns and c not in master_cols
+    ]
+    return ok[crawl_cols + [c for c in master_cols if c in ok.columns]]
 
 
 def get_reviews() -> None:
