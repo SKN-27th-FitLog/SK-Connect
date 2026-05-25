@@ -9,6 +9,7 @@ from src.core.constants import (
     QUERY_FIND_SNAPSHOT_BY_DEDUP_KEY,
     QUERY_FIND_SUCCESS_LOADED_DEDUP_KEYS,
     QUERY_FIND_UPDATE_TARGETS,
+    RESTAURANT_CATEGORY_CD,
 )
 
 logger = logging.getLogger("core.repository")
@@ -19,11 +20,15 @@ class StoreRepository:
         self.db = db or DatabaseManager()
 
     def find_success_loaded_dedup_keys(self, category_cd: str) -> Set[str]:
+        shop_cd = category_cd
         query = QUERY_FIND_SUCCESS_LOADED_DEDUP_KEYS
         dedup_keys = set()
         try:
             with self.db.get_session() as session:
-                result = session.execute(text(query), {"category_cd": category_cd})
+                result = session.execute(text(query), {
+                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "shop_cd": shop_cd,
+                })
                 for row in result:
                     name = row.name.replace(" ", "")
                     dedup_keys.add(f"{name}|{row.address_cd}")
@@ -35,11 +40,13 @@ class StoreRepository:
         return target_dedup_key in existing_keys
 
     def find_update_targets(self, category_cd: str, limit: int, refresh_interval_days: int = 30) -> list[Dict[str, Any]]:
+        shop_cd = category_cd
         query = QUERY_FIND_UPDATE_TARGETS
         try:
             with self.db.get_session() as session:
                 rows = session.execute(text(query), {
-                    "category_cd": category_cd,
+                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "shop_cd": shop_cd,
                     "refresh_interval_days": refresh_interval_days,
                     "limit": limit,
                 }).mappings().all()

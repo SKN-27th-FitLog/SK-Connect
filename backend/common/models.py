@@ -22,7 +22,7 @@ class Codet(models.Model):
 class Images(models.Model):
     image_id = models.BigAutoField(primary_key=True)
     image_url = models.CharField(max_length=500, null=False)
-    table_name = models.CharField(max_length=20, null=False)
+    table_cd = models.CharField(max_length=6, null=False)
     table_id = models.BigIntegerField(null=False)
 
     class Meta:

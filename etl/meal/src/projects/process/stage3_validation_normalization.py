@@ -10,12 +10,14 @@ from src.core.models.models import StoreModel
 from src.core.repository.store_repository import StoreRepository
 from src.core.policy.fail_record import build_fail_record
 from src.core.policy.reason_code import ReasonCode
+from src.core.constants import RESTAURANT_CATEGORY_CD
 from src.core.utils.content_hash import (
     HASH_FIELDS_VERSION,
     HASH_VERSION,
     build_content_hash,
     pick_fields,
 )
+from src.core.utils.menu_normalizer import MenuNormalizer
 
 class Stage3ValidationNormalization(BaseStage):
     """
@@ -32,6 +34,7 @@ class Stage3ValidationNormalization(BaseStage):
         super().__init__(self.NAME)
         self.code_repo = code_repository or CodeTableRepository()
         self.snapshot_repo = snapshot_repository or StoreRepository()
+        self.menu_normalizer = MenuNormalizer()
 
     def _normalize_address(self, full_address: str, entity_id: Optional[str] = None) -> tuple[str, str]:
         if entity_id and entity_id.startswith("LA") and len(entity_id) >= 4:
@@ -134,6 +137,7 @@ class Stage3ValidationNormalization(BaseStage):
         }
 
     def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
+        shop_cd = category_cd
         normalized_data = []
         failures = []
         now = datetime.now()
@@ -172,7 +176,7 @@ class Stage3ValidationNormalization(BaseStage):
                     canonical_url=shop_raw.get("canonical_url")
                 )
                 
-                menus = cand.get("menus", [])
+                menus = self._normalize_menus(cand.get("menus", []))
                 reviews = cand.get("reviews", [])
                 images = cand.get("images", [])
                 hash_fields = self._build_change_fields(
@@ -185,7 +189,8 @@ class Stage3ValidationNormalization(BaseStage):
                     "batch_id": batch_id,
                     "run_attempt": run_attempt,
                     "stage": self.stage_name,
-                    "category_cd": category_cd,
+                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "shop_cd": shop_cd,
                     "store": store.model_dump(),
                     "menus": menus,
                     "reviews": reviews,
@@ -233,3 +238,14 @@ class Stage3ValidationNormalization(BaseStage):
         if hasattr(self.code_repo, "clear_cache"):
             self.code_repo.clear_cache()
         return normalized_data
+
+    def _normalize_menus(self, menus: Any) -> List[Dict[str, Any]]:
+        if not isinstance(menus, list):
+            return []
+
+        normalized_menus = []
+        for menu in menus:
+            if not isinstance(menu, dict):
+                continue
+            normalized_menus.append(self.menu_normalizer.normalize(menu))
+        return normalized_menus

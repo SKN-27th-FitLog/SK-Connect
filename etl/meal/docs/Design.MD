@@ -1005,7 +1005,7 @@ changed_fields는 전체 diff가 아니라
 * maps: `name`, `category_cd`, `address_cd`, `address_detail`
 * shop: `map_id`, `shop_cd`
 * menu: `shop_id`, `name`
-* images: `table_name`, `table_id`, `image_url`
+* images: `table_cd`, `table_id`, `image_url`
 * crawling: `article_url`, `map_id`, 필요 시 `title`/`content`
 
 `dedup_key`, `canonical_url`, `*_content_hash`, 물리 `last_checked_at`은
@@ -1224,7 +1224,9 @@ Stage 4 Save는 Stage 3에서 생성한 is_changed 결과를 기준으로
 * `maps`는 `name`, `category_cd`, `address_cd`, `address_detail` 조합을 기준으로 매칭한다.
 * `shop`은 `map_id`, `shop_cd` 조합을 기준으로 매칭한다.
 * `menu`는 `shop_id`, `name` 조합을 기준으로 매칭한다.
-* `images`는 `table_name`, `table_id`, `image_url` 조합을 기준으로 중복 저장을 방지한다.
+* `images`는 `table_cd`, `table_id`, `image_url` 조합을 기준으로 중복 저장을 방지한다.
+* `table_cd`는 이미지가 연결된 원천 테이블의 `codeT` 테이블 코드이다.
+* `table_id`는 해당 원천 테이블의 실제 PK이다.
 * 현재 스키마에 없는 `dedup_key`, `canonical_url`, `*_content_hash`, 물리 `last_checked_at` 컬럼은 사용하지 않는다.
 
 이 모드에서 `last_checked_at`은 `crawling.created_at`의 최신값으로 계산되는 논리 값이다.

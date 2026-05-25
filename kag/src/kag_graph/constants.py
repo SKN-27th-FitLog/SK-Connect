@@ -1,0 +1,41 @@
+class Domain:
+    RESTAURANT = "restaurant"
+    IT_NEWS = "it_news"
+    MIXED = "mixed"
+    UNKNOWN = "unknown"
+
+
+class Intent:
+    RESTAURANT_RECOMMENDATION = "restaurant_recommendation"
+    RESTAURANT_EXCLUSION_SEARCH = "restaurant_exclusion_search"
+    RESTAURANT_CONTEXT_RECOMMENDATION = "restaurant_context_recommendation"
+    RESTAURANT_PRICE_FILTER = "restaurant_price_filter"
+    RESTAURANT_AREA_SEARCH = "restaurant_area_search"
+    NEWS_SUMMARY = "news_summary"
+    NEWS_TREND_ANALYSIS = "news_trend_analysis"
+    NEWS_EVENT_SEARCH = "news_event_search"
+    NEWS_COMPARISON = "news_comparison"
+    NEWS_AUDIENCE_FILTER = "news_audience_filter"
+    CONCEPT_BRIDGE_SEARCH = "concept_bridge_search"
+    CLARIFICATION_REQUIRED = "clarification_required"
+    UNSUPPORTED_REQUEST = "unsupported_request"
+
+
+class TemplateName:
+    RESTAURANT_AREA_MENU_TAG = "restaurant_area_menu_tag"
+    RESTAURANT_MENU_ONLY = "restaurant_menu_only"
+    RESTAURANT_MENU_EXCLUDE_INGREDIENT = "restaurant_menu_exclude_ingredient"
+    RESTAURANT_MENU_EXCLUDE_INGREDIENT_MENU_LEVEL = "restaurant_menu_exclude_ingredient_menu_level"
+    RESTAURANT_MENU_REQUIRED_TAG_EXCLUDE_TAG = "restaurant_menu_required_tag_exclude_tag"
+    RESTAURANT_MENU_TAG_PRICE = "restaurant_menu_tag_price"
+    RESTAURANT_CONTEXT_TAGS = "restaurant_context_tags"
+    RESTAURANT_TAG_ONLY = "restaurant_tag_only"
+    NEWS_TOPIC_SEARCH = "news_topic_search"
+    NEWS_TECH_EVENT_SEARCH = "news_tech_event_search"
+    NEWS_COMPANY_COMPARISON = "news_company_comparison"
+    NEWS_TOPIC_EVENT_SEARCH = "news_topic_event_search"
+    NEWS_AUDIENCE_FILTER = "news_audience_filter"
+    CONCEPT_BRIDGE_SEARCH = "concept_bridge_search"
+    FOOD_CONDITION_FULLTEXT_SEARCH = "food_condition_fulltext_search"
+    NEWS_CONDITION_FULLTEXT_SEARCH = "news_condition_fulltext_search"
+    NEWS_TEXT_FULLTEXT_SEARCH = "news_text_fulltext_search"

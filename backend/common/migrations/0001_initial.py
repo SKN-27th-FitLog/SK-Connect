@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('image_id', models.BigAutoField(primary_key=True, serialize=False)),
                 ('image_url', models.CharField(max_length=500)),
-                ('table_name', models.CharField(max_length=20)),
+                ('table_cd', models.CharField(max_length=6)),
                 ('table_id', models.BigIntegerField()),
             ],
             options={
