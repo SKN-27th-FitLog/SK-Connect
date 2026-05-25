@@ -1,5 +1,6 @@
 langgraph
 langchain_ollama
+langchain_groq
 langchain_community
 langchain_core
 langchain_huggingface
@@ -10,3 +11,8 @@ psycopg2-binary
 
 scipy
 sentence-transformers
+kiwipiepy
+
+pandas
+jupyter
+openpyxl

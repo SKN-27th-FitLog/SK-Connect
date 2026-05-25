@@ -26,29 +26,60 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 # 모듈
-from common.constant import CodeTable
-from common.constant import CrawlingColumn, CrawlingConstant as C_Constant, Service, Stage, Status
+from common.constant import CodeTable, CrawlingColumn, CrawlingConstant as C_Constant, Service
+from common.crawling_http import run_crawl_and_save, user_agent_headers
+from common.errors import EtlErrors
 from common.utils import (
-    build_csv_path,
     coalesce_last_created_at,
-    get_last_success_date,
-    get_run_time,
+    extract_korean_relative_time_from_text,
+    is_created_after_watermark,
     korean_relative_time,
-    save_csv,
 )
+from postgresql.watermark import get_last_success_date
 
 logger = logging.getLogger(__name__)
-
-def _user_agent_headers() -> dict[str, str]:
-    return {C_Constant.USER_AGENT_HEADER: C_Constant.USER_AGENT}
 
 #########################################################################
 # 게시글 전체 목록 주회 
 #########################################################################
 
-def get_article_list() -> list[str]:
-    '''기준 페이지에서 수집해야 할 게시글의 절대 URL 목록을 구하는 함수'''
-    article_urls = []
+def _created_at_from_list_row(row: BeautifulSoup) -> Optional[datetime]:
+    """목록 `div.topic_row`의 topicinfo에서 상대 시각을 datetime으로 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출(지역)
+        안전성: Level 0
+        불변 규칙: 목록 HTML은 시각이 span 밖 텍스트 노드인 경우가 있음
+    """
+    topicinfo = row.select_one("div.topicinfo")
+    if topicinfo is None:
+        return None
+    return extract_korean_relative_time_from_text(topicinfo.get_text(" ", strip=True))
+
+
+def _is_above_watermark(created_at: datetime, threshold: datetime) -> bool:
+    """목록 단계: 워터마크보다 최신(`created_at`)인 토픽만 수집 대상.
+
+    Note:
+        함수 유형: C — 판정(지역)
+        안전성: Level 0
+        불변 규칙: `common.utils.is_created_after_watermark`와 동일 (INV-04)
+    """
+    return is_created_after_watermark(created_at, threshold)
+
+
+def get_article_list(last_created_at: Optional[object] = None) -> list[str]:
+    """geeknews 목록 HTML을 순회해 워터마크 통과 URL만 수집한다.
+
+    Note:
+        함수 유형: E — HTTP·HTML 파싱
+        안전성: Level 3
+        불변 규칙: `created_at > threshold`만 URL 추가; 한 페이지에 신규 없으면
+            다음 페이지 중단; page=1부터 최대 `PAGE_COUNT`; 행 없으면 종료
+        부작용: news.hada.io 요청
+    """
+    threshold = coalesce_last_created_at(last_created_at)
+    article_urls: list[str] = []
     list_origin = urlparse(Service.GEEKNEWS.url)
     site_base = f"{list_origin.scheme}://{list_origin.netloc}/"
 
@@ -56,23 +87,32 @@ def get_article_list() -> list[str]:
     page_num = 1
 
     with tqdm(desc="geeknews 게시글 목록 URL 수집", unit="page") as pbar:
-        # 최대 페이지 수에 도달할 때 까지 반복해서 진행한다. 
-        while True:
+        while page_num <= C_Constant.PAGE_COUNT:
             url = Service.GEEKNEWS.url + f"?page={page_num}"
-            response = requests.get(url, headers=_user_agent_headers())
+            response = requests.get(url, headers=user_agent_headers())
             soup = BeautifulSoup(response.text, "html.parser")
 
-            # 긱뉴스(하다) 목록: 각 행의 GN 토픽 링크는 div.topicdesc 내 a[href^='topic?id=']
-            articles = soup.select("div.topic_row div.topicdesc a[href^='topic?id=']")
-            # 게시글이 없으면 반복문을 종료한다.
-
-            if not articles:
+            rows = soup.select("div.topic_row")
+            if not rows:
                 break
-            for a in tqdm(articles, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
-                href = a.get("href")
-                if href:
-                    article_urls.append(urljoin(site_base, href))
+
+            page_has_new = False
+            for row in tqdm(rows, desc="게시글 URL 수집(페이지 내)", unit="개", leave=False):
+                link = row.select_one('div.topicdesc a[href^="topic?id="]')
+                if not link:
+                    continue
+                href = link.get("href")
+                if not href:
+                    continue
+                created_at = _created_at_from_list_row(row)
+                if created_at is None or not _is_above_watermark(created_at, threshold):
+                    continue
+                page_has_new = True
+                article_urls.append(urljoin(site_base, href))
+
             pbar.update(1)
+            if not page_has_new:
+                break
             if page_num >= C_Constant.PAGE_COUNT:
                 break
             time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
@@ -87,10 +127,17 @@ def get_article_list() -> list[str]:
 
 # 게시글 1개 soup된 내용 가지고 슬라이싱 해서 컬럼값 반환 
 def parse_article(url:str) -> dict:
-    '''게시글 1개의 HTML 문서에서 필요한 데이터를 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
+    """geeknews 토픽 URL 1건에서 `CrawlingColumn` dict를 추출한다.
+
+    Note:
+        함수 유형: E — HTTP·파싱
+        안전성: Level 3
+        불변 규칙: 필수 필드 누락·파싱 실패 시 예외 → `run_crawl_and_save` fail 행
+        부작용: 게시글 HTML GET
+    """
 
     # 게시글 1개 soup 
-    response = requests.get(url, headers=_user_agent_headers())
+    response = requests.get(url, headers=user_agent_headers())
     soup = BeautifulSoup(response.text, "html.parser")
 
     c = CrawlingColumn
@@ -120,7 +167,12 @@ def parse_article(url:str) -> dict:
 
 # 제목 슬라이싱 
 def slicing_title(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 제목을 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
+    """geeknews HTML에서 제목 텍스트를 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출(soup 입력)
+        안전성: Level 0 — HTTP 없음
+    """
 
     title = soup.select_one("div.topic .topictitle h1") \
             or soup.select_one(".topictitle h1")
@@ -129,7 +181,12 @@ def slicing_title(soup: BeautifulSoup) -> str:
 
 # 내용 슬라이싱 
 def slicing_content(soup: BeautifulSoup) -> str:
-    '''게시글 1개의 HTML 문서에서 내용을 추출하는 함수 (news.hada.io 토픽 페이지 구조)'''
+    """geeknews HTML에서 본문 텍스트를 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+    """
 
     # 본문: topic.js 렌더 영역 — id=topic_contents
     content = soup.select_one("#topic_contents") \
@@ -139,30 +196,50 @@ def slicing_content(soup: BeautifulSoup) -> str:
 
 # 게시글 id 슬라이싱
 def slicing_thread(article_url: str) -> str:
-    """URL 의 topic?id= 값에 geeknews_ 접두사. id 없으면 예외로 실패."""
+    """URL `topic?id=` 값에 `geeknews_` 접두를 붙인 `thread`를 만든다.
+
+    Note:
+        함수 유형: A — URL 파싱
+        안전성: Level 0
+        불변 규칙: id 없으면 예외
+    """
     # geeknews_1234 형식으로 고유 id 값을 가지도록 처리함 
     return f"{Service.GEEKNEWS.service}_{parse_qs(urlparse(article_url).query)['id'][0]}"
 
 # 작성일자 슬라이싱
 def slicing_created_at(soup: BeautifulSoup) -> Optional[datetime]:
-    """div.topicinfo 내 상대 시각(예: 8시간전)을 현재 시각에서 차감해 datetime으로 반환."""
-    topicinfo = soup.select_one("div.topicinfo")
+    """topicinfo 상대 시각(예: 8시간전)을 `korean_relative_time`으로 datetime화한다.
 
-    # topicinfo 내 span 태그 내 텍스트를 차례대로 추출 
-    # korean_relative_time 함수를 사용해 datetime으로 변환
+    Note:
+        함수 유형: E — DOM + A(시간 변환)
+        안전성: Level 0
+        불변 규칙: 미발견 시 `EtlErrors.Crawl.created_at_not_found` 예외
+    """
+    topicinfo = soup.select_one("div.topicinfo")
+    if topicinfo is None:
+        raise ValueError(EtlErrors.Crawl.created_at_not_found())
+
     for span in topicinfo.find_all("span"):
-        text = span.get_text(strip=True)
-        dt = korean_relative_time(text)
-        if dt is not None: 
+        dt = korean_relative_time(span.get_text(strip=True))
+        if dt is not None:
             return dt
 
-    # 모든 span을 순회했는데도 작성일자를 찾을 수 없으면 예외 발생 
-    raise ValueError("작성일자를 찾을 수 없습니다.")
+    dt = extract_korean_relative_time_from_text(topicinfo.get_text(" ", strip=True))
+    if dt is not None:
+        return dt
+
+    raise ValueError(EtlErrors.Crawl.created_at_not_found())
 
 
 # 댓글 수 슬라이싱
 def slicing_comment_count(soup: BeautifulSoup) -> int:
-    """a[data-topic-comment-count] 정수값. 요소·속성 없음·변환 실패 시 0."""
+    """댓글 수 DOM 속성을 정수로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: 없음·변환 실패 시 `DEFAULT_INT`
+    """
     try:
         return int(soup.select_one("a[data-topic-comment-count]")["data-topic-comment-count"])
     except (TypeError, KeyError, ValueError):
@@ -171,14 +248,26 @@ def slicing_comment_count(soup: BeautifulSoup) -> int:
 
 # 점수/좋아요 수 슬라이싱
 def slicing_point(soup: BeautifulSoup) -> int:
-    """topicinfo 안 '… P by …' 구조에서 P 앞 숫자(예: id=tp12345 span 텍스트)."""
+    """topicinfo에서 추천(P) 점수를 정수로 반환한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: 비숫자 시 `DEFAULT_INT`
+    """
     t = soup.select_one("div.topicinfo span[id^='tp']").get_text(strip=True)
     return int(t) if t.isdigit() else C_Constant.DEFAULT_INT
 
 
 # 작성자 슬라이싱
 def slicing_author(soup: BeautifulSoup) -> str:
-    """topicinfo 내 /@username 링크의 사용자명. DOM이 없으면 AttributeError 등으로 실패."""
+    """topicinfo `/@username` 링크에서 작성자명을 추출한다.
+
+    Note:
+        함수 유형: E — DOM 추출
+        안전성: Level 0
+        불변 규칙: DOM 없으면 예외
+    """
     # 작성자 이름이 들어있는 부분 pick > href 부분의 값을 추출 
     href = soup.select_one('div.topicinfo a[href^="/@"]')["href"]
     return href.strip().removeprefix("/@") # 추출 값에서 앞부분 제거 
@@ -192,45 +281,21 @@ def crawling_thread_geeknews(
     run_time: Optional[datetime] = None,
     last_created_at: Optional[object] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """게시글 URL 목록을 순회해 성공/실패 데이터프레임을 만들고 common.utils 경로에 CSV 저장."""
-    if run_time is None:
-        run_time = get_run_time()
+    """geeknews 크롤 단계 진입: 목록 수집 후 `run_crawl_and_save`로 raw CSV 저장.
 
-    threshold = coalesce_last_created_at(last_created_at)
-
-    article_urls = get_article_list()
-    success_rows: list[dict] = []
-    fail_rows: list[dict] = []
-
-    for url in tqdm(article_urls, desc="geeknews 게시글 파싱", unit="개"):
-        try:
-            success_rows.append(parse_article(url))
-        except Exception as e:
-            c = CrawlingColumn
-            fail_rows.append(
-                {c.ARTICLE_URL.value: url, c.ERROR.value: str(e)}
-            )
-        time.sleep(C_Constant.REQUEST_DELAY_SECONDS)
-
-    df_success = pd.DataFrame(success_rows)
-    df_fail = pd.DataFrame(fail_rows)
-
-    # 성공 데이터가 존재한다면 마지막 수집일자 기준으로 필터링 
-    if success_rows:
-        t = pd.Timestamp(threshold)
-        ca = CrawlingColumn.CREATED_AT.value
-        df_success = df_success[df_success[ca] > t].copy()
-
-    # 저장할 데이터들이 있을 때만 파일 저장 실행 
-    if not df_success.empty:
-        path_success = build_csv_path(Stage.CRAWLING, CodeTable.CATEGORY_ETC, Service.GEEKNEWS.service, Status.SUCCESS, run_time)
-        save_csv(df_success, path_success)
-
-    if not df_fail.empty:
-        path_fail = build_csv_path(Stage.CRAWLING, CodeTable.CATEGORY_ETC, Service.GEEKNEWS.service, Status.FAIL, run_time)
-        save_csv(df_fail, path_fail)
-
-    return df_success, df_fail
+    Note:
+        함수 유형: F — 사이트별 크롤 진입
+        안전성: Level 2 — CSV 쓰기; 내부 HTTP는 L3
+        부작용: `process=raw` success/fail CSV
+    """
+    return run_crawl_and_save(
+        service=Service.GEEKNEWS,
+        article_urls=get_article_list(last_created_at=last_created_at),
+        parse_article=parse_article,
+        tqdm_desc="geeknews 게시글 파싱",
+        run_time=run_time,
+        last_created_at=last_created_at,
+    )
 
 
 
