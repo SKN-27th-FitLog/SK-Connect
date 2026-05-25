@@ -168,32 +168,28 @@ def get_data(min_rows: int = 5, delay_days: int = 1):
 
 def get_image(data: list[dict]) -> list:
     """
-    IC01은 shop_id 기준으로 images에서 이미지 URL을 조회한다.
-    IC01 외 카테고리는 crawling_id 기준으로 images에서 이미지 URL을 조회한다.
+    게시글 생성 단위는 shop_id 기준이어도 이미지는 crawling_id 기준으로 저장된다.
+    생성 묶음에 포함된 모든 crawling_id로 images에서 이미지 URL을 조회한다.
     이미 post_vector 컬렉션에 사용된 image_url은 제외한다.
     """
     try:
         if not data:
             return []
 
-        row = data[0]
-        information_cd = row.get("information_cd")
+        crawling_ids = sorted({
+            row.get("crawling_id")
+            for row in data
+            if row.get("crawling_id") is not None
+        })
 
-        if information_cd == RESTAURANT_INFORMATION_CD:
-            table_cd = SHOP_IMAGE_TABLE_CD
-            table_id = row.get("shop_id")
-        else:
-            table_cd = CRAWLING_IMAGE_TABLE_CD
-            table_id = row.get("crawling_id")
-
-        if not table_id:
+        if not crawling_ids:
             return []
 
         query = """
             SELECT i.image_url
             FROM images AS i
             WHERE i.table_cd = %s
-                AND i.table_id = %s
+                AND i.table_id = ANY(%s)
                 AND NOT EXISTS (
                     SELECT 1
                     FROM langchain_pg_embedding AS e
@@ -207,7 +203,7 @@ def get_image(data: list[dict]) -> list:
                 )
         """
 
-        cursor = get_cursor(query, (table_cd, table_id))
+        cursor = get_cursor(query, (CRAWLING_IMAGE_TABLE_CD, crawling_ids))
 
         if not cursor:
             return []

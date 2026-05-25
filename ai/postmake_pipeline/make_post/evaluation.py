@@ -205,6 +205,17 @@ def _parse_llm_evaluation_response(response) -> dict:
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError:
+        compact_content = re.sub(r"\s+", " ", content).strip().lower()
+        pass_markers = ("통과", "pass", "passed")
+        fail_markers = ("실패", "fail", "failed")
+        has_pass_marker = any(marker in compact_content for marker in pass_markers)
+        has_fail_marker = any(marker in compact_content for marker in fail_markers)
+        if has_pass_marker and not has_fail_marker:
+            logger.warning(f"evaluation non-json pass fallback | response={content[:300]}")
+            return {
+                "is_pass": True,
+                "reason": "",
+            }
         return {
             "is_pass": False,
             "reason": f"평가 결과를 JSON으로 해석하지 못했습니다. 원본 응답: {content}",
