@@ -119,7 +119,7 @@ flowchart LR
 
 | 순서 | 스크립트 | 입력 조건 | 출력 컬럼 |
 |------|----------|-----------|-----------|
-| 1 | `get_reviews.py` | `crawling`에만 있는 신규 행, **CA07 제외** | `title`, `content`, …, `information_cd=IC01`, `created_dt` |
+| 1 | `get_reviews.py` | `crawling`에만 있는 신규 행 | CA07→IC02(적재만), 그 외→IC01·shop 매칭, `created_dt` |
 | 2 | `analyze_sentimental.py` | `information_cd ≠ IC02`, `sentimental` 또는 `score` 결측 | `sentimental`, `score` |
 | 3 | `analyze_keywords_by_llm.py` | `information_cd ≠ IC02`, `keywords` 결측, 본문·감성 유효 | `keywords` (`#` 구분) |
 
@@ -145,8 +145,8 @@ python -m postgresql
 flowchart TB
   subgraph step1 [① get_reviews]
     S1A[crawling SELECT *]
-    S1B[CA07 제외 · analysis 미존재 crawling_id만]
-    S1C[information_cd = IC01]
+    S1B[analysis 미존재 crawling_id만]
+    S1C[CA07→IC02 · 그 외 shop 1:1→IC01]
     S1D[MERGE analysis]
     S1A --> S1B --> S1C --> S1D
   end
@@ -180,9 +180,9 @@ flowchart TB
 | 규칙 | 내용 |
 |------|------|
 | IT 정보 제외 | ②③ 단계에서 `information_cd = IC02` 행은 처리하지 않음 |
-| IT 크롤 제외 | ① 단계에서 `category_cd = CA07` 행은 적재하지 않음 |
+| IT 정보 적재 | ① `category_cd=CA07` → `information_cd=IC02`, shop 매칭 생략 (②③ 미처리) |
+| shop 매칭 | ① CA07 외: `shop.map_id` 기준 **1:1**일 때만 `shop_id`·`shop_cd` 적재. 0건·2건 이상·`map_id` 결측 → `logger.warning` 후 **행 드랍** |
 | 부분 MERGE | `WHEN MATCHED` UPDATE는 `COALESCE(x.col, a.col)` — 단계별로 일부 컬럼만 MERGE해도 기존 값이 NULL로 덮이지 않음 |
-| shop 매칭 | ① `shop.map_id` 기준 **1:1**일 때만 `shop_id`·`shop_cd` 적재. 0건·2건 이상·`map_id` 결측 → `logger.warning` 후 **행 드랍** |
 | 키 | `crawling_id` 기준 UPSERT |
 
 ---
@@ -217,9 +217,9 @@ flowchart TB
 
 1. `crawling`, `analysis`, `shop` SELECT
 2. `analysis`에 이미 있는 `crawling_id` 제외
-3. **`category_cd = CA07`(IT 크롤) 제외** — 식당 리뷰 파이프라인 우선
-4. **`shop.map_id` 1:1 매칭** — `shop_id`, `shop_cd` 부여. 미매칭·다중 매칭 행은 `PostAnalysisErrors.GetReviews.Warn` 후 드랍
-5. `information_cd = IC01`, `created_dt = now` 설정 후 MERGE
+3. **`category_cd = CA07`(IT)** — shop 매칭 생략, `information_cd = IC02` (적재만, ②③ 미처리)
+4. **그 외** — **`shop.map_id` 1:1 매칭**으로 `shop_id`, `shop_cd` 부여. 미매칭·다중 매칭 행은 `PostAnalysisErrors.GetReviews.Warn` 후 드랍, `information_cd = IC01`
+5. `created_dt = now` 설정 후 MERGE
 
 ```mermaid
 sequenceDiagram
@@ -238,7 +238,7 @@ sequenceDiagram
     An-->>RQ: DataFrame
     RQ-->>Script: df_analysis
 
-    Note over Script: 신규 crawling_id만<br/>CA07 제외 · IC01 · created_dt
+    Note over Script: 신규 crawling_id만<br/>CA07→IC02 · 그 외 shop→IC01 · created_dt
 
     Script->>RQ: merge_analysis_data(df_new)
     RQ->>An: MERGE (COALESCE UPSERT)

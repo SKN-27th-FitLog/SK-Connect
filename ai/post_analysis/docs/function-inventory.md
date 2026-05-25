@@ -160,7 +160,7 @@
 | 심볼 | 유형 | 안전성 | 책임 | 불변·실패 요약 |
 |------|------|--------|------|----------------|
 | `_filter_rows_by_shop_match` | A+B+C | 0 | shop 1:1 매칭 필터 | 0건·N건 드랍, warning |
-| `get_reviews` | B+D+F | 2 | crawling→analysis 적재 | CA07 제외, IC01, 신규 id만 |
+| `get_reviews` | B+D+F | 2 | crawling→analysis 적재 | CA07→IC02, 그 외 IC01·shop, 신규 id만 |
 
 ### analyze_sentimental.py
 
