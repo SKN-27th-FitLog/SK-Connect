@@ -11,7 +11,11 @@ SQL 쿼리 상수 관리 모듈.
 QUERY_SELECT_ALL_CODES = 'SELECT cd, name, cd_info, cd_upper FROM "codeT"'
 QUERY_SELECT_ALL_ADDRESS_CODES = 'SELECT cd as address_cd, name FROM "codeT" WHERE cd_upper = \'LA00\''
 QUERY_SELECT_ALL_SHOP_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'SC00\''
+QUERY_SELECT_ALL_TABLE_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'TC00\''
 QUERY_SELECT_PROCESSED_URLS = 'SELECT article_url FROM crawling WHERE article_url IS NOT NULL'
+RESTAURANT_CATEGORY_CD = "CA01"
+SHOP_CODE_PREFIX = "SC"
+TABLE_NAME_CRAWLING = "crawling"
 
 # ---------------------------------------------------------
 # 2. Store / Data Queries (설계안 17, 20장 - 정규화 적재)
@@ -82,27 +86,37 @@ QUERY_TOUCH_SHOP_CHECKED_AT = """
 
 # 2.3 Crawling Insert (확장됨)
 QUERY_INSERT_CRAWLING = """
-    INSERT INTO crawling (title, content, article_url, map_id, category_cd, author, keywords, point, created_at)
-    SELECT
-        CAST(:title AS VARCHAR(200)),
-        :content,
-        CAST(:article_url AS VARCHAR(500)),
-        :map_id,
-        CAST(:category_cd AS VARCHAR(6)),
-        CAST(:author AS VARCHAR(100)),
-        CAST(:keywords AS VARCHAR(100)),
-        :point,
-        NOW()
-    WHERE NOT EXISTS (
-        SELECT 1
+    WITH existing AS (
+        SELECT crawling_id
         FROM crawling
         WHERE article_url = CAST(:article_url AS VARCHAR(500))
           AND map_id = :map_id
           AND title = CAST(:title AS VARCHAR(200))
           AND content = :content
           AND author = CAST(:author AS VARCHAR(100))
+        LIMIT 1
+    ),
+    inserted AS (
+        INSERT INTO crawling (title, content, article_url, map_id, category_cd, author, keywords, point, created_at)
+        SELECT
+            CAST(:title AS VARCHAR(200)),
+            :content,
+            CAST(:article_url AS VARCHAR(500)),
+            :map_id,
+            CAST(:category_cd AS VARCHAR(6)),
+            CAST(:author AS VARCHAR(100)),
+            CAST(:keywords AS VARCHAR(100)),
+            :point,
+            NOW()
+        WHERE NOT EXISTS (
+            SELECT 1 FROM existing
+        )
+        RETURNING crawling_id
     )
-    RETURNING crawling_id
+    SELECT crawling_id FROM inserted
+    UNION ALL
+    SELECT crawling_id FROM existing
+    LIMIT 1
 """
 
 # 2.4 Menu Insert
@@ -119,13 +133,13 @@ QUERY_INSERT_MENU = """
 
 # 2.5 Images Insert
 QUERY_INSERT_IMAGE = """
-    INSERT INTO images (image_url, table_name, table_id)
-    SELECT CAST(:image_url AS VARCHAR(500)), CAST(:table_name AS VARCHAR(20)), :table_id
+    INSERT INTO images (image_url, table_cd, table_id)
+    SELECT CAST(:image_url AS VARCHAR(500)), CAST(:table_cd AS VARCHAR(6)), :table_id
     WHERE NOT EXISTS (
         SELECT 1
         FROM images
         WHERE image_url = CAST(:image_url AS VARCHAR(500))
-          AND table_name = CAST(:table_name AS VARCHAR(20))
+          AND table_cd = CAST(:table_cd AS VARCHAR(6))
           AND table_id = :table_id
     )
 """
@@ -153,9 +167,11 @@ STATUS_FAIL = "fail"
 
 # 4.1 find success loaded dedup keys
 QUERY_FIND_SUCCESS_LOADED_DEDUP_KEYS = """
-    SELECT name, address_cd
-    FROM maps
-    WHERE category_cd = :category_cd
+    SELECT m.name, m.address_cd
+    FROM maps m
+    JOIN shop s ON s.map_id = m.map_id
+    WHERE m.category_cd = :category_cd
+      AND s.shop_cd = :shop_cd
 """
 
 # 4.2 find update targets
@@ -172,6 +188,7 @@ QUERY_FIND_UPDATE_TARGETS = """
             JOIN maps m ON m.map_id = s.map_id
             LEFT JOIN crawling c ON c.map_id = m.map_id
             WHERE m.category_cd = :category_cd
+              AND s.shop_cd = :shop_cd
             GROUP BY s.shop_id, m.map_id, m.address_cd, m.category_cd
             HAVING
                 (ARRAY_AGG(c.article_url ORDER BY c.created_at DESC)

@@ -2,11 +2,13 @@ from src.collectors.platforms.diningcode_collector import DiningCodeCollector
 from src.collectors.platforms.naver_collector import NaverCollector
 from src.collectors.platforms.google_collector import GoogleCollector
 from src.collectors.platforms.kakao_collector import KakaoCollector
+from src.collectors.platforms.recipe10000_collector import Recipe10000Collector
 
 from src.services.parsers.diningcode_parser import DiningCodeParser
 from src.services.parsers.naver_parser import NaverParser
 from src.services.parsers.google_parser import GoogleParser
 from src.services.parsers.kakao_parser import KakaoParser
+from src.services.parsers.recipe10000_parser import Recipe10000Parser
 
 from src.projects.crawl.stage0_target_selection import Stage0TargetSelection
 from src.projects.crawl.stage1_raw_collection import Stage1RawCollection
@@ -36,7 +38,8 @@ COLLECTOR_MAP = {
     "DiningCode": DiningCodeCollector,
     "Naver": NaverCollector,
     "Google": GoogleCollector,
-    "Kakao": KakaoCollector
+    "Kakao": KakaoCollector,
+    "Recipe10000": Recipe10000Collector,
 }
 
 # 2. 파서 등록소
@@ -44,7 +47,8 @@ PARSER_MAP = {
     "DiningCode": DiningCodeParser,
     "Naver": NaverParser,
     "Google": GoogleParser,
-    "Kakao": KakaoParser
+    "Kakao": KakaoParser,
+    "Recipe10000": Recipe10000Parser,
 }
 
 # 3. 스테이지 등록소

@@ -3,7 +3,8 @@ from sqlalchemy import text
 from src.core.repository.database import DatabaseManager
 from src.core.constants import (
     QUERY_SELECT_ALL_ADDRESS_CODES,
-    QUERY_SELECT_ALL_SHOP_CODES
+    QUERY_SELECT_ALL_SHOP_CODES,
+    QUERY_SELECT_ALL_TABLE_CODES,
 )
 import logging
 
@@ -20,6 +21,7 @@ class CodeTableRepository:
         self._address_cache: Dict[str, Dict[str, Any]] = {}
         self._shop_code_cache: Dict[str, str] = {}
         self._shop_name_cache: Dict[str, str] = {}
+        self._table_code_cache: Dict[str, str] = {}
         self._is_loaded = False
 
     def preload(self):
@@ -44,6 +46,11 @@ class CodeTableRepository:
                     self._shop_code_cache[row['name']] = row['code']
                     self._shop_code_cache[row['code']] = row['code']
                     self._shop_name_cache[row['code']] = row['name']
+
+                table_rows = session.execute(text(QUERY_SELECT_ALL_TABLE_CODES)).mappings().all()
+                for row in table_rows:
+                    self._table_code_cache[row['name']] = row['code']
+                    self._table_code_cache[row['code']] = row['code']
 
             self._is_loaded = True
             logger.info(f"Code Table(codeT) Preloaded: {len(self._address_cache)} addresses, {len(self._shop_code_cache)} shop codes.")
@@ -76,6 +83,12 @@ class CodeTableRepository:
         # 현재 구현상 _shop_code_cache에 'S-xxx': 'S-xxx'로 저장되므로 별도 name 맵이 필요할 수 있음
         # 단순화된 codeT 구조에서는 cd, name이 1:1 매칭되므로 preload 시 name_cache도 구축
         return self._shop_name_cache.get(code)
+
+    def get_table_code(self, key: str) -> Optional[str]:
+        """테이블명 또는 코드로 table_cd 조회"""
+        if not self._is_loaded:
+            self.preload()
+        return self._table_code_cache.get(key)
 
     def validate_references(self, record: Dict[str, Any]) -> bool:
         """
@@ -112,4 +125,5 @@ class CodeTableRepository:
         self._address_cache.clear()
         self._shop_code_cache.clear()
         self._shop_name_cache.clear()
+        self._table_code_cache.clear()
         self._is_loaded = False

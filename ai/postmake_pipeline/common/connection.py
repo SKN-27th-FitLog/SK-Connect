@@ -17,9 +17,18 @@ class Singleton(type):
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super().__call__(*args, **kwargs)
-        return cls._instances[cls]
+        key = cls
+        if cls.__name__ == "PGVectorStore":
+            collection_name = kwargs.get("collection_name")
+            if not collection_name and args:
+                collection_name = args[0]
+            elif not collection_name:
+                collection_name = "post_vector"
+            key = (cls, collection_name)
+
+        if key not in cls._instances:
+            cls._instances[key] = super().__call__(*args, **kwargs)
+        return cls._instances[key]
 
 class Connection(metaclass=Singleton):
     def __init__(self):

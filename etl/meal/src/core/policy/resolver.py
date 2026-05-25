@@ -37,6 +37,14 @@ class PolicyResolver:
             
             ReasonCode.DB_CONSTRAINT_VIOLATION.value: Action.WARN,
             ReasonCode.INVALID_DATA_FORMAT.value: Action.WARN,
+            ReasonCode.AMBIGUOUS_MENU_NAME.value: Action.WARN,
+            ReasonCode.LOW_CONFIDENCE_MENU_NORMALIZATION.value: Action.WARN,
+            ReasonCode.REVIEW_CANDIDATE_MENU_NORMALIZATION.value: Action.WARN,
+            ReasonCode.RECIPE_SEARCH_EMPTY.value: Action.WARN,
+            ReasonCode.RECIPE_SELECTOR_MISMATCH.value: Action.REPROCESS,
+            ReasonCode.INGREDIENT_PARSE_FAILED.value: Action.REPROCESS,
+            ReasonCode.INGREDIENT_NORMALIZATION_FAILED.value: Action.REPROCESS,
+            ReasonCode.KAG_GRAPH_BUILD_FAILED.value: Action.REPROCESS,
         }
 
     def resolve(

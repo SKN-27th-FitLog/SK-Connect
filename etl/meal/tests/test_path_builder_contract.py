@@ -4,22 +4,22 @@ from src.core.config import settings
 from src.core.storage.path_builder import HivePathBuilder
 
 
-def test_build_path_uses_process_category_status_without_stage_or_batch(monkeypatch):
+def test_build_path_uses_restaurant_category_and_shop_partition(monkeypatch):
     monkeypatch.setattr(settings, "LAKE_ROOT_PATH", "lake")
     dt = datetime(2026, 4, 28, 15, 30, 12)
 
     path = HivePathBuilder.build_path(
         process="normalized",
         service="shop",
-        category_cd="CA01",
+        category_cd="SC01",
         stage="validation_normalization",
-        batch_id="20260428_CA01_001",
+        batch_id="20260428_SC01_001",
         status="success",
         dt=dt,
     )
 
     assert path == (
-        "lake\\process=cleansing\\category_cd=CA01\\year=2026\\month=04\\day=28\\status=success"
+        "lake\\process=cleaning\\category_cd=CA01\\shop_cd=SC01\\year=2026\\month=04\\day=28\\status=success"
     )
     assert "stage=" not in path
     assert "batch_id=" not in path
@@ -34,15 +34,15 @@ def test_build_save_path_keeps_table_partition_without_stage_or_batch(monkeypatc
     path = HivePathBuilder.build_path(
         process="load",
         service="shop",
-        category_cd="CA01",
+        category_cd="SC01",
         stage="load",
-        batch_id="20260428_CA01_001",
+        batch_id="20260428_SC01_001",
         status="success",
         dt=dt,
     )
 
     assert path == (
-        "lake\\process=save\\category_cd=CA01\\year=2026\\month=04\\day=28\\save=shop\\status=success"
+        "lake\\process=save\\category_cd=CA01\\shop_cd=SC01\\year=2026\\month=04\\day=28\\save=shop\\status=success"
     )
 
 
