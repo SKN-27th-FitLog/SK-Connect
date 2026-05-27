@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 
 
@@ -147,6 +148,36 @@ class AnalyzeKeywordsByLlmConfig:
     CONTENT_EMPTY_PLACEHOLDERS: tuple[str, ...] = ("", "-", "N/A")
 
 
+class AnalyzeKeywordsConfig:
+    """BERT span 키워드 추출 배치(`analyze_keywords`) 설정.
+
+    처리 상한은 ``analyze_keywords(max_rows=...)`` 인자로 제어한다.
+    """
+
+    DTYPE_OBJECT = "object"
+    CONTENT_EMPTY_PLACEHOLDERS: tuple[str, ...] = ("", "-", "N/A")
+
+
+class BertKeywords:
+    """BERT span 키워드 추출(`common/bert_keywords`) 설정."""
+
+    MIN_WINDOW = 2
+    MAX_WINDOW = 3
+    TOP_K = 3
+    SUBSPAN_SCORE_EPS = 0.05
+    TOKEN_OPPOSITE_THRESHOLD = 0.5
+    TOKEN_OPPOSITE_MARGIN = 0.025
+    TOKEN_OPPOSITE_HIGH = 0.55
+    TOKEN_OPPOSITE_MAX_LEN = 4
+    MAX_TOKEN_LEN = 15
+    MAX_SPAN_CHARS = 30
+
+    STANDALONE_JAMO_TOKEN = re.compile(r"^[ㄱ-ㅎㅏ-ㅣ]+$")
+    NON_WORD_CHARS = re.compile(r"[^\s\dA-Za-z가-힣]")
+    MULTI_SPACE = re.compile(r"\s+")
+    SENTIMENT_SHAPED_TOKEN = re.compile(r"(?:네요|습니다|어요|아요|해요|게|고|죠|냐)$")
+
+
 class AnalyzeSentimentalConfig:
     """BERT 감성 분류 배치(`analyze_sentimental`) 및 `BertTokenizer` 기본값."""
 
@@ -155,6 +186,7 @@ class AnalyzeSentimentalConfig:
     SCORE_DECIMAL_PLACES = 4
     DTYPE_OBJECT = "object"
     DTYPE_SCORE = "float64"
+    CONTENT_EMPTY_PLACEHOLDERS: tuple[str, ...] = ("", "-", "N/A")
 
 
 class GetReviewsConfig:
