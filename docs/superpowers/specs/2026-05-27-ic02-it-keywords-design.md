@@ -12,6 +12,7 @@
 포함한다.
 
 - `post_analysis` 내부에 IC02 전용 키워드 분석 모듈을 추가한다.
+- `post_analysis` 내부에서도 IC02 키워드 추출과 `analysis.keywords` 반영 경로만 수정한다.
 - 기본 실행은 `analysis.keywords`가 NULL 또는 빈 문자열인 IC02 row만 처리한다.
 - 명시 옵션으로 기존 IC02 keywords 재생성을 허용한다.
 - 요약, 글의 흐름, 관심도 신호를 키워드 생성 컨텍스트로 사용한다.
@@ -25,6 +26,21 @@
 - `etl/it_news` 크롤링/클리닝/save 로직 변경
 - `postmake_pipeline`의 게시글 생성 로직 변경
 - DB 스키마 변경
+- IC01 처리를 위해 존재하는 기존 함수의 동작 변경
+
+## 범위 보호 원칙
+
+구현은 `ai/post_analysis` 폴더 안에서만 진행한다. 그 안에서도 변경 대상은 IC02 IT 뉴스 키워드를 뽑고 `analysis.keywords`로 전달하는 코드로 제한한다.
+
+다음 영역은 명시적으로 수정하지 않는다.
+
+- `get_reviews`의 기존 IC01 shop 매칭 규칙
+- `analyze_sentimental`의 기존 IC01 감성 분석 규칙
+- `analyze_keywords`의 기존 IC01 BERT 키워드 추출 규칙
+- `etl/meal`, `etl/it_news`, `ai/postmake_pipeline`
+- DB 스키마와 기존 MERGE SQL 컬럼 계약
+
+기존 파일을 수정해야 할 경우는 `pipeline.py`에 IC02 전용 단계를 연결하거나 공통 상수/오류 메시지에 IC02 전용 항목을 추가하는 경우로 제한한다. 이때도 기존 IC01 함수의 필터, 입력, 출력, 저장 동작은 변경하지 않는다.
 
 ## 현재 연결 계약
 
