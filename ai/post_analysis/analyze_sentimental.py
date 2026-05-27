@@ -21,8 +21,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _filter_processable_content(df: pd.DataFrame, content_col: str) -> pd.DataFrame:
+    """본문이 없거나 placeholder인 행을 제외한다."""
+    empty_map = {k: pd.NA for k in AnalyzeSentimentalConfig.CONTENT_EMPTY_PLACEHOLDERS}
+    c = df[content_col].replace(empty_map)
+    valid = c.notna() & c.astype(str).str.strip().ne("")
+    excluded = int((~valid).sum())
+    if excluded:
+        logger.info(PostAnalysisErrors.Sentiment.excluded_empty_content(excluded))
+    return df.loc[valid].copy()
+
+
 def analyze_sentimental() -> None:
-    """``information_cd≠IC02`` 행 중 ``sentimental`` 또는 ``score`` 가 NULL인 행만 BERT 감성 분석 후 MERGE한다.
+    """``sentimental`` 또는 ``score`` 가 NULL인 행 중 본문이 유효한 행만 BERT 감성 분석 후 MERGE한다.
 
     Raises:
         ValueError: 필수 analysis 컬럼 누락.
@@ -30,7 +41,7 @@ def analyze_sentimental() -> None:
     Note:
         함수 유형: A+D+F — 로컬 추론 + DB 조회·저장 + 배치
         안전성: Level 2 — ``analysis`` 감성·점수 컬럼 UPSERT
-        불변 규칙: IC02(IT 정보) 제외, 이미 채워진 행 스킵
+        불변 규칙: IC02(IT 정보) 제외, 빈 content 제외, 이미 채워진 행 스킵
     """
 
     content_col = AnalysisColumn.CONTENT.value
@@ -47,8 +58,7 @@ def analyze_sentimental() -> None:
     if missing:
         raise ValueError(PostAnalysisErrors.Sentiment.missing_columns(missing))
 
-    # # information_cd 기준 IC02(IT 정보글) 제외 — category_cd(CA*) 축과 별개
-    # df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
+    df = df[df[info_col] != CodeTable.INFORMATION_IT_INFO.value]
 
     # sentimental · score 둘 다 채워진 행은 스킵 (재전체 처리 방지)
     needs_mask = df[sent_col].isna() | df[score_col].isna()
@@ -59,9 +69,15 @@ def analyze_sentimental() -> None:
         return
 
     df = df.loc[needs_mask].copy()
+    df = _filter_processable_content(df, content_col)
+
+    if df.empty:
+        logger.info(PostAnalysisErrors.Sentiment.no_processable_rows())
+        return
+
     logger.info(
         "감성 분석 대상 %s건 (sentimental 또는 score 중 NULL인 행)",
-        pending,
+        len(df),
     )
 
     # 빈 칸이 있는 경우 오류 방지
@@ -73,7 +89,7 @@ def analyze_sentimental() -> None:
     sk = SentimentResultKey
     # for문으로 content 컬럼 값을 가져와서 predict_sentiment로 감성분석 진행
     for index, row in df.iterrows():
-        text = row[content_col]
+        text = "" if pd.isna(row[content_col]) else str(row[content_col])
         result = classifier.predict_sentiment(text)
         logger.info(result)
         df.at[index, sent_col] = result[sk.SENTIMENTAL.value]
@@ -82,7 +98,7 @@ def analyze_sentimental() -> None:
     # 처리 결과 데이터를 다시 analysis 테이블에 업데이트
     merge_analysis_data(df)
 
-    logger.info("데이터 적용 완료 (%s건)", pending)
+    logger.info("데이터 적용 완료 (%s건)", len(df))
 
 
 ########################################################
