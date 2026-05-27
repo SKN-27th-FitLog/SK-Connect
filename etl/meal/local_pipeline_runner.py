@@ -8,6 +8,7 @@ import argparse
 from datetime import datetime
 from src.projects.crawl.crawl_service import CrawlService
 from src.projects.process.process_service import ProcessService
+from src.projects.image_validation.image_validation_service import ImageValidationService
 from src.projects.recipe.recipe_service import RecipeService
 from src.projects.save.save_service import SaveService
 from src.core.config import settings
@@ -49,7 +50,7 @@ def load_categories_from_csv(seed_file: str = "target.csv") -> list[str]:
 
 async def run_and_consolidate(platform: str, category_cd: str):
     """
-    1. 전체 ETL 파이프라인(Crawl -> Process -> Save) 실행
+    1. 전체 ETL 파이프라인(Crawl -> Process -> Image Validation -> Recipe -> Save) 실행
     2. 생성된 복잡한 Hive 폴더 구조 내 파일들을 ./run_snapshot/{batch_id} 폴더에 모으기
     """
     logger.info(f"🚀 파이프라인 실행 시작 (플랫폼: {platform}, 카테고리: {category_cd})")
@@ -78,7 +79,16 @@ async def run_and_consolidate(platform: str, category_cd: str):
         return None
 
     # ---------------------------------------------------------
-    # 단계 3: Recipe 수집 (Stage3 NORMALIZED 메뉴 → 만개의레시피)
+    # 단계 3: 이미지 검증
+    # ---------------------------------------------------------
+    try:
+        ImageValidationService().run_image_validation(category_cd)
+    except Exception as e:
+        logger.error(f"이미지 검증 프로젝트 실행 중 오류 발생: {e}", exc_info=True)
+        return None
+
+    # ---------------------------------------------------------
+    # 단계 4: Recipe 수집 (Stage3 NORMALIZED 메뉴 → 만개의레시피)
     # ---------------------------------------------------------
     try:
         recipe_result = await RecipeService.run_recipe(category_cd)
@@ -88,7 +98,7 @@ async def run_and_consolidate(platform: str, category_cd: str):
         # 레시피 수집 실패는 전체 파이프라인을 중단하지 않음
 
     # ---------------------------------------------------------
-    # 단계 4: Save (DB 적재)
+    # 단계 5: Save (DB 적재)
     # ---------------------------------------------------------
     try:
         SaveService.run_save(category_cd)
@@ -97,7 +107,7 @@ async def run_and_consolidate(platform: str, category_cd: str):
         return None
 
     # ---------------------------------------------------------
-    # 단계 4: 결과물 집계 (Snapshot 폴더 생성)
+    # 단계 6: 결과물 집계 (Snapshot 폴더 생성)
     # ---------------------------------------------------------
     snapshot_dir = f"./run_snapshot/{batch_id}"
     os.makedirs(snapshot_dir, exist_ok=True)
@@ -110,6 +120,7 @@ async def run_and_consolidate(platform: str, category_cd: str):
         ("raw", "raw_collection"),
         ("candidate", "candidate_parsing"),
         ("normalized", "validation_normalization"),
+        ("image_validation", "image_validation"),
         ("recipe", "recipe_collection"),
         ("load", "load"),
     ]

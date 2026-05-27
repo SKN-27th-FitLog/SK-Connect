@@ -14,6 +14,7 @@ from src.projects.crawl.stage0_target_selection import Stage0TargetSelection
 from src.projects.crawl.stage1_raw_collection import Stage1RawCollection
 from src.projects.process.stage2_candidate_parsing import Stage2CandidateParsing
 from src.projects.process.stage3_validation_normalization import Stage3ValidationNormalization
+from src.projects.image_validation.stage_image_validation import StageImageValidation
 from src.projects.save.stage4_load import Stage4Load
 from src.projects.failcheck.stage5_fail_classification import Stage5FailClassification
 from src.core.repository.code_table_repository import CodeTableRepository
@@ -24,6 +25,7 @@ STAGE_TARGET_SELECTION = Stage0TargetSelection.NAME
 STAGE_RAW_COLLECTION = Stage1RawCollection.NAME
 STAGE_CANDIDATE_PARSING = Stage2CandidateParsing.NAME
 STAGE_VALIDATION_NORMALIZATION = Stage3ValidationNormalization.NAME
+STAGE_IMAGE_VALIDATION = StageImageValidation.NAME
 STAGE_LOAD = Stage4Load.NAME
 STAGE_FAIL_CLASSIFICATION = Stage5FailClassification.NAME
 
@@ -57,6 +59,7 @@ STAGE_MAP = {
     STAGE_RAW_COLLECTION: Stage1RawCollection,
     STAGE_CANDIDATE_PARSING: Stage2CandidateParsing,
     STAGE_VALIDATION_NORMALIZATION: Stage3ValidationNormalization,
+    STAGE_IMAGE_VALIDATION: StageImageValidation,
     STAGE_LOAD: Stage4Load,
     STAGE_FAIL_CLASSIFICATION: Stage5FailClassification
 }
