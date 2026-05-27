@@ -34,6 +34,7 @@ def block_merge_writes(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
         "postgresql.run_query.merge_analysis_data",
         "get_reviews.merge_analysis_data",
         "analyze_sentimental.merge_analysis_data",
+        "analyze_keywords.merge_analysis_data",
         "analyze_keywords_by_llm.merge_analysis_data",
     )
     for target in targets:
