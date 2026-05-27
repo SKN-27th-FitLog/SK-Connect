@@ -104,7 +104,7 @@ class DiningCodeCollector(BaseCollector):
     async def _collect_photo_tabs(self, page: Page):
         """사진 탭 (음식/실내/실외/메뉴·정보) 각각 클릭하여 이미지 data-origin 수집"""
         all_photos = {}
-        tab_types = ['food', 'interior', 'exterior', 'menu_info']
+        tab_types = ['food']
 
         for tab_type in tab_types:
             try:
