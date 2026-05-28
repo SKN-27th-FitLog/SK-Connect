@@ -147,3 +147,155 @@ def build_it_keyword_prompt(row: dict | pd.Series) -> str:
             f"[interest]\n{interest['description']}",
         ]
     )
+
+
+def _ollama_chat_json(prompt: str) -> dict[str, Any]:
+    """Ollama chat API를 호출하고 JSON content를 dict로 반환한다."""
+    payload = {
+        "model": get_ollama_model_name(),
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "format": "json",
+    }
+    request = urllib.request.Request(
+        f"{get_ollama_base_url()}/api/chat",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(
+            request,
+            timeout=AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS,
+        ) as response:
+            response_data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Ollama IC02 keyword request failed: {exc}") from exc
+
+    content = response_data.get("message", {}).get("content", "")
+    if not content:
+        raise ValueError("Ollama response did not include message.content")
+    return json.loads(content)
+
+
+def extract_it_keywords(row: dict | pd.Series) -> ItKeywordResult:
+    """IC02 row 하나를 Ollama로 분석해 요약, 흐름, 키워드를 추출한다."""
+    prompt = build_it_keyword_prompt(row)
+    return ItKeywordResult(**_ollama_chat_json(prompt))
+
+
+def _is_blank_series(series: pd.Series) -> pd.Series:
+    """문자열 column의 결측 또는 공백 여부를 반환한다."""
+    empty_map = {value: pd.NA for value in AnalyzeItKeywordsConfig.CONTENT_EMPTY_PLACEHOLDERS}
+    normalized = series.replace(empty_map)
+    return normalized.isna() | normalized.astype(str).str.strip().eq("")
+
+
+def _validate_required_columns(df: pd.DataFrame) -> None:
+    """IC02 keyword 분석에 필요한 analysis column을 검증한다."""
+    required = (
+        AnalysisColumn.CRAWLING_ID.value,
+        AnalysisColumn.TITLE.value,
+        AnalysisColumn.CONTENT.value,
+        AnalysisColumn.KEYWORDS.value,
+        AnalysisColumn.INFORMATION_CD.value,
+    )
+    missing = [column for column in required if column not in df.columns]
+    if missing:
+        raise ValueError(PostAnalysisErrors.ItKeywords.missing_columns(missing))
+
+
+def _attach_crawling_metrics(df: pd.DataFrame, df_crawling: pd.DataFrame) -> pd.DataFrame:
+    """analysis row에 crawling 관심도 metric을 붙인다."""
+    id_col = AnalysisColumn.CRAWLING_ID.value
+    metric_cols = (
+        CrawlingColumn.VIEW_COUNT.value,
+        CrawlingColumn.COMMENT_COUNT.value,
+        CrawlingColumn.POINT.value,
+    )
+    out = df.copy()
+    if id_col not in df_crawling.columns:
+        for column in metric_cols:
+            out[column] = 0
+        return out
+
+    available = [id_col, *[column for column in metric_cols if column in df_crawling.columns]]
+    metrics = df_crawling[available].drop_duplicates(subset=[id_col], keep="last")
+    out = out.merge(metrics, on=id_col, how="left")
+    for column in metric_cols:
+        if column not in out.columns:
+            out[column] = 0
+    return out
+
+
+def _filter_it_keyword_targets(df: pd.DataFrame, *, overwrite: bool) -> pd.DataFrame:
+    """IC02 전용 keyword 처리 대상 row만 남긴다."""
+    info_col = AnalysisColumn.INFORMATION_CD.value
+    title_col = AnalysisColumn.TITLE.value
+    content_col = AnalysisColumn.CONTENT.value
+    kw_col = AnalysisColumn.KEYWORDS.value
+
+    df = df[df[info_col] == CodeTable.INFORMATION_IT_INFO.value].copy()
+    has_title = ~_is_blank_series(df[title_col])
+    has_content = ~_is_blank_series(df[content_col])
+    df = df[has_title | has_content].copy()
+    if overwrite:
+        return df
+    return df[_is_blank_series(df[kw_col])].copy()
+
+
+def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) -> None:
+    """IC02 IT news row의 `analysis.keywords`만 채운다."""
+    df = get_analysis_data()
+    _validate_required_columns(df)
+
+    df = _filter_it_keyword_targets(df, overwrite=overwrite)
+    if df.empty:
+        logger.info(PostAnalysisErrors.ItKeywords.no_pending_rows())
+        return
+
+    if max_rows is not None and max_rows > 0:
+        df = df.head(max_rows).copy()
+        logger.info("IC02 IT keyword limit applied: %s rows (max_rows=%s)", len(df), max_rows)
+
+    df = _attach_crawling_metrics(df, get_crawling_data())
+    kw_col = AnalysisColumn.KEYWORDS.value
+    id_col = AnalysisColumn.CRAWLING_ID.value
+    df[kw_col] = df[kw_col].astype(AnalyzeItKeywordsConfig.DTYPE_OBJECT)
+
+    success_indexes: list[int] = []
+    for index, row in df.iterrows():
+        crawling_id = row.get(id_col)
+        try:
+            result = extract_it_keywords(row)
+            keywords = normalize_it_keywords(result.keywords)
+            if not keywords:
+                logger.info("IC02 IT keyword empty result skipped (crawling_id=%s)", crawling_id)
+                continue
+            df.at[index, kw_col] = keywords
+            success_indexes.append(index)
+            logger.info(
+                "IC02 IT keywords: crawling_id=%s interest=%s keywords=%s",
+                crawling_id,
+                result.interest_label,
+                keywords,
+            )
+        except Exception:
+            logger.exception(
+                PostAnalysisErrors.ItKeywords.row_processing_failed(),
+                crawling_id,
+                index,
+            )
+            continue
+
+    if not success_indexes:
+        logger.info(PostAnalysisErrors.ItKeywords.no_successful_rows())
+        return
+
+    merge_analysis_data(df.loc[success_indexes].copy())
+    logger.info("IC02 IT keyword extraction completed (%s rows)", len(success_indexes))
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
+    analyze_it_keywords()
