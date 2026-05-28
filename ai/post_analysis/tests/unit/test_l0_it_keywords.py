@@ -24,6 +24,11 @@ from analyze_it_keywords import (
 )
 from common.constant import AnalyzeItKeywordsConfig
 from common.errors import PostAnalysisErrors
+from common.it_keyword_candidates import (
+    extract_it_keyword_candidates,
+    filter_it_keywords_by_candidates,
+    format_candidate_keywords_for_prompt,
+)
 
 
 def test_pa_l0_itkw_001_config_defaults() -> None:
@@ -391,3 +396,68 @@ def test_pa_l0_itkw_020_selection_keeps_searching_after_oversized_ranked_unit() 
     )
 
     assert selected == ["API 변경"]
+
+
+def test_pa_l0_itkw_021_candidate_extraction_keeps_source_terms() -> None:
+    """PA-L0-ITKW-021 [정상]: 후보 추출은 원문에 실제 등장한 기술 표현을 유지한다."""
+    candidates = extract_it_keyword_candidates(
+        "git-sync 리모트 미러링",
+        "로컬 체크아웃 없이 소스 리모트에서 타겟 리모트로 ref와 오브젝트를 직접 스트리밍합니다. "
+        "메모리 사용량은 일정합니다.",
+    )
+
+    texts = [candidate.text for candidate in candidates]
+
+    assert "git-sync" in texts
+    assert "소스 리모트" in texts
+    assert "타겟 리모트" in texts
+    assert "메모리 사용량" in texts
+
+
+def test_pa_l0_itkw_022_candidate_filter_rejects_generated_composites() -> None:
+    """PA-L0-ITKW-022 [정상]: 원문 후보군 밖 LLM 조합어는 저장 후보에서 제거한다."""
+    candidates = extract_it_keyword_candidates(
+        "git-sync 리모트 미러링",
+        "소스 리모트에서 타겟 리모트로 ref와 오브젝트를 직접 스트리밍하며 메모리 사용량은 일정합니다.",
+    )
+
+    filtered = filter_it_keywords_by_candidates(
+        [
+            "git-sync",
+            "타겟 리모트",
+            "Git 레미트리치닝",
+            "타겟 리먼트 관리",
+            "프로덕션 배포",
+        ],
+        candidates,
+    )
+
+    assert filtered == ["git-sync", "타겟 리모트"]
+
+
+def test_pa_l0_itkw_023_candidate_filter_rejects_low_quality_words() -> None:
+    """PA-L0-ITKW-023 [정상]: 저품질 일반어와 깨진 조합어를 제거한다."""
+    candidates = extract_it_keyword_candidates(
+        "ZFS 튜닝",
+        "무작위 접근 워크로드에서는 recordsize와 ARC 메모리 캐시, IO 병합을 함께 검토합니다.",
+    )
+
+    filtered = filter_it_keywords_by_candidates(
+        ["ZFS", "recordsize", "박스크립트 시스템", "이해 필요", "ARC 메모리 캐시"],
+        candidates,
+    )
+
+    assert filtered == ["ZFS", "recordsize", "ARC 메모리 캐시"]
+
+
+def test_pa_l0_itkw_024_candidate_prompt_format_is_ranked_and_limited() -> None:
+    """PA-L0-ITKW-024 [정상]: prompt 후보군은 점수 순으로 제한된 줄 수만 제공한다."""
+    candidates = extract_it_keyword_candidates(
+        "NVIDIA Agent Skills",
+        "NVIDIA Agent Skills는 CUDA-X 라이브러리와 SkillSpector 검증 파이프라인을 제공합니다.",
+    )
+
+    prompt_text = format_candidate_keywords_for_prompt(candidates, limit=3)
+
+    assert prompt_text.count("\n") <= 2
+    assert "NVIDIA Agent Skills" in prompt_text
