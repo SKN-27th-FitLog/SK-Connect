@@ -78,12 +78,25 @@ def _token_is_candidate_part(token: object) -> bool:
     return getattr(token, "tag", "") in AnalyzeItKeywordsConfig.CANDIDATE_NOUN_POS_TAGS
 
 
+def _starts_after_attached_prefix(tokens: list[object], index: int) -> bool:
+    """접두사가 잘려 시작되는 후보를 막는다."""
+    if index <= 0:
+        return False
+    previous = tokens[index - 1]
+    current = tokens[index]
+    return (
+        getattr(previous, "tag", "") == "XPN"
+        and getattr(previous, "end", None) == getattr(current, "start", None)
+    )
+
+
 def _extract_runs(text: str) -> list[list[object]]:
     """후보 재료 token의 연속 구간을 추출한다."""
     runs: list[list[object]] = []
     current: list[object] = []
-    for token in _get_kiwi().tokenize(text):
-        if _token_is_candidate_part(token):
+    tokens = list(_get_kiwi().tokenize(text))
+    for index, token in enumerate(tokens):
+        if _token_is_candidate_part(token) and not _starts_after_attached_prefix(tokens, index):
             current.append(token)
             continue
         if current:
@@ -101,6 +114,25 @@ def _surface_from_tokens(text: str, tokens: list[object]) -> str:
     return _normalize_candidate_text(text[start:end])
 
 
+def _ends_before_attached_token(run: list[object], end_index: int) -> bool:
+    """붙어 있는 복합어를 중간에서 끊은 후보를 막는다."""
+    next_index = end_index + 1
+    if next_index >= len(run):
+        return False
+    current = run[end_index]
+    next_token = run[next_index]
+    return getattr(current, "end", None) == getattr(next_token, "start", None)
+
+
+def _starts_after_attached_candidate_token(run: list[object], start_index: int) -> bool:
+    """붙어 있는 복합어의 뒤쪽 조각만 단독 후보가 되는 것을 막는다."""
+    if start_index <= 0:
+        return False
+    previous = run[start_index - 1]
+    current = run[start_index]
+    return getattr(previous, "end", None) == getattr(current, "start", None)
+
+
 def _candidate_texts_from_text(text: str) -> list[str]:
     """KiWi token run과 영문 패턴에서 원문 표면형 후보를 만든다."""
     candidates: list[str] = []
@@ -108,6 +140,11 @@ def _candidate_texts_from_text(text: str) -> list[str]:
         max_window = min(3, len(run))
         for window in range(max_window, 0, -1):
             for start in range(0, len(run) - window + 1):
+                end = start + window - 1
+                if _starts_after_attached_candidate_token(run, start):
+                    continue
+                if _ends_before_attached_token(run, end):
+                    continue
                 surface = _surface_from_tokens(text, run[start : start + window])
                 if _is_valid_candidate(surface):
                     candidates.append(surface)

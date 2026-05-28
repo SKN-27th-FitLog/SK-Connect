@@ -498,3 +498,20 @@ def test_pa_l0_itkw_026_extract_filters_llm_keywords_by_candidates(
     )
 
     assert result.keywords == ["git-sync", "타겟 리모트"]
+
+
+def test_pa_l0_itkw_027_candidate_extraction_rejects_attached_prefix_fragment() -> None:
+    """PA-L0-ITKW-027 [정상]: 접두사가 잘린 어색한 부분 후보는 prompt 후보군에서 제외한다."""
+    candidates = extract_it_keyword_candidates(
+        "ZFS 튜닝",
+        "무작위 접근 워크로드에서는 recordsize와 ARC 메모리 캐시, IO 병합을 함께 검토합니다.",
+    )
+
+    texts = [candidate.text for candidate in candidates]
+
+    assert "작위" not in texts
+    assert "작위 접근" not in texts
+    assert "작위 접근 워크" not in texts
+    assert "접근 워크" not in texts
+    assert "로드" not in texts
+    assert "접근 워크로드" in texts
