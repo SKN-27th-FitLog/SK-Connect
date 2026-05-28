@@ -71,7 +71,8 @@ def test_pa_l0_itkw_001_config_defaults() -> None:
     assert AnalyzeItKeywordsConfig.DEFAULT_MODEL == "gemma4:26b"
     assert AnalyzeItKeywordsConfig.MODEL_ENV_KEY == "POST_ANALYSIS_IT_KEYWORDS_MODEL"
     assert AnalyzeItKeywordsConfig.OLLAMA_BASE_URL_ENV_KEY == "OLLAMA_BASE_URL"
-    assert AnalyzeItKeywordsConfig.MAX_KEYWORDS == 7
+    assert AnalyzeItKeywordsConfig.MIN_KEYWORDS == 12
+    assert AnalyzeItKeywordsConfig.MAX_KEYWORDS == 15
     assert AnalyzeItKeywordsConfig.INTEREST_HIGH_THRESHOLD == 1000
     assert AnalyzeItKeywordsConfig.INTEREST_MEDIUM_THRESHOLD == 100
 
@@ -106,7 +107,8 @@ class AnalyzeItKeywordsConfig:
     DEFAULT_MODEL = "gemma4:26b"
     DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
     REQUEST_TIMEOUT_SECONDS = 120
-    MAX_KEYWORDS = 7
+    MIN_KEYWORDS = 12
+    MAX_KEYWORDS = 15
     DTYPE_OBJECT = "object"
     CONTENT_EMPTY_PLACEHOLDERS = ("", "-", "N/A")
     INTEREST_COMMENT_WEIGHT = 10
@@ -385,10 +387,10 @@ def build_it_keyword_prompt(row: dict | pd.Series) -> str:
             "입력 글을 읽고 요약, 글의 흐름, 관심도 라벨, 게시글 생성용 키워드를 JSON으로만 반환하세요.",
             "키워드는 기술 주제와 게시글 관점을 함께 포함해야 합니다.",
             "반환 JSON 스키마:",
-            '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향","interest_label":"high","keywords":["PyTorch","추론 성능","배포 영향"]}',
+            '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향","interest_label":"high","keywords":["PyTorch 2.8","추론 성능 개선","GPU 비용","배포 효율","API 변경","모델 최적화","서버 지연 시간","운영 비용","개발자 영향","프로덕션 배포","성능 검토","AI 인프라"]}',
             "제약:",
-            "- keywords는 3개 이상 7개 이하입니다.",
-            "- keywords에는 기술명/제품명/프레임워크와 영향/리스크/활용 포인트를 함께 넣습니다.",
+            "- keywords는 12개 이상 15개 이하입니다.",
+            "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다.",
             "- 원문에 없는 세부 사실을 만들지 않습니다.",
             "- JSON 외 텍스트를 출력하지 않습니다.",
             "",

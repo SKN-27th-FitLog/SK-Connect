@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from analyze_it_keywords import ItKeywordResult, analyze_it_keywords, extract_it_keywords
-from common.constant import AnalysisColumn, CodeTable, CrawlingColumn
+from common.constant import AnalysisColumn, AnalyzeItKeywordsConfig, CodeTable, CrawlingColumn
 
 
 def _analysis_df() -> pd.DataFrame:
@@ -216,7 +216,7 @@ def test_pa_l3_itkw_007_extract_uses_ollama_json_response(
         "summary": "summary",
         "flow": "release -> impact",
         "interest_label": "high",
-        "keywords": ["PyTorch", "GPU"],
+        "keywords": [f"keyword-{index}" for index in range(1, 13)],
     }
 
     result = extract_it_keywords({"title": "PyTorch", "content": "GPU update"})
@@ -226,8 +226,36 @@ def test_pa_l3_itkw_007_extract_uses_ollama_json_response(
         summary="summary",
         flow="release -> impact",
         interest_label="high",
-        keywords=["PyTorch", "GPU"],
+        keywords=[f"keyword-{index}" for index in range(1, 13)],
     )
+
+
+@patch("analyze_it_keywords._ollama_chat_json")
+def test_pa_l3_itkw_007_1_extract_retries_when_keywords_are_too_sparse(
+    mock_ollama_chat_json: MagicMock,
+) -> None:
+    """extract_it_keywords는 12개 미만 응답이면 한 번 더 세분화 요청을 보낸다."""
+    expanded_keywords = [f"keyword-{index}" for index in range(1, 13)]
+    mock_ollama_chat_json.side_effect = [
+        {
+            "summary": "summary",
+            "flow": "release -> impact",
+            "interest_label": "medium",
+            "keywords": ["PyTorch", "GPU", "API"],
+        },
+        {
+            "summary": "summary",
+            "flow": "release -> impact",
+            "interest_label": "medium",
+            "keywords": expanded_keywords,
+        },
+    ]
+
+    result = extract_it_keywords({"title": "PyTorch", "content": "GPU API update"})
+
+    assert mock_ollama_chat_json.call_count == 2
+    assert result.keywords == expanded_keywords
+    assert "12개 이상 15개 이하" in mock_ollama_chat_json.call_args.args[0]
 
 
 @patch("analyze_it_keywords.merge_analysis_data")
@@ -261,3 +289,39 @@ def test_pa_l3_itkw_008_preprocessing_failure_skips_ollama_and_merge(
 
     mock_ollama_chat_json.assert_not_called()
     mock_merge.assert_not_called()
+
+
+@patch("analyze_it_keywords.tqdm")
+@patch("analyze_it_keywords.merge_analysis_data")
+@patch("analyze_it_keywords.extract_it_keywords")
+@patch("analyze_it_keywords.get_crawling_data")
+@patch("analyze_it_keywords.get_analysis_data")
+def test_pa_l3_itkw_009_wraps_ic02_rows_with_progress_bar(
+    mock_get_analysis: MagicMock,
+    mock_get_crawling: MagicMock,
+    mock_extract: MagicMock,
+    mock_merge: MagicMock,
+    mock_tqdm: MagicMock,
+) -> None:
+    """IC02 row 처리 루프는 tqdm 진행률 표시로 감싼다."""
+    mock_get_analysis.return_value = pd.DataFrame(
+        {
+            AnalysisColumn.CRAWLING_ID.value: [1, 2],
+            AnalysisColumn.TITLE.value: ["A", "B"],
+            AnalysisColumn.CONTENT.value: ["a", "b"],
+            AnalysisColumn.KEYWORDS.value: [pd.NA, pd.NA],
+            AnalysisColumn.INFORMATION_CD.value: [CodeTable.INFORMATION_IT_INFO.value] * 2,
+        }
+    )
+    mock_get_crawling.return_value = pd.DataFrame()
+    mock_extract.return_value = ItKeywordResult(keywords=["keyword"])
+    mock_tqdm.side_effect = lambda iterable, **_kwargs: list(iterable)
+
+    analyze_it_keywords(max_rows=2)
+
+    mock_tqdm.assert_called_once()
+    assert mock_tqdm.call_args.kwargs["total"] == 2
+    assert mock_tqdm.call_args.kwargs["desc"] == AnalyzeItKeywordsConfig.PROGRESS_DESC
+    assert mock_tqdm.call_args.kwargs["unit"] == AnalyzeItKeywordsConfig.PROGRESS_UNIT
+    assert mock_extract.call_count == 2
+    mock_merge.assert_called_once()

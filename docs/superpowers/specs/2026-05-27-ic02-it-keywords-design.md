@@ -126,7 +126,7 @@ IC02 분석 입력은 `analysis`를 기준으로 만들고, `crawling_id`가 같
 - `normalize_it_keywords(value)`: 모델 출력 또는 후보 문자열을 기존 `#keyword` 형식으로 정규화
 - `extract_it_keywords(...)`: LLM 호출을 감싼 추출 함수
 
-LLM 응답은 신규 Pydantic 모델로 검증한다. 필드는 `summary: str`, `flow: str`, `interest_label: str`, `keywords: list[str]`로 고정한다. `summary`, `flow`, `interest_label`은 DB에 저장하지 않고 row 처리 로그와 키워드 품질 검증용 구조로만 사용한다. `keywords` 각 항목은 공백 제거 후 빈 문자열을 제외하고, 중복 제거 후 최대 7개까지 유지한다. 최종 DB 저장 직전에는 항상 `#` 구분 문자열로 정규화한다.
+LLM 응답은 신규 Pydantic 모델로 검증한다. 필드는 `summary: str`, `flow: str`, `interest_label: str`, `keywords: list[str]`로 고정한다. `summary`, `flow`, `interest_label`은 DB에 저장하지 않고 row 처리 로그와 키워드 품질 검증용 구조로만 사용한다. `keywords` 각 항목은 공백 제거 후 빈 문자열을 제외하고, 중복 제거 후 최대 15개까지 유지한다. 프롬프트는 원문 흐름을 더 세밀하게 보존하기 위해 12개 이상 15개 이하의 키워드를 요청한다. 1차 응답이 12개 미만이면 같은 row에 대해 원문 근거 안에서 키워드를 더 세분화하도록 1회 재시도하고, 재시도 결과가 더 많은 유효 키워드를 제공할 때만 그 결과를 사용한다. 최종 DB 저장 직전에는 항상 `#` 구분 문자열로 정규화한다. 키워드는 원문 흐름을 더 잘 복원할 수 있도록 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 포함한다.
 
 기존 `analyze_keywords_by_llm.Keywords`는 맛집 리뷰 감성 기반 LLM 실험용 스키마이므로 재사용하지 않는다. IC02 전용 모듈은 별도 응답 모델을 가져야 한다.
 

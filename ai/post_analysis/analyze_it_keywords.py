@@ -13,6 +13,7 @@ from typing import Any
 
 import pandas as pd
 from pydantic import BaseModel, Field
+from tqdm import tqdm
 
 import common.env  # noqa: F401 - DB/Ollama 환경변수 로드
 from common.constant import AnalysisColumn, AnalyzeItKeywordsConfig, CodeTable, CrawlingColumn
@@ -331,6 +332,12 @@ def normalize_it_keywords(value: object, max_keywords: int = AnalyzeItKeywordsCo
     return "".join(f"#{keyword}" for keyword in normalized)
 
 
+def _keyword_count(value: object) -> int:
+    """정규화 후 저장 가능한 IC02 키워드 개수를 반환한다."""
+    normalized = normalize_it_keywords(value)
+    return normalized.count("#")
+
+
 def build_it_keyword_prompt(row: dict | pd.Series) -> str:
     """Gemma에 전달할 IC02 keyword user prompt를 만든다."""
     title = _text_or_empty(row.get(AnalysisColumn.TITLE.value))
@@ -342,6 +349,7 @@ def build_it_keyword_prompt(row: dict | pd.Series) -> str:
         AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE,
         AnalyzeItKeywordsConfig.PROMPT_CONSTRAINTS_HEADER,
         AnalyzeItKeywordsConfig.PROMPT_KEYWORD_COUNT_TEMPLATE.format(
+            min_keywords=AnalyzeItKeywordsConfig.MIN_KEYWORDS,
             max_keywords=AnalyzeItKeywordsConfig.MAX_KEYWORDS,
         ),
         AnalyzeItKeywordsConfig.PROMPT_KEYWORD_GUIDE,
@@ -349,6 +357,18 @@ def build_it_keyword_prompt(row: dict | pd.Series) -> str:
         f"{AnalyzeItKeywordsConfig.TITLE_PROMPT_LABEL}\n{title}",
         f"{AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL}\n{compressed_content}",
         f"{AnalyzeItKeywordsConfig.INTEREST_PROMPT_LABEL}\n{interest['description']}",
+    ]
+    return "\n".join(prompt_lines)
+
+
+def _build_keyword_expansion_prompt(base_prompt: str, result: ItKeywordResult) -> str:
+    """키워드가 적은 IC02 응답을 한 번 더 세분화하도록 요청하는 prompt를 만든다."""
+    previous_response = result.model_dump_json(ensure_ascii=False)
+    prompt_lines = [
+        base_prompt,
+        "",
+        *AnalyzeItKeywordsConfig.KEYWORD_EXPANSION_INSTRUCTIONS,
+        f"{AnalyzeItKeywordsConfig.KEYWORD_EXPANSION_PREVIOUS_LABEL}\n{previous_response}",
     ]
     return "\n".join(prompt_lines)
 
@@ -388,7 +408,15 @@ def _ollama_chat_json(prompt: str) -> dict[str, Any]:
 def extract_it_keywords(row: dict | pd.Series) -> ItKeywordResult:
     """IC02 row 하나를 Ollama로 분석해 요약, 흐름, 키워드를 추출한다."""
     prompt = build_it_keyword_prompt(row)
-    return ItKeywordResult(**_ollama_chat_json(prompt))
+    result = ItKeywordResult(**_ollama_chat_json(prompt))
+    if _keyword_count(result.keywords) >= AnalyzeItKeywordsConfig.MIN_KEYWORDS:
+        return result
+
+    expanded_prompt = _build_keyword_expansion_prompt(prompt, result)
+    expanded_result = ItKeywordResult(**_ollama_chat_json(expanded_prompt))
+    if _keyword_count(expanded_result.keywords) > _keyword_count(result.keywords):
+        return expanded_result
+    return result
 
 
 def _is_blank_series(series: pd.Series) -> pd.Series:
@@ -471,7 +499,12 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
     df[kw_col] = df[kw_col].astype(AnalyzeItKeywordsConfig.DTYPE_OBJECT)
 
     success_indexes: list[int] = []
-    for index, row in df.iterrows():
+    for index, row in tqdm(
+        df.iterrows(),
+        total=len(df),
+        desc=AnalyzeItKeywordsConfig.PROGRESS_DESC,
+        unit=AnalyzeItKeywordsConfig.PROGRESS_UNIT,
+    ):
         crawling_id = row.get(id_col)
         try:
             result = extract_it_keywords(row)

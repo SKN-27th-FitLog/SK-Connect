@@ -226,15 +226,27 @@ class AnalyzeItKeywordsConfig:
     )
     PROMPT_SCHEMA_HEADER = "반환 JSON 스키마:"
     PROMPT_CONSTRAINTS_HEADER = "제약:"
-    PROMPT_KEYWORD_COUNT_TEMPLATE = "- keywords는 3개 이상 {max_keywords}개 이하입니다."
+    PROMPT_KEYWORD_COUNT_TEMPLATE = "- keywords는 {min_keywords}개 이상 {max_keywords}개 이하입니다."
     PROMPT_KEYWORD_GUIDE = (
-        "- keywords에는 기술명, 제품명, 프레임워크, 영향, 리스크, 활용 포인트를 함께 넣습니다."
+        "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다."
     )
+    KEYWORD_EXPANSION_INSTRUCTIONS = (
+        "이전 응답의 keywords가 너무 적습니다.",
+        "원문에 근거한 세부 키워드를 12개 이상 15개 이하로 다시 나누세요.",
+        "기술명, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 중복 없이 분리하세요.",
+        "새 JSON만 반환하세요.",
+    )
+    KEYWORD_EXPANSION_PREVIOUS_LABEL = "[previous_response]"
+    PROGRESS_DESC = "IC02 IT 키워드 추출"
+    PROGRESS_UNIT = "건"
     RESPONSE_SCHEMA_EXAMPLE = (
         '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향",'
-        '"interest_label":"high","keywords":["PyTorch","추론 성능","배포 영향"]}'
+        '"interest_label":"high","keywords":["PyTorch 2.8","추론 성능 개선","GPU 비용",'
+        '"배포 효율","API 변경","모델 최적화","서버 지연 시간","운영 비용",'
+        '"개발자 영향","프로덕션 배포","성능 검토","AI 인프라"]}'
     )
-    MAX_KEYWORDS = 7
+    MIN_KEYWORDS = 12
+    MAX_KEYWORDS = 15
     DTYPE_OBJECT = "object"
     CONTENT_EMPTY_PLACEHOLDERS = ("", "-", "N/A")
     INTEREST_COMMENT_WEIGHT = 10

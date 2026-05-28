@@ -1,5 +1,6 @@
 """PA-L0-ITKW: IC02 IT keyword pure helpers and config."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,7 +31,8 @@ def test_pa_l0_itkw_001_config_defaults() -> None:
     assert AnalyzeItKeywordsConfig.DEFAULT_MODEL == "gemma4:26b"
     assert AnalyzeItKeywordsConfig.MODEL_ENV_KEY == "POST_ANALYSIS_IT_KEYWORDS_MODEL"
     assert AnalyzeItKeywordsConfig.OLLAMA_BASE_URL_ENV_KEY == "OLLAMA_BASE_URL"
-    assert AnalyzeItKeywordsConfig.MAX_KEYWORDS == 7
+    assert AnalyzeItKeywordsConfig.MIN_KEYWORDS == 12
+    assert AnalyzeItKeywordsConfig.MAX_KEYWORDS == 15
     assert AnalyzeItKeywordsConfig.INTEREST_HIGH_THRESHOLD == 1000
     assert AnalyzeItKeywordsConfig.INTEREST_MEDIUM_THRESHOLD == 100
 
@@ -45,6 +47,17 @@ def test_pa_l0_itkw_002_error_messages() -> None:
 def test_pa_l0_itkw_003_normalize_keywords_list() -> None:
     """PA-L0-ITKW-003 [정상]: list 키워드를 # 구분 문자열로 정규화한다."""
     assert normalize_it_keywords([" PyTorch ", "PyTorch", "", "#GPU 비용"]) == "#PyTorch#GPU 비용"
+
+
+def test_pa_l0_itkw_003_1_normalize_keywords_keeps_up_to_config_limit() -> None:
+    """PA-L0-ITKW-003-1 [정상]: IC02 키워드는 원문 흐름 보존을 위해 최대 15개까지 유지한다."""
+    keywords = [f"keyword-{index}" for index in range(1, 17)]
+
+    normalized = normalize_it_keywords(keywords)
+
+    assert normalized.count("#") == AnalyzeItKeywordsConfig.MAX_KEYWORDS
+    assert "#keyword-15" in normalized
+    assert "#keyword-16" not in normalized
 
 
 def test_pa_l0_itkw_004_normalize_keywords_string() -> None:
@@ -80,6 +93,7 @@ def test_pa_l0_itkw_006_prompt_contains_summary_flow_interest() -> None:
     assert "interest_label" in prompt
     assert "keywords" in prompt
     assert "PyTorch 2.5 릴리스" in prompt
+    assert "- keywords는 12개 이상 15개 이하입니다." in prompt
 
 
 def test_pa_l0_itkw_006_1_prompt_handles_missing_title() -> None:
@@ -112,6 +126,14 @@ def test_pa_l0_itkw_008_response_model() -> None:
     assert result.keywords == ["PyTorch", "추론 성능"]
 
 
+def test_pa_l0_itkw_008_1_response_schema_example_matches_keyword_target() -> None:
+    """PA-L0-ITKW-008-1 [정상]: 프롬프트 예시도 12개 이상 키워드 목표를 보여준다."""
+    example = json.loads(AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE)
+
+    assert len(example["keywords"]) >= AnalyzeItKeywordsConfig.MIN_KEYWORDS
+    assert len(example["keywords"]) <= AnalyzeItKeywordsConfig.MAX_KEYWORDS
+
+
 def test_pa_l0_itkw_009_preprocessing_config_defaults() -> None:
     """PA-L0-ITKW-009 [불변]: IC02 전처리 기본 정책값은 config에 모인다."""
     assert AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY == (
@@ -135,10 +157,10 @@ def test_pa_l0_itkw_009_preprocessing_config_defaults() -> None:
     assert AnalyzeItKeywordsConfig.PROMPT_SCHEMA_HEADER == "반환 JSON 스키마:"
     assert AnalyzeItKeywordsConfig.PROMPT_CONSTRAINTS_HEADER == "제약:"
     assert AnalyzeItKeywordsConfig.PROMPT_KEYWORD_COUNT_TEMPLATE == (
-        "- keywords는 3개 이상 {max_keywords}개 이하입니다."
+        "- keywords는 {min_keywords}개 이상 {max_keywords}개 이하입니다."
     )
     assert AnalyzeItKeywordsConfig.PROMPT_KEYWORD_GUIDE == (
-        "- keywords에는 기술명, 제품명, 프레임워크, 영향, 리스크, 활용 포인트를 함께 넣습니다."
+        "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다."
     )
 
 

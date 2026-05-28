@@ -207,7 +207,9 @@ Modify `AnalyzeItKeywordsConfig` in `ai/post_analysis/common/constant.py` by add
     )
     RESPONSE_SCHEMA_EXAMPLE = (
         '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향",'
-        '"interest_label":"high","keywords":["PyTorch","추론 성능","배포 영향"]}'
+        '"interest_label":"high","keywords":["PyTorch 2.8","추론 성능 개선","GPU 비용",'
+        '"배포 효율","API 변경","모델 최적화","서버 지연 시간","운영 비용",'
+        '"개발자 영향","프로덕션 배포","성능 검토","AI 인프라"]}'
     )
 ```
 
@@ -719,7 +721,7 @@ def build_it_keyword_prompt(row: dict | pd.Series) -> str:
         "반환 JSON 스키마:",
         AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE,
         "제약:",
-        f"- keywords는 3개 이상 {AnalyzeItKeywordsConfig.MAX_KEYWORDS}개 이하입니다.",
+        f"- keywords는 {AnalyzeItKeywordsConfig.MIN_KEYWORDS}개 이상 {AnalyzeItKeywordsConfig.MAX_KEYWORDS}개 이하입니다.",
         "- keywords에는 기술명, 제품명, 프레임워크, 영향, 리스크, 사용 포인트를 함께 넣습니다.",
         "",
         f"{AnalyzeItKeywordsConfig.TITLE_PROMPT_LABEL}\n{title}",
