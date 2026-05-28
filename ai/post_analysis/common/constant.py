@@ -224,6 +224,12 @@ class AnalyzeItKeywordsConfig:
         "원문에 없는 인물, 사실, 제품명을 만들지 않습니다.",
         "JSON 외 텍스트를 출력하지 않습니다.",
     )
+    PROMPT_SCHEMA_HEADER = "반환 JSON 스키마:"
+    PROMPT_CONSTRAINTS_HEADER = "제약:"
+    PROMPT_KEYWORD_COUNT_TEMPLATE = "- keywords는 3개 이상 {max_keywords}개 이하입니다."
+    PROMPT_KEYWORD_GUIDE = (
+        "- keywords에는 기술명, 제품명, 프레임워크, 영향, 리스크, 활용 포인트를 함께 넣습니다."
+    )
     RESPONSE_SCHEMA_EXAMPLE = (
         '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향",'
         '"interest_label":"high","keywords":["PyTorch","추론 성능","배포 영향"]}'

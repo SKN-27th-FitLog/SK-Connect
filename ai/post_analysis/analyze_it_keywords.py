@@ -339,28 +339,25 @@ def normalize_it_keywords(value: object, max_keywords: int = AnalyzeItKeywordsCo
 
 
 def build_it_keyword_prompt(row: dict | pd.Series) -> str:
-    """Gemma용 단일 user prompt를 만든다."""
+    """Gemma에 전달할 IC02 keyword user prompt를 만든다."""
     title = _text_or_empty(row.get(AnalysisColumn.TITLE.value))
-    content = _text_or_empty(row.get(AnalysisColumn.CONTENT.value))
+    compressed_content = preprocess_it_content(row)
     interest = compute_interest_signal(row)
-    return "\n".join(
-        [
-            "당신은 IT 뉴스 게시글 기획을 위한 키워드 분석기입니다.",
-            "입력 글을 읽고 요약, 글의 흐름, 관심도 라벨, 게시글 생성용 키워드를 JSON으로만 반환하세요.",
-            "키워드는 기술 주제와 게시글 관점을 함께 포함해야 합니다.",
-            "반환 JSON 스키마:",
-            '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향","interest_label":"high","keywords":["PyTorch","추론 성능","배포 영향"]}',
-            "제약:",
-            "- keywords는 3개 이상 7개 이하입니다.",
-            "- keywords에는 기술명/제품명/프레임워크와 영향/리스크/활용 포인트를 함께 넣습니다.",
-            "- 원문에 없는 세부 사실을 만들지 않습니다.",
-            "- JSON 외 텍스트를 출력하지 않습니다.",
-            "",
-            f"[title]\n{title}",
-            f"[content]\n{content}",
-            f"[interest]\n{interest['description']}",
-        ]
-    )
+    prompt_lines = [
+        *AnalyzeItKeywordsConfig.PROMPT_INSTRUCTIONS,
+        AnalyzeItKeywordsConfig.PROMPT_SCHEMA_HEADER,
+        AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE,
+        AnalyzeItKeywordsConfig.PROMPT_CONSTRAINTS_HEADER,
+        AnalyzeItKeywordsConfig.PROMPT_KEYWORD_COUNT_TEMPLATE.format(
+            max_keywords=AnalyzeItKeywordsConfig.MAX_KEYWORDS,
+        ),
+        AnalyzeItKeywordsConfig.PROMPT_KEYWORD_GUIDE,
+        "",
+        f"{AnalyzeItKeywordsConfig.TITLE_PROMPT_LABEL}\n{title}",
+        f"{AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL}\n{compressed_content}",
+        f"{AnalyzeItKeywordsConfig.INTEREST_PROMPT_LABEL}\n{interest['description']}",
+    ]
+    return "\n".join(prompt_lines)
 
 
 def _ollama_chat_json(prompt: str) -> dict[str, Any]:
@@ -380,7 +377,10 @@ def _ollama_chat_json(prompt: str) -> dict[str, Any]:
     try:
         with urllib.request.urlopen(
             request,
-            timeout=AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS,
+            timeout=get_it_keyword_int_config(
+                AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS_ENV_KEY,
+                AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS,
+            ),
         ) as response:
             response_data = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError as exc:

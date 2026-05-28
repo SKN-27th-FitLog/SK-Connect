@@ -1,10 +1,13 @@
 """PA-L0-ITKW: IC02 IT keyword pure helpers and config."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 import pandas as pd
 
 from analyze_it_keywords import (
     ItKeywordResult,
+    _ollama_chat_json,
     build_it_keyword_prompt,
     compress_it_content,
     compute_interest_signal,
@@ -128,6 +131,14 @@ def test_pa_l0_itkw_009_preprocessing_config_defaults() -> None:
     assert AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL == "[compressed_content]"
     assert "summary" in AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE
     assert "AI" in AnalyzeItKeywordsConfig.IMPORTANT_TERMS
+    assert AnalyzeItKeywordsConfig.PROMPT_SCHEMA_HEADER == "반환 JSON 스키마:"
+    assert AnalyzeItKeywordsConfig.PROMPT_CONSTRAINTS_HEADER == "제약:"
+    assert AnalyzeItKeywordsConfig.PROMPT_KEYWORD_COUNT_TEMPLATE == (
+        "- keywords는 3개 이상 {max_keywords}개 이하입니다."
+    )
+    assert AnalyzeItKeywordsConfig.PROMPT_KEYWORD_GUIDE == (
+        "- keywords에는 기술명, 제품명, 프레임워크, 영향, 리스크, 활용 포인트를 함께 넣습니다."
+    )
 
 
 def test_pa_l0_itkw_010_int_config_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -271,3 +282,64 @@ def test_pa_l0_itkw_017_preprocess_row_uses_env_limits(
 
     assert len(compressed) <= 80
     assert "GPU 배포 자동화" in compressed
+
+
+def test_pa_l0_itkw_018_prompt_uses_compressed_content_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-L0-ITKW-018 [정상]: prompt는 원문 전체가 아니라 검증된 compressed_content를 쓴다."""
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY, "120")
+    raw_content = (
+        "AI 모델 업데이트가 공개됐고 추론 성능 개선을 설명합니다.\n\n"
+        "행사 안내는 현장 분위기를 설명하는 긴 문단이며 참석자 동선과 부스 배치 안내를 "
+        "자세히 반복하고 발표장 조명과 등록 절차까지 길게 덧붙이며 후원사 소개도 이어집니다.\n\n"
+        "GPU 비용과 API 변경 영향은 개발자에게 중요합니다."
+    )
+    assert len(normalize_it_content(raw_content)) > 120
+
+    prompt = build_it_keyword_prompt(
+        {
+            "title": "AI 모델 업데이트",
+            "content": raw_content,
+            "view_count": 100,
+            "comment_count": 1,
+            "point": 0,
+        }
+    )
+
+    assert AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL in prompt
+    assert AnalyzeItKeywordsConfig.CONTENT_PROMPT_LABEL not in prompt
+    assert raw_content not in prompt
+    assert "행사 안내는 현장 분위기" not in prompt
+
+
+@patch("analyze_it_keywords.urllib.request.urlopen")
+def test_pa_l0_itkw_019_ollama_timeout_uses_env_override(
+    mock_urlopen: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-L0-ITKW-019 [정상]: Ollama timeout은 IC02 전용 env override를 따른다."""
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return (
+                b'{"message":{"content":"{'
+                b'\\"summary\\":\\"s\\",'
+                b'\\"flow\\":\\"f\\",'
+                b'\\"interest_label\\":\\"low\\",'
+                b'\\"keywords\\":[\\"AI\\"]'
+                b'}"}}'
+            )
+
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS_ENV_KEY, "45")
+    mock_urlopen.return_value = FakeResponse()
+
+    _ollama_chat_json("prompt")
+
+    assert mock_urlopen.call_args.kwargs["timeout"] == 45
