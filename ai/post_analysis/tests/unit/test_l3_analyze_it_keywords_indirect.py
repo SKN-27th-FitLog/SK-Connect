@@ -63,6 +63,10 @@ def test_pa_l3_itkw_001_processes_ic02_missing_keywords_only(
     mock_merge.assert_called_once()
     df = mock_merge.call_args[0][0]
     assert len(df) == 1
+    assert list(df.columns) == [
+        AnalysisColumn.CRAWLING_ID.value,
+        AnalysisColumn.KEYWORDS.value,
+    ]
     assert df[AnalysisColumn.CRAWLING_ID.value].iloc[0] == 101
     assert (
         df[AnalysisColumn.KEYWORDS.value].iloc[0]

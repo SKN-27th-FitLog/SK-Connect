@@ -292,7 +292,8 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
         logger.info(PostAnalysisErrors.ItKeywords.no_successful_rows())
         return
 
-    merge_analysis_data(df.loc[success_indexes].copy())
+    merge_columns = [id_col, kw_col]
+    merge_analysis_data(df.loc[success_indexes, merge_columns].copy())
     logger.info("IC02 IT keyword extraction completed (%s rows)", len(success_indexes))
 
 
