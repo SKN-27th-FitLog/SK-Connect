@@ -228,3 +228,36 @@ def test_pa_l3_itkw_007_extract_uses_ollama_json_response(
         interest_label="high",
         keywords=["PyTorch", "GPU"],
     )
+
+
+@patch("analyze_it_keywords.merge_analysis_data")
+@patch("analyze_it_keywords._ollama_chat_json")
+@patch("analyze_it_keywords.preprocess_it_content")
+@patch("analyze_it_keywords.get_crawling_data")
+@patch("analyze_it_keywords.get_analysis_data")
+def test_pa_l3_itkw_008_preprocessing_failure_skips_ollama_and_merge(
+    mock_get_analysis: MagicMock,
+    mock_get_crawling: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_ollama_chat_json: MagicMock,
+    mock_merge: MagicMock,
+) -> None:
+    """전처리 검증 실패 row는 Ollama 호출과 MERGE 없이 skip한다."""
+    mock_get_analysis.return_value = pd.DataFrame(
+        {
+            AnalysisColumn.CRAWLING_ID.value: [501],
+            AnalysisColumn.TITLE.value: ["AI 모델 업데이트"],
+            AnalysisColumn.CONTENT.value: ["AI 모델 업데이트가 공개되었습니다."],
+            AnalysisColumn.KEYWORDS.value: [pd.NA],
+            AnalysisColumn.INFORMATION_CD.value: [CodeTable.INFORMATION_IT_INFO.value],
+        }
+    )
+    mock_get_crawling.return_value = pd.DataFrame()
+    mock_preprocess.side_effect = ValueError(
+        "IC02 전처리 결과가 원문에 없는 문장을 포함했습니다."
+    )
+
+    analyze_it_keywords()
+
+    mock_ollama_chat_json.assert_not_called()
+    mock_merge.assert_not_called()
