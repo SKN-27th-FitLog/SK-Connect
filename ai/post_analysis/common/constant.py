@@ -177,6 +177,7 @@ class AnalyzeItKeywordsConfig:
     TITLE_PROMPT_LABEL = "[title]"
     CONTENT_PROMPT_LABEL = "[content]"
     COMPRESSED_CONTENT_PROMPT_LABEL = "[compressed_content]"
+    CANDIDATE_PROMPT_LABEL = "[candidate_keywords]"
     INTEREST_PROMPT_LABEL = "[interest]"
     NORMALIZED_PARAGRAPH_SEPARATOR = "\n\n"
     PARAGRAPH_SPLIT_PATTERN = r"\n\s*\n+"
@@ -230,6 +231,9 @@ class AnalyzeItKeywordsConfig:
     PROMPT_KEYWORD_GUIDE = (
         "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다."
     )
+    PROMPT_CANDIDATE_LIMIT_GUIDE = (
+        "- keywords는 candidate_keywords에 있는 문자열만 사용합니다. 후보군 밖 새 키워드나 임의 합성어를 만들지 않습니다."
+    )
     KEYWORD_EXPANSION_INSTRUCTIONS = (
         "이전 응답의 keywords가 너무 적습니다.",
         "원문에 근거한 세부 키워드를 12개 이상 15개 이하로 다시 나누세요.",
@@ -247,6 +251,43 @@ class AnalyzeItKeywordsConfig:
     )
     MIN_KEYWORDS = 12
     MAX_KEYWORDS = 15
+    MAX_PROMPT_CANDIDATES = 40
+    MIN_CANDIDATE_SCORE = 2
+    CANDIDATE_MIN_KEYWORD_CHARS = 2
+    CANDIDATE_MAX_KEYWORD_CHARS = 40
+    CANDIDATE_TITLE_WEIGHT = 5
+    CANDIDATE_EARLY_CONTENT_WEIGHT = 3
+    CANDIDATE_FREQUENCY_WEIGHT = 2
+    CANDIDATE_TECH_PATTERN_WEIGHT = 3
+    CANDIDATE_IMPORTANT_TERM_WEIGHT = 2
+    CANDIDATE_SIGNAL_NEARBY_WEIGHT = 2
+    CANDIDATE_NOUN_POS_TAGS = ("NNG", "NNP", "SL", "SN")
+    CANDIDATE_SIGNAL_POS_TAGS = ("VV", "VA", "XR")
+    CANDIDATE_STOPWORDS = (
+        "이해",
+        "필요",
+        "가능",
+        "사용",
+        "지원",
+        "기반",
+        "관련",
+        "내용",
+        "부분",
+    )
+    CANDIDATE_SIGNAL_TERMS = (
+        "개선",
+        "지원",
+        "공개",
+        "변경",
+        "삭제",
+        "검증",
+        "자동화",
+        "최적화",
+        "절감",
+        "통합",
+        "배포",
+        "확장",
+    )
     DTYPE_OBJECT = "object"
     CONTENT_EMPTY_PLACEHOLDERS = ("", "-", "N/A")
     INTEREST_COMMENT_WEIGHT = 10

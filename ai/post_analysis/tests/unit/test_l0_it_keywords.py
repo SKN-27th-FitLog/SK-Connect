@@ -35,6 +35,9 @@ def test_pa_l0_itkw_001_config_defaults() -> None:
     assert AnalyzeItKeywordsConfig.MAX_KEYWORDS == 15
     assert AnalyzeItKeywordsConfig.INTEREST_HIGH_THRESHOLD == 1000
     assert AnalyzeItKeywordsConfig.INTEREST_MEDIUM_THRESHOLD == 100
+    assert AnalyzeItKeywordsConfig.CANDIDATE_PROMPT_LABEL == "[candidate_keywords]"
+    assert AnalyzeItKeywordsConfig.MAX_PROMPT_CANDIDATES == 40
+    assert AnalyzeItKeywordsConfig.MIN_CANDIDATE_SCORE > 0
 
 
 def test_pa_l0_itkw_002_error_messages() -> None:
@@ -162,6 +165,10 @@ def test_pa_l0_itkw_009_preprocessing_config_defaults() -> None:
     assert AnalyzeItKeywordsConfig.PROMPT_KEYWORD_GUIDE == (
         "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다."
     )
+    assert "후보군" in AnalyzeItKeywordsConfig.PROMPT_CANDIDATE_LIMIT_GUIDE
+    assert "이해" in AnalyzeItKeywordsConfig.CANDIDATE_STOPWORDS
+    assert "NNG" in AnalyzeItKeywordsConfig.CANDIDATE_NOUN_POS_TAGS
+    assert "VA" in AnalyzeItKeywordsConfig.CANDIDATE_SIGNAL_POS_TAGS
 
 
 def test_pa_l0_itkw_010_int_config_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
