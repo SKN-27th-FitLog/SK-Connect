@@ -153,10 +153,51 @@ IC02 전용 설정에 다음 값을 추가한다.
 - `MAX_UNIT_CHARS = 1200`
 - `MAX_CONTENT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_CHARS"`
 - `MAX_CONTENT_UNITS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_UNITS"`
+- `MAX_UNIT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_UNIT_CHARS"`
+- `REQUEST_TIMEOUT_SECONDS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_TIMEOUT_SECONDS"`
 
 환경변수 값이 없거나 양의 정수가 아니면 기본값을 사용한다.
 
-기존 `REQUEST_TIMEOUT_SECONDS = 120`은 이번 설계의 주 변경 대상이 아니다. 입력 압축 후에도 timeout이 반복될 경우 별도 설계로 timeout 환경변수화를 검토한다.
+기존 `REQUEST_TIMEOUT_SECONDS = 120`도 `AnalyzeItKeywordsConfig`의 기본값으로 유지하되, 실행 환경에서 `POST_ANALYSIS_IT_KEYWORDS_TIMEOUT_SECONDS`로 override할 수 있게 한다.
+
+## 설정 집중화와 하드코딩 금지
+
+구현 코드에는 반복 숫자, prompt 라벨, scoring keyword, env key 문자열을 산발적으로 하드코딩하지 않는다.
+
+다음 값은 `AnalyzeItKeywordsConfig`에 집중한다.
+
+- 전처리 숫자 제한값
+  - `MAX_CONTENT_CHARS`
+  - `MAX_CONTENT_UNITS`
+  - `MAX_UNIT_CHARS`
+- 환경변수 key
+  - `MAX_CONTENT_CHARS_ENV_KEY`
+  - `MAX_CONTENT_UNITS_ENV_KEY`
+  - `MAX_UNIT_CHARS_ENV_KEY`
+  - `REQUEST_TIMEOUT_SECONDS_ENV_KEY`
+- content unit scoring에 쓰는 IT 관점 단어 목록
+  - `IMPORTANT_TERMS`
+- prompt에 쓰는 고정 라벨
+  - `TITLE_PROMPT_LABEL`
+  - `COMPRESSED_CONTENT_PROMPT_LABEL`
+  - `INTEREST_PROMPT_LABEL`
+- LLM 응답 예시 schema 문자열
+  - `RESPONSE_SCHEMA_EXAMPLE`
+
+환경변수 override를 읽는 로직은 별도 helper로 둔다.
+
+```text
+get_it_keyword_int_config(env_key, default)
+```
+
+이 helper는 다음 규칙을 따른다.
+
+- 환경변수가 없으면 default를 반환한다.
+- 환경변수가 양의 정수이면 해당 값을 반환한다.
+- 환경변수가 비어 있거나 양의 정수가 아니면 default를 반환한다.
+- 잘못된 환경변수 값 때문에 배치가 중단되지 않는다.
+
+전처리 함수 내부에는 의미 있는 숫자 literal을 직접 두지 않는다. 테스트도 config 값을 기준으로 검증한다.
 
 ## Prompt 변경
 
@@ -191,6 +232,8 @@ LLM에는 이 텍스트가 원문 발췌 압축본임을 명시한다. 새 사�
 - 검증 실패 row만 있으면 MERGE를 호출하지 않는다.
 - `build_it_keyword_prompt`는 `[compressed_content]`를 포함하고 원문 전체를 그대로 넣지 않는다.
 - 환경변수로 max chars/units를 override할 수 있다.
+- 전처리 숫자 제한값, prompt 라벨, IT 관점 단어 목록이 `AnalyzeItKeywordsConfig`에 집중되어 있다.
+- 잘못된 환경변수 값은 default로 fallback된다.
 
 ## 운영 기대 효과
 
@@ -208,3 +251,4 @@ LLM에는 이 텍스트가 원문 발췌 압축본임을 명시한다. 새 사�
 - 기존 IC01 감성/BERT 키워드 테스트가 통과한다.
 - 전체 `ai/post_analysis` 테스트가 통과한다.
 - DB merge payload는 계속 `crawling_id`, `keywords`만 포함한다.
+- 전처리 관련 숫자·라벨·scoring terms가 함수 내부에 흩어져 있지 않고 config로 관리된다.
