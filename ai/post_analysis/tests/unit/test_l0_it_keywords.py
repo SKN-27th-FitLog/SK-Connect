@@ -12,6 +12,7 @@ from analyze_it_keywords import (
     build_it_keyword_prompt,
     compress_it_content,
     compute_interest_signal,
+    extract_it_keywords,
     get_it_keyword_int_config,
     get_ollama_base_url,
     get_ollama_model_name,
@@ -461,3 +462,39 @@ def test_pa_l0_itkw_024_candidate_prompt_format_is_ranked_and_limited() -> None:
 
     assert prompt_text.count("\n") <= 2
     assert "NVIDIA Agent Skills" in prompt_text
+
+
+def test_pa_l0_itkw_025_prompt_includes_candidate_keywords() -> None:
+    """PA-L0-ITKW-025 [정상]: IC02 prompt는 원문 후보군과 후보군 제한 규칙을 포함한다."""
+    prompt = build_it_keyword_prompt(
+        {
+            "title": "NVIDIA Agent Skills",
+            "content": "NVIDIA Agent Skills는 CUDA-X 라이브러리와 SkillSpector 검증 파이프라인을 제공합니다.",
+        }
+    )
+
+    assert AnalyzeItKeywordsConfig.CANDIDATE_PROMPT_LABEL in prompt
+    assert "후보군 밖 새 키워드" in prompt
+    assert "NVIDIA Agent Skills" in prompt
+
+
+@patch("analyze_it_keywords._ollama_chat_json")
+def test_pa_l0_itkw_026_extract_filters_llm_keywords_by_candidates(
+    mock_chat: MagicMock,
+) -> None:
+    """PA-L0-ITKW-026 [정상]: LLM 응답은 저장 전 원문 후보군으로 다시 제한된다."""
+    mock_chat.return_value = {
+        "summary": "git-sync 요약",
+        "flow": "동기화 -> 메모리 영향",
+        "interest_label": "medium",
+        "keywords": ["git-sync", "타겟 리모트", "Git 레미트리치닝", "프로덕션 배포"],
+    }
+
+    result = extract_it_keywords(
+        {
+            "title": "git-sync 리모트 미러링",
+            "content": "소스 리모트에서 타겟 리모트로 ref와 오브젝트를 직접 스트리밍하며 메모리 사용량은 일정합니다.",
+        }
+    )
+
+    assert result.keywords == ["git-sync", "타겟 리모트"]

@@ -37,6 +37,24 @@ def _crawling_df() -> pd.DataFrame:
     )
 
 
+def _candidate_terms() -> list[str]:
+    """후보군 검증 테스트에 사용할 원문 내 영문 기술명 목록."""
+    return [
+        "PyTorch",
+        "GPU",
+        "API",
+        "CUDA",
+        "Kubernetes",
+        "Terraform",
+        "Docker",
+        "Linux",
+        "Python",
+        "Rust",
+        "Java",
+        "Node",
+    ]
+
+
 @patch("analyze_it_keywords.merge_analysis_data")
 @patch("analyze_it_keywords.extract_it_keywords")
 @patch("analyze_it_keywords.get_crawling_data")
@@ -212,21 +230,27 @@ def test_pa_l3_itkw_007_extract_uses_ollama_json_response(
     mock_ollama_chat_json: MagicMock,
 ) -> None:
     """extract_it_keywords는 Ollama JSON dict를 ItKeywordResult로 검증한다."""
+    candidate_terms = _candidate_terms()
     mock_ollama_chat_json.return_value = {
         "summary": "summary",
         "flow": "release -> impact",
         "interest_label": "high",
-        "keywords": [f"keyword-{index}" for index in range(1, 13)],
+        "keywords": candidate_terms,
     }
 
-    result = extract_it_keywords({"title": "PyTorch", "content": "GPU update"})
+    result = extract_it_keywords(
+        {
+            "title": "PyTorch GPU API",
+            "content": " ".join([*candidate_terms, "update"]),
+        }
+    )
 
     mock_ollama_chat_json.assert_called_once()
     assert result == ItKeywordResult(
         summary="summary",
         flow="release -> impact",
         interest_label="high",
-        keywords=[f"keyword-{index}" for index in range(1, 13)],
+        keywords=candidate_terms,
     )
 
 
@@ -235,7 +259,7 @@ def test_pa_l3_itkw_007_1_extract_retries_when_keywords_are_too_sparse(
     mock_ollama_chat_json: MagicMock,
 ) -> None:
     """extract_it_keywords는 12개 미만 응답이면 한 번 더 세분화 요청을 보낸다."""
-    expanded_keywords = [f"keyword-{index}" for index in range(1, 13)]
+    expanded_keywords = _candidate_terms()
     mock_ollama_chat_json.side_effect = [
         {
             "summary": "summary",
@@ -251,7 +275,12 @@ def test_pa_l3_itkw_007_1_extract_retries_when_keywords_are_too_sparse(
         },
     ]
 
-    result = extract_it_keywords({"title": "PyTorch", "content": "GPU API update"})
+    result = extract_it_keywords(
+        {
+            "title": "PyTorch GPU API",
+            "content": " ".join([*expanded_keywords, "update"]),
+        }
+    )
 
     assert mock_ollama_chat_json.call_count == 2
     assert result.keywords == expanded_keywords
@@ -325,3 +354,38 @@ def test_pa_l3_itkw_009_wraps_ic02_rows_with_progress_bar(
     assert mock_tqdm.call_args.kwargs["unit"] == AnalyzeItKeywordsConfig.PROGRESS_UNIT
     assert mock_extract.call_count == 2
     mock_merge.assert_called_once()
+
+
+@patch("analyze_it_keywords.merge_analysis_data")
+@patch("analyze_it_keywords._ollama_chat_json")
+@patch("analyze_it_keywords.get_crawling_data")
+@patch("analyze_it_keywords.get_analysis_data")
+def test_pa_l3_itkw_010_invalid_candidate_keywords_skip_merge(
+    mock_get_analysis: MagicMock,
+    mock_get_crawling: MagicMock,
+    mock_chat: MagicMock,
+    mock_merge: MagicMock,
+) -> None:
+    """후보군 밖 키워드만 반환된 row는 빈 결과로 보고 MERGE하지 않는다."""
+    mock_get_analysis.return_value = pd.DataFrame(
+        {
+            AnalysisColumn.CRAWLING_ID.value: [901],
+            AnalysisColumn.TITLE.value: ["git-sync 리모트 미러링"],
+            AnalysisColumn.CONTENT.value: [
+                "소스 리모트에서 타겟 리모트로 ref와 오브젝트를 직접 스트리밍합니다."
+            ],
+            AnalysisColumn.KEYWORDS.value: [pd.NA],
+            AnalysisColumn.INFORMATION_CD.value: [CodeTable.INFORMATION_IT_INFO.value],
+        }
+    )
+    mock_get_crawling.return_value = pd.DataFrame()
+    mock_chat.return_value = {
+        "summary": "요약",
+        "flow": "흐름",
+        "interest_label": "low",
+        "keywords": ["Git 레미트리치닝", "프로덕션 배포"],
+    }
+
+    analyze_it_keywords()
+
+    mock_merge.assert_not_called()

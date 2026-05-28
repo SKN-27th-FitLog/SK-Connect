@@ -18,6 +18,12 @@ from tqdm import tqdm
 import common.env  # noqa: F401 - DB/Ollama 환경변수 로드
 from common.constant import AnalysisColumn, AnalyzeItKeywordsConfig, CodeTable, CrawlingColumn
 from common.errors import PostAnalysisErrors
+from common.it_keyword_candidates import (
+    ItKeywordCandidate,
+    extract_it_keyword_candidates,
+    filter_it_keywords_by_candidates,
+    format_candidate_keywords_for_prompt,
+)
 from postgresql.run_query import get_analysis_data, get_crawling_data, merge_analysis_data
 
 logger = logging.getLogger(__name__)
@@ -338,10 +344,34 @@ def _keyword_count(value: object) -> int:
     return normalized.count("#")
 
 
-def build_it_keyword_prompt(row: dict | pd.Series) -> str:
+def _build_candidate_context(
+    title: str,
+    compressed_content: str,
+) -> tuple[list[ItKeywordCandidate], str]:
+    """IC02 prompt와 저장 전 검증에 사용할 원문 후보군을 만든다."""
+    candidates = extract_it_keyword_candidates(title, compressed_content)
+    candidate_prompt = format_candidate_keywords_for_prompt(candidates)
+    return candidates, candidate_prompt
+
+
+def build_it_keyword_prompt(
+    row: dict | pd.Series,
+    *,
+    compressed_content: str | None = None,
+    candidates: list[ItKeywordCandidate] | None = None,
+) -> str:
     """Gemma에 전달할 IC02 keyword user prompt를 만든다."""
     title = _text_or_empty(row.get(AnalysisColumn.TITLE.value))
-    compressed_content = preprocess_it_content(row)
+    resolved_compressed_content = (
+        compressed_content if compressed_content is not None else preprocess_it_content(row)
+    )
+    resolved_candidates, candidate_prompt = (
+        _build_candidate_context(title, resolved_compressed_content)
+        if candidates is None
+        else (candidates, format_candidate_keywords_for_prompt(candidates))
+    )
+    if not resolved_candidates or not candidate_prompt:
+        raise ValueError("IC02 키워드 후보군이 비어 있습니다.")
     interest = compute_interest_signal(row)
     prompt_lines = [
         *AnalyzeItKeywordsConfig.PROMPT_INSTRUCTIONS,
@@ -353,9 +383,11 @@ def build_it_keyword_prompt(row: dict | pd.Series) -> str:
             max_keywords=AnalyzeItKeywordsConfig.MAX_KEYWORDS,
         ),
         AnalyzeItKeywordsConfig.PROMPT_KEYWORD_GUIDE,
+        AnalyzeItKeywordsConfig.PROMPT_CANDIDATE_LIMIT_GUIDE,
         "",
         f"{AnalyzeItKeywordsConfig.TITLE_PROMPT_LABEL}\n{title}",
-        f"{AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL}\n{compressed_content}",
+        f"{AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL}\n{resolved_compressed_content}",
+        f"{AnalyzeItKeywordsConfig.CANDIDATE_PROMPT_LABEL}\n{candidate_prompt}",
         f"{AnalyzeItKeywordsConfig.INTEREST_PROMPT_LABEL}\n{interest['description']}",
     ]
     return "\n".join(prompt_lines)
@@ -407,13 +439,25 @@ def _ollama_chat_json(prompt: str) -> dict[str, Any]:
 
 def extract_it_keywords(row: dict | pd.Series) -> ItKeywordResult:
     """IC02 row 하나를 Ollama로 분석해 요약, 흐름, 키워드를 추출한다."""
-    prompt = build_it_keyword_prompt(row)
+    title = _text_or_empty(row.get(AnalysisColumn.TITLE.value))
+    compressed_content = preprocess_it_content(row)
+    candidates, _candidate_prompt = _build_candidate_context(title, compressed_content)
+    if not candidates:
+        raise ValueError("IC02 키워드 후보군이 비어 있습니다.")
+
+    prompt = build_it_keyword_prompt(
+        row,
+        compressed_content=compressed_content,
+        candidates=candidates,
+    )
     result = ItKeywordResult(**_ollama_chat_json(prompt))
+    result.keywords = filter_it_keywords_by_candidates(result.keywords, candidates)
     if _keyword_count(result.keywords) >= AnalyzeItKeywordsConfig.MIN_KEYWORDS:
         return result
 
     expanded_prompt = _build_keyword_expansion_prompt(prompt, result)
     expanded_result = ItKeywordResult(**_ollama_chat_json(expanded_prompt))
+    expanded_result.keywords = filter_it_keywords_by_candidates(expanded_result.keywords, candidates)
     if _keyword_count(expanded_result.keywords) > _keyword_count(result.keywords):
         return expanded_result
     return result
