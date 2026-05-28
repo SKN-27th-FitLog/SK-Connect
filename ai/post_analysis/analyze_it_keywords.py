@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -82,6 +83,205 @@ def _text_or_empty(value: object) -> str:
     except (TypeError, ValueError):
         pass
     return str(value).strip()
+
+
+def normalize_it_content(content: object) -> str:
+    """IC02 content를 의미 변경 없이 비교 가능한 텍스트로 정규화한다."""
+    text = html.unescape(_text_or_empty(content))
+    text = re.sub(AnalyzeItKeywordsConfig.LINE_BREAK_PATTERN, "\n", text)
+    text = re.sub(AnalyzeItKeywordsConfig.INLINE_SPACE_PATTERN, " ", text)
+    text = re.sub(AnalyzeItKeywordsConfig.MULTI_BLANK_LINE_PATTERN, "\n\n", text)
+    paragraphs = [
+        " ".join(paragraph.strip().split())
+        for paragraph in re.split(AnalyzeItKeywordsConfig.PARAGRAPH_SPLIT_PATTERN, text)
+        if paragraph.strip()
+    ]
+    return AnalyzeItKeywordsConfig.NORMALIZED_PARAGRAPH_SEPARATOR.join(paragraphs)
+
+
+def split_content_units(content: str, max_unit_chars: int) -> list[str]:
+    """정규화된 content를 문단 우선, 긴 문단은 문장 단위로 나눈다."""
+    normalized = normalize_it_content(content)
+    if not normalized:
+        return []
+
+    units: list[str] = []
+    paragraphs = re.split(AnalyzeItKeywordsConfig.PARAGRAPH_SPLIT_PATTERN, normalized)
+    for paragraph in paragraphs:
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        if len(paragraph) <= max_unit_chars:
+            units.append(paragraph)
+            continue
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(AnalyzeItKeywordsConfig.SENTENCE_SPLIT_PATTERN, paragraph)
+            if sentence.strip()
+        ]
+        units.extend(sentences if sentences else [paragraph])
+    return units
+
+
+def _title_tokens(title: str) -> set[str]:
+    """제목에서 unit scoring에 사용할 토큰을 추출한다."""
+    return {
+        token.lower()
+        for token in re.findall(AnalyzeItKeywordsConfig.WORD_PATTERN, title)
+        if token.strip()
+    }
+
+
+def _score_content_unit(
+    unit: str,
+    *,
+    title_tokens: set[str],
+    index: int,
+    last_index: int,
+) -> tuple[bool, bool, int, int, int]:
+    """LLM 없이 deterministic 기준으로 content unit 중요도를 계산한다."""
+    lowered = unit.lower()
+    overlap_count = sum(
+        1
+        for token in title_tokens
+        if token and token in lowered
+    )
+    important_count = sum(
+        1
+        for term in AnalyzeItKeywordsConfig.IMPORTANT_TERMS
+        if term.lower() in lowered
+    )
+    number_count = len(re.findall(AnalyzeItKeywordsConfig.NUMBER_PATTERN, unit))
+    return (
+        index == 0,
+        index == last_index,
+        overlap_count,
+        important_count,
+        number_count,
+    )
+
+
+def _fit_units_to_budget(units: list[str], max_chars: int, max_units: int) -> list[str]:
+    """원문 순서를 유지하면서 선택된 unit을 글자 수와 개수 예산에 맞춘다."""
+    selected: list[str] = []
+    current_chars = 0
+    separator_len = len(AnalyzeItKeywordsConfig.NORMALIZED_PARAGRAPH_SEPARATOR)
+    for unit in units:
+        next_len = len(unit) if not selected else len(unit) + separator_len
+        if len(selected) >= max_units:
+            break
+        if current_chars + next_len > max_chars:
+            continue
+        selected.append(unit)
+        current_chars += next_len
+    return selected
+
+
+def select_content_units(
+    title: object,
+    units: list[str],
+    max_chars: int,
+    max_units: int,
+) -> list[str]:
+    """중요도와 원문 순서를 기준으로 LLM 입력에 포함할 unit을 고른다."""
+    if not units:
+        return []
+
+    title_tokens = _title_tokens(_text_or_empty(title))
+    last_index = len(units) - 1
+    ranked = sorted(
+        enumerate(units),
+        key=lambda item: (
+            _score_content_unit(
+                item[1],
+                title_tokens=title_tokens,
+                index=item[0],
+                last_index=last_index,
+            ),
+            -item[0],
+        ),
+        reverse=True,
+    )
+    selected_indexes = sorted(index for index, _unit in ranked[:max_units])
+    ranked_units = [units[index] for index in selected_indexes]
+    return _fit_units_to_budget(ranked_units, max_chars, max_units)
+
+
+def validate_preprocessed_content(original: str, compressed: str, max_chars: int) -> None:
+    """압축 결과가 원문 발췌이고 긴 원문에서 실제 압축됐는지 검증한다."""
+    normalized_original = normalize_it_content(original)
+    normalized_compressed = normalize_it_content(compressed)
+    if not normalized_compressed:
+        raise ValueError("IC02 전처리 결과가 비어 있습니다.")
+
+    units = split_content_units(normalized_compressed, len(normalized_compressed))
+    for unit in units:
+        if unit not in normalized_original:
+            raise ValueError("IC02 전처리 결과에 원문에 없는 문장이 포함됐습니다.")
+
+    if len(normalized_original) > max_chars:
+        if len(normalized_compressed) >= len(normalized_original):
+            raise ValueError("IC02 긴 원문이 실제로 압축되지 않았습니다.")
+        if len(normalized_compressed) > max_chars:
+            raise ValueError("IC02 전처리 결과가 최대 길이를 초과했습니다.")
+
+
+def compress_it_content(
+    title: object,
+    content: object,
+    max_chars: int | None = None,
+    max_units: int | None = None,
+    max_unit_chars: int | None = None,
+) -> str:
+    """IC02 content를 원문 발췌 기반 compressed_content로 만든다."""
+    resolved_max_chars = (
+        max_chars
+        if max_chars is not None
+        else get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY,
+            AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS,
+        )
+    )
+    resolved_max_units = (
+        max_units
+        if max_units is not None
+        else get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY,
+            AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS,
+        )
+    )
+    resolved_max_unit_chars = (
+        max_unit_chars
+        if max_unit_chars is not None
+        else get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.MAX_UNIT_CHARS_ENV_KEY,
+            AnalyzeItKeywordsConfig.MAX_UNIT_CHARS,
+        )
+    )
+
+    original = normalize_it_content(content)
+    units = split_content_units(original, resolved_max_unit_chars)
+    if len(original) <= resolved_max_chars:
+        validate_preprocessed_content(original, original, resolved_max_chars)
+        return original
+
+    selected = select_content_units(
+        title,
+        units,
+        resolved_max_chars,
+        resolved_max_units,
+    )
+    compressed = AnalyzeItKeywordsConfig.NORMALIZED_PARAGRAPH_SEPARATOR.join(selected)
+    validate_preprocessed_content(original, compressed, resolved_max_chars)
+    return compressed
+
+
+def preprocess_it_content(row: dict | pd.Series) -> str:
+    """IC02 row에서 LLM에 전달할 compressed_content를 만든다."""
+    return compress_it_content(
+        row.get(AnalysisColumn.TITLE.value),
+        row.get(AnalysisColumn.CONTENT.value),
+    )
 
 
 def compute_interest_signal(row: dict | pd.Series) -> dict[str, object]:

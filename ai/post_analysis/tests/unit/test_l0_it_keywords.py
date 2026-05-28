@@ -6,11 +6,16 @@ import pandas as pd
 from analyze_it_keywords import (
     ItKeywordResult,
     build_it_keyword_prompt,
+    compress_it_content,
     compute_interest_signal,
     get_it_keyword_int_config,
     get_ollama_base_url,
     get_ollama_model_name,
+    normalize_it_content,
     normalize_it_keywords,
+    preprocess_it_content,
+    split_content_units,
+    validate_preprocessed_content,
 )
 from common.constant import AnalyzeItKeywordsConfig
 from common.errors import PostAnalysisErrors
@@ -159,3 +164,110 @@ def test_pa_l0_itkw_011_int_config_falls_back_for_invalid_values(
         )
         == AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS
     )
+
+
+def test_pa_l0_itkw_012_short_content_keeps_normalized_original() -> None:
+    """PA-L0-ITKW-012 [정상]: 짧은 원문은 내용 압축 없이 정규화 결과를 그대로 둔다."""
+    original = "첫 줄&nbsp;내용\r\n\r\n다음 줄  내용"
+
+    compressed = compress_it_content("AI 릴리스", original)
+
+    assert compressed == "첫 줄 내용\n\n다음 줄 내용"
+
+
+def test_pa_l0_itkw_012_1_short_content_keeps_original_even_with_many_units(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-L0-ITKW-012-1 [경계]: 짧은 원문은 unit 수가 많아도 원문 정규화 결과를 유지한다."""
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY, "2")
+    original = "\n\n".join(
+        [
+            "AI 모델 업데이트가 공개됐습니다.",
+            "GPU 배포 영향이 언급됐습니다.",
+            "API 변경 사항이 정리됐습니다.",
+        ]
+    )
+
+    compressed = compress_it_content("AI 업데이트", original)
+
+    assert compressed == normalize_it_content(original)
+
+
+def test_pa_l0_itkw_013_long_content_is_compressed_under_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-L0-ITKW-013 [정상]: 긴 원문은 max chars 이하의 원문 발췌문으로 압축한다."""
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY, "120")
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY, "3")
+    long_content = "\n\n".join(
+        [
+            "AI 모델 업데이트가 공개됐고 추론 성능 개선이 핵심입니다.",
+            "행사와 주변 소식과 일정 안내입니다.",
+            "GPU 비용과 배포 자동화 영향은 개발자에게 중요합니다.",
+            "커뮤니티 평가는 API 변경과 라이선스 리스크를 주로 언급합니다.",
+            "마지막으로 보안 취약점 대응 일정이 정리됐습니다.",
+        ]
+    )
+
+    compressed = compress_it_content("AI 모델 업데이트", long_content)
+
+    assert len(compressed) <= 120
+    assert len(compressed) < len(normalize_it_content(long_content))
+    validate_preprocessed_content(
+        normalize_it_content(long_content),
+        compressed,
+        120,
+    )
+
+
+def test_pa_l0_itkw_014_validation_rejects_text_not_in_original() -> None:
+    """PA-L0-ITKW-014 [실패]: 압축 결과가 원문 밖 문장을 포함하면 검증 실패."""
+    original = normalize_it_content("AI 모델 업데이트가 공개됐습니다.")
+    compressed = "원문에 없는 투자 조언입니다."
+
+    with pytest.raises(ValueError, match="원문"):
+        validate_preprocessed_content(original, compressed, 100)
+
+
+def test_pa_l0_itkw_015_validation_rejects_uncompressed_long_content() -> None:
+    """PA-L0-ITKW-015 [실패]: 긴 원문이 실제로 줄지 않았으면 검증 실패."""
+    original = normalize_it_content(
+        "AI 모델 업데이트가 공개됐습니다.\n\nGPU 배포 영향이 큽니다."
+    )
+
+    with pytest.raises(ValueError, match="압축"):
+        validate_preprocessed_content(original, original, 20)
+
+
+def test_pa_l0_itkw_016_long_paragraph_splits_by_sentence() -> None:
+    """PA-L0-ITKW-016 [경계]: 긴 단일 문단은 문장 단위 후보로 분리한다."""
+    paragraph = (
+        "AI 모델 업데이트가 공개됐습니다. "
+        "추론 성능 개선이 핵심입니다. "
+        "GPU 비용과 배포 자동화 영향은 개발자에게 중요합니다."
+    )
+
+    units = split_content_units(paragraph, 35)
+
+    assert len(units) >= 2
+    assert "추론 성능 개선이 핵심입니다." in units
+
+
+def test_pa_l0_itkw_017_preprocess_row_uses_env_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-L0-ITKW-017 [정상]: row 전처리는 env 제한값을 적용한다."""
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY, "80")
+    row = {
+        "title": "GPU 배포",
+        "content": (
+            "GPU 배포 자동화가 공개됐습니다.\n\n"
+            "행사 안내 문단입니다.\n\n"
+            "API 변경과 보안 리스크가 함께 언급됐습니다."
+        ),
+    }
+
+    compressed = preprocess_it_content(row)
+
+    assert len(compressed) <= 80
+    assert "GPU 배포 자동화" in compressed
