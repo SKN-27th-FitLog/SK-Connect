@@ -181,6 +181,8 @@ IC02 전용 설정에 다음 값을 추가한다.
   - `TITLE_PROMPT_LABEL`
   - `COMPRESSED_CONTENT_PROMPT_LABEL`
   - `INTEREST_PROMPT_LABEL`
+- prompt에 쓰는 고정 지시문
+  - `PROMPT_INSTRUCTIONS`
 - LLM 응답 예시 schema 문자열
   - `RESPONSE_SCHEMA_EXAMPLE`
 
@@ -198,6 +200,8 @@ get_it_keyword_int_config(env_key, default)
 - 잘못된 환경변수 값 때문에 배치가 중단되지 않는다.
 
 전처리 함수 내부에는 의미 있는 숫자 literal을 직접 두지 않는다. 테스트도 config 값을 기준으로 검증한다.
+
+전역 상태는 불변 설정 상수만 허용한다. 함수 실행 중 변경되는 mutable global cache, module-level accumulator, singleton 상태가 필요해지면 구현을 중단하고 사용자에게 확인한다.
 
 ## Prompt 변경
 
@@ -232,7 +236,7 @@ LLM에는 이 텍스트가 원문 발췌 압축본임을 명시한다. 새 사�
 - 검증 실패 row만 있으면 MERGE를 호출하지 않는다.
 - `build_it_keyword_prompt`는 `[compressed_content]`를 포함하고 원문 전체를 그대로 넣지 않는다.
 - 환경변수로 max chars/units를 override할 수 있다.
-- 전처리 숫자 제한값, prompt 라벨, IT 관점 단어 목록이 `AnalyzeItKeywordsConfig`에 집중되어 있다.
+- 전처리 숫자 제한값, prompt 라벨, prompt 지시문, IT 관점 단어 목록이 `AnalyzeItKeywordsConfig`에 집중되어 있다.
 - 잘못된 환경변수 값은 default로 fallback된다.
 
 ## 운영 기대 효과
@@ -251,4 +255,5 @@ LLM에는 이 텍스트가 원문 발췌 압축본임을 명시한다. 새 사�
 - 기존 IC01 감성/BERT 키워드 테스트가 통과한다.
 - 전체 `ai/post_analysis` 테스트가 통과한다.
 - DB merge payload는 계속 `crawling_id`, `keywords`만 포함한다.
-- 전처리 관련 숫자·라벨·scoring terms가 함수 내부에 흩어져 있지 않고 config로 관리된다.
+- 전처리 관련 숫자·라벨·prompt 지시문·scoring terms가 함수 내부에 흩어져 있지 않고 config로 관리된다.
+- 구현 중 mutable global state가 필요하다고 판단되면 구현을 멈추고 사용자 확인을 받는다.
