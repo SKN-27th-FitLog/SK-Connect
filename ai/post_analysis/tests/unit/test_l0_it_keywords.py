@@ -17,6 +17,7 @@ from analyze_it_keywords import (
     normalize_it_content,
     normalize_it_keywords,
     preprocess_it_content,
+    select_content_units,
     split_content_units,
     validate_preprocessed_content,
 )
@@ -343,3 +344,21 @@ def test_pa_l0_itkw_019_ollama_timeout_uses_env_override(
     _ollama_chat_json("prompt")
 
     assert mock_urlopen.call_args.kwargs["timeout"] == 45
+
+
+def test_pa_l0_itkw_020_selection_keeps_searching_after_oversized_ranked_unit() -> None:
+    """PA-L0-ITKW-020 [경계]: 상위 후보가 너무 길면 예산 안에 드는 다음 후보를 선택한다."""
+    units = [
+        "AI GPU 모델 업데이트와 배포 자동화 영향이 길게 설명되어 글자 수 예산을 초과합니다.",
+        "일정 안내",
+        "API 변경",
+    ]
+
+    selected = select_content_units(
+        "AI GPU",
+        units,
+        max_chars=10,
+        max_units=1,
+    )
+
+    assert selected == ["API 변경"]

@@ -161,22 +161,6 @@ def _score_content_unit(
     )
 
 
-def _fit_units_to_budget(units: list[str], max_chars: int, max_units: int) -> list[str]:
-    """원문 순서를 유지하면서 선택된 unit을 글자 수와 개수 예산에 맞춘다."""
-    selected: list[str] = []
-    current_chars = 0
-    separator_len = len(AnalyzeItKeywordsConfig.NORMALIZED_PARAGRAPH_SEPARATOR)
-    for unit in units:
-        next_len = len(unit) if not selected else len(unit) + separator_len
-        if len(selected) >= max_units:
-            break
-        if current_chars + next_len > max_chars:
-            continue
-        selected.append(unit)
-        current_chars += next_len
-    return selected
-
-
 def select_content_units(
     title: object,
     units: list[str],
@@ -202,9 +186,18 @@ def select_content_units(
         ),
         reverse=True,
     )
-    selected_indexes = sorted(index for index, _unit in ranked[:max_units])
-    ranked_units = [units[index] for index in selected_indexes]
-    return _fit_units_to_budget(ranked_units, max_chars, max_units)
+    selected_indexes: list[int] = []
+    current_chars = 0
+    separator_len = len(AnalyzeItKeywordsConfig.NORMALIZED_PARAGRAPH_SEPARATOR)
+    for index, unit in ranked:
+        if len(selected_indexes) >= max_units:
+            break
+        next_len = len(unit) if not selected_indexes else len(unit) + separator_len
+        if current_chars + next_len > max_chars:
+            continue
+        selected_indexes.append(index)
+        current_chars += next_len
+    return [units[index] for index in sorted(selected_indexes)]
 
 
 def validate_preprocessed_content(original: str, compressed: str, max_chars: int) -> None:
