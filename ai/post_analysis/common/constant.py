@@ -158,6 +158,23 @@ class AnalyzeKeywordsConfig:
     CONTENT_EMPTY_PLACEHOLDERS: tuple[str, ...] = ("", "-", "N/A")
 
 
+class AnalyzeItKeywordsConfig:
+    """IC02 IT 뉴스 키워드 분석 배치 설정."""
+
+    MODEL_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MODEL"
+    OLLAMA_BASE_URL_ENV_KEY = "OLLAMA_BASE_URL"
+    DEFAULT_MODEL = "gemma4:26b"
+    DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+    REQUEST_TIMEOUT_SECONDS = 120
+    MAX_KEYWORDS = 7
+    DTYPE_OBJECT = "object"
+    CONTENT_EMPTY_PLACEHOLDERS = ("", "-", "N/A")
+    INTEREST_COMMENT_WEIGHT = 10
+    INTEREST_POINT_WEIGHT = 20
+    INTEREST_HIGH_THRESHOLD = 1000
+    INTEREST_MEDIUM_THRESHOLD = 100
+
+
 class BertKeywords:
     """BERT span 키워드 추출(`common/bert_keywords`) 설정."""
 
