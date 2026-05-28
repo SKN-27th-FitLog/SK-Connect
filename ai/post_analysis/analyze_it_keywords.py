@@ -43,6 +43,20 @@ def get_ollama_base_url() -> str:
     return base_url.rstrip("/")
 
 
+def get_it_keyword_int_config(env_key: str, default: int) -> int:
+    """IC02 정수 설정값을 환경변수에서 읽고 실패하면 기본값을 반환한다."""
+    value = os.environ.get(env_key)
+    if value is None or not value.strip():
+        return default
+    try:
+        parsed = int(value.strip())
+    except ValueError:
+        return default
+    if parsed < AnalyzeItKeywordsConfig.MIN_POSITIVE_CONFIG_VALUE:
+        return default
+    return parsed
+
+
 def _number_or_zero(value: object) -> float:
     """관심도 계산용 숫자 변환. 결측·변환 실패는 0."""
     if value is None or value is pd.NA:

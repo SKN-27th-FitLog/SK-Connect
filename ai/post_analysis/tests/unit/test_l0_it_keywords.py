@@ -7,6 +7,7 @@ from analyze_it_keywords import (
     ItKeywordResult,
     build_it_keyword_prompt,
     compute_interest_signal,
+    get_it_keyword_int_config,
     get_ollama_base_url,
     get_ollama_model_name,
     normalize_it_keywords,
@@ -100,3 +101,61 @@ def test_pa_l0_itkw_008_response_model() -> None:
         keywords=["PyTorch", "추론 성능"],
     )
     assert result.keywords == ["PyTorch", "추론 성능"]
+
+
+def test_pa_l0_itkw_009_preprocessing_config_defaults() -> None:
+    """PA-L0-ITKW-009 [불변]: IC02 전처리 기본 정책값은 config에 모인다."""
+    assert AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY == (
+        "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_CHARS"
+    )
+    assert AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY == (
+        "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_UNITS"
+    )
+    assert AnalyzeItKeywordsConfig.MAX_UNIT_CHARS_ENV_KEY == (
+        "POST_ANALYSIS_IT_KEYWORDS_MAX_UNIT_CHARS"
+    )
+    assert AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS_ENV_KEY == (
+        "POST_ANALYSIS_IT_KEYWORDS_TIMEOUT_SECONDS"
+    )
+    assert AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS == 2500
+    assert AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS == 8
+    assert AnalyzeItKeywordsConfig.MAX_UNIT_CHARS == 1200
+    assert AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL == "[compressed_content]"
+    assert "summary" in AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE
+    assert "AI" in AnalyzeItKeywordsConfig.IMPORTANT_TERMS
+
+
+def test_pa_l0_itkw_010_int_config_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PA-L0-ITKW-010 [정상]: IC02 정수 설정은 환경변수로 override된다."""
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY, "600")
+
+    assert (
+        get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS_ENV_KEY,
+            AnalyzeItKeywordsConfig.MAX_CONTENT_CHARS,
+        )
+        == 600
+    )
+
+
+def test_pa_l0_itkw_011_int_config_falls_back_for_invalid_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PA-L0-ITKW-011 [경계]: 잘못된 정수 env 값은 배치를 중단하지 않고 기본값을 쓴다."""
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY, "not-number")
+    assert (
+        get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY,
+            AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS,
+        )
+        == AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS
+    )
+
+    monkeypatch.setenv(AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY, "0")
+    assert (
+        get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS_ENV_KEY,
+            AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS,
+        )
+        == AnalyzeItKeywordsConfig.MAX_CONTENT_UNITS
+    )

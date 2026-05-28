@@ -166,6 +166,68 @@ class AnalyzeItKeywordsConfig:
     DEFAULT_MODEL = "gemma4:26b"
     DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
     REQUEST_TIMEOUT_SECONDS = 120
+    REQUEST_TIMEOUT_SECONDS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_TIMEOUT_SECONDS"
+    MAX_CONTENT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_CHARS"
+    MAX_CONTENT_UNITS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_UNITS"
+    MAX_UNIT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_UNIT_CHARS"
+    MAX_CONTENT_CHARS = 2500
+    MAX_CONTENT_UNITS = 8
+    MAX_UNIT_CHARS = 1200
+    MIN_POSITIVE_CONFIG_VALUE = 1
+    TITLE_PROMPT_LABEL = "[title]"
+    CONTENT_PROMPT_LABEL = "[content]"
+    COMPRESSED_CONTENT_PROMPT_LABEL = "[compressed_content]"
+    INTEREST_PROMPT_LABEL = "[interest]"
+    NORMALIZED_PARAGRAPH_SEPARATOR = "\n\n"
+    PARAGRAPH_SPLIT_PATTERN = r"\n\s*\n+"
+    LINE_BREAK_PATTERN = r"\r\n|\r"
+    MULTI_BLANK_LINE_PATTERN = r"\n{3,}"
+    INLINE_SPACE_PATTERN = r"[ \t\f\v]+"
+    SENTENCE_SPLIT_PATTERN = r"(?<=[.!?。！？다요음함됨임])\s+|\n+"
+    NUMBER_PATTERN = r"\d"
+    WORD_PATTERN = r"[0-9A-Za-z가-힣]+"
+    IMPORTANT_TERMS = (
+        "AI",
+        "LLM",
+        "모델",
+        "추론",
+        "학습",
+        "배포",
+        "GPU",
+        "CPU",
+        "성능",
+        "비용",
+        "보안",
+        "취약점",
+        "릴리스",
+        "버전",
+        "업데이트",
+        "프레임워크",
+        "API",
+        "오픈소스",
+        "라이선스",
+        "데이터",
+        "개발자",
+        "에이전트",
+        "자동화",
+        "클라우드",
+        "인프라",
+        "영향",
+        "리스크",
+        "사용",
+    )
+    PROMPT_INSTRUCTIONS = (
+        "당신은 IT 뉴스 게시글 기획을 위한 키워드 분석기입니다.",
+        "입력 글을 읽고 요약, 글의 흐름, 관심도 라벨, 게시글 생성용 키워드를 JSON으로만 반환하세요.",
+        "입력 본문은 원문에서 발췌해 압축한 compressed_content입니다.",
+        "키워드는 기술 주제와 게시글 독자 관점을 함께 포함해야 합니다.",
+        "원문에 없는 인물, 사실, 제품명을 만들지 않습니다.",
+        "JSON 외 텍스트를 출력하지 않습니다.",
+    )
+    RESPONSE_SCHEMA_EXAMPLE = (
+        '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향",'
+        '"interest_label":"high","keywords":["PyTorch","추론 성능","배포 영향"]}'
+    )
     MAX_KEYWORDS = 7
     DTYPE_OBJECT = "object"
     CONTENT_EMPTY_PLACEHOLDERS = ("", "-", "N/A")
