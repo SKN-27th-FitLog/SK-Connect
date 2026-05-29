@@ -28,6 +28,9 @@ from postgresql.run_query import get_analysis_data, get_crawling_data, merge_ana
 
 logger = logging.getLogger(__name__)
 
+CONTENT_BODY_MARKER = "[본문]"
+CONTENT_SUMMARY_MARKER = "[요약]"
+
 
 class ItKeywordResult(BaseModel):
     """IC02 IT 키워드 LLM 응답 구조."""
@@ -90,6 +93,32 @@ def _text_or_empty(value: object) -> str:
     except (TypeError, ValueError):
         pass
     return str(value).strip()
+
+
+def extract_original_content(content: object) -> str:
+    """저장 포맷 content에서 원문 본문만 추출한다."""
+    text = _text_or_empty(content)
+    if not text.startswith(CONTENT_BODY_MARKER):
+        return text
+    if CONTENT_SUMMARY_MARKER not in text:
+        return text
+    body = text[len(CONTENT_BODY_MARKER) :].split(CONTENT_SUMMARY_MARKER, 1)[0]
+    return body.strip()
+
+
+def build_summary_enriched_content(content: object, summary: object) -> str | None:
+    """IC02 원문과 요약을 analysis.content 저장 포맷으로 만든다."""
+    summary_text = _text_or_empty(summary)
+    if not summary_text:
+        return None
+
+    body = extract_original_content(content)
+    return (
+        f"{CONTENT_BODY_MARKER}\n"
+        f"{body}\n\n"
+        f"{CONTENT_SUMMARY_MARKER}\n"
+        f"{summary_text}"
+    )
 
 
 def normalize_it_content(content: object) -> str:
@@ -378,6 +407,7 @@ def build_it_keyword_prompt(
         AnalyzeItKeywordsConfig.PROMPT_SCHEMA_HEADER,
         AnalyzeItKeywordsConfig.RESPONSE_SCHEMA_EXAMPLE,
         AnalyzeItKeywordsConfig.PROMPT_CONSTRAINTS_HEADER,
+        AnalyzeItKeywordsConfig.PROMPT_SUMMARY_GUIDE,
         AnalyzeItKeywordsConfig.PROMPT_KEYWORD_COUNT_TEMPLATE.format(
             min_keywords=AnalyzeItKeywordsConfig.MIN_KEYWORDS,
             max_keywords=AnalyzeItKeywordsConfig.MAX_KEYWORDS,
@@ -538,11 +568,13 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
         logger.info("IC02 IT keyword limit applied: %s rows (max_rows=%s)", len(df), max_rows)
 
     df = _attach_crawling_metrics(df, get_crawling_data())
+    content_col = AnalysisColumn.CONTENT.value
     kw_col = AnalysisColumn.KEYWORDS.value
     id_col = AnalysisColumn.CRAWLING_ID.value
     df[kw_col] = df[kw_col].astype(AnalyzeItKeywordsConfig.DTYPE_OBJECT)
 
     success_indexes: list[int] = []
+    content_update_indexes: list[int] = []
     for index, row in tqdm(
         df.iterrows(),
         total=len(df),
@@ -556,7 +588,14 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
             if not keywords:
                 logger.info("IC02 IT keyword empty result skipped (crawling_id=%s)", crawling_id)
                 continue
+            enriched_content = build_summary_enriched_content(
+                row.get(content_col),
+                result.summary,
+            )
             df.at[index, kw_col] = keywords
+            if enriched_content is not None:
+                df.at[index, content_col] = enriched_content
+                content_update_indexes.append(index)
             success_indexes.append(index)
             logger.info(
                 "IC02 IT keywords: crawling_id=%s interest=%s keywords=%s",
@@ -577,6 +616,8 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
         return
 
     merge_columns = [id_col, kw_col]
+    if content_update_indexes:
+        merge_columns = [id_col, content_col, kw_col]
     merge_analysis_data(df.loc[success_indexes, merge_columns].copy())
     logger.info("IC02 IT keyword extraction completed (%s rows)", len(success_indexes))
 

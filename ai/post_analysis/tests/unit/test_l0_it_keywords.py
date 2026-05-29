@@ -9,10 +9,12 @@ import pandas as pd
 from analyze_it_keywords import (
     ItKeywordResult,
     _ollama_chat_json,
+    build_summary_enriched_content,
     build_it_keyword_prompt,
     compress_it_content,
     compute_interest_signal,
     extract_it_keywords,
+    extract_original_content,
     get_it_keyword_int_config,
     get_ollama_base_url,
     get_ollama_model_name,
@@ -26,6 +28,7 @@ from analyze_it_keywords import (
 from common.constant import AnalyzeItKeywordsConfig
 from common.errors import PostAnalysisErrors
 from common.it_keyword_candidates import (
+    ItKeywordCandidate,
     extract_it_keyword_candidates,
     filter_it_keywords_by_candidates,
     format_candidate_keywords_for_prompt,
@@ -114,6 +117,27 @@ def test_pa_l0_itkw_006_1_prompt_handles_missing_title() -> None:
         }
     )
     assert "GPU 배포 비용" in prompt
+
+
+def test_pa_l0_itkw_006_2_prompt_guides_summary_for_post_generation() -> None:
+    """PA-L0-ITKW-006-2 [정상]: summary는 게시글 생성용 판단 재료를 포함하도록 지시한다."""
+    prompt = build_it_keyword_prompt(
+        {
+            "title": "RustFS S3 호환 객체 스토리지",
+            "content": "RustFS는 Apache 2.0 라이선스와 S3 호환 API를 제공하며 일부 기능은 Under Testing입니다.",
+        },
+        candidates=[
+            ItKeywordCandidate("RustFS", 10, "title", 2),
+            ItKeywordCandidate("S3 호환 API", 9, "content", 1),
+            ItKeywordCandidate("Apache 2.0", 8, "content", 1),
+        ],
+    )
+
+    assert "게시글 생성의 기반" in prompt
+    assert "차별점" in prompt
+    assert "실무 포인트" in prompt
+    assert "제한사항" in prompt
+    assert "원문에 없는 장점" in prompt
 
 
 def test_pa_l0_itkw_007_ollama_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -498,6 +522,36 @@ def test_pa_l0_itkw_026_extract_filters_llm_keywords_by_candidates(
     )
 
     assert result.keywords == ["git-sync", "타겟 리모트"]
+
+
+def test_pa_l0_itkw_028_build_summary_enriched_content_formats_body_and_summary() -> None:
+    """PA-L0-ITKW-028 [정상]: IC02 본문과 요약을 content 저장 포맷으로 합친다."""
+    enriched = build_summary_enriched_content(
+        "PyTorch 2.5 release\n\nInference speed improved.",
+        "PyTorch 2.5가 추론 속도를 개선했다.",
+    )
+
+    assert enriched == (
+        "[본문]\n"
+        "PyTorch 2.5 release\n\nInference speed improved.\n\n"
+        "[요약]\n"
+        "PyTorch 2.5가 추론 속도를 개선했다."
+    )
+
+
+def test_pa_l0_itkw_029_build_summary_enriched_content_deduplicates_existing_summary() -> None:
+    """PA-L0-ITKW-029 [정상]: 이미 저장 포맷인 content는 원문만 다시 사용한다."""
+    content = "[본문]\nOriginal body\n\n[요약]\nOld summary"
+
+    enriched = build_summary_enriched_content(content, "New summary")
+
+    assert enriched == "[본문]\nOriginal body\n\n[요약]\nNew summary"
+    assert extract_original_content(content) == "Original body"
+
+
+def test_pa_l0_itkw_030_build_summary_enriched_content_skips_blank_summary() -> None:
+    """PA-L0-ITKW-030 [경계]: 요약이 비어 있으면 content 업데이트 값을 만들지 않는다."""
+    assert build_summary_enriched_content("Original body", "  ") is None
 
 
 def test_pa_l0_itkw_027_candidate_extraction_rejects_attached_prefix_fragment() -> None:

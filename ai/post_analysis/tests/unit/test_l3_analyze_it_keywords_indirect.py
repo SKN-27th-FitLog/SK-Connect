@@ -83,9 +83,11 @@ def test_pa_l3_itkw_001_processes_ic02_missing_keywords_only(
     assert len(df) == 1
     assert list(df.columns) == [
         AnalysisColumn.CRAWLING_ID.value,
+        AnalysisColumn.CONTENT.value,
         AnalysisColumn.KEYWORDS.value,
     ]
     assert df[AnalysisColumn.CRAWLING_ID.value].iloc[0] == 101
+    assert df[AnalysisColumn.CONTENT.value].iloc[0] == "[본문]\nPyTorch update\n\n[요약]\nsummary"
     assert (
         df[AnalysisColumn.KEYWORDS.value].iloc[0]
         == "#PyTorch#inference speed#community interest"
@@ -285,6 +287,45 @@ def test_pa_l3_itkw_007_1_extract_retries_when_keywords_are_too_sparse(
     assert mock_ollama_chat_json.call_count == 2
     assert result.keywords == expanded_keywords
     assert "12개 이상 15개 이하" in mock_ollama_chat_json.call_args.args[0]
+
+
+@patch("analyze_it_keywords.merge_analysis_data")
+@patch("analyze_it_keywords.extract_it_keywords")
+@patch("analyze_it_keywords.get_crawling_data")
+@patch("analyze_it_keywords.get_analysis_data")
+def test_pa_l3_itkw_011_blank_summary_keeps_keyword_only_merge(
+    mock_get_analysis: MagicMock,
+    mock_get_crawling: MagicMock,
+    mock_extract: MagicMock,
+    mock_merge: MagicMock,
+) -> None:
+    """요약이 비어 있으면 content를 merge payload에 포함하지 않는다."""
+    mock_get_analysis.return_value = pd.DataFrame(
+        {
+            AnalysisColumn.CRAWLING_ID.value: [701],
+            AnalysisColumn.TITLE.value: ["GPU update"],
+            AnalysisColumn.CONTENT.value: ["GPU news"],
+            AnalysisColumn.KEYWORDS.value: [pd.NA],
+            AnalysisColumn.INFORMATION_CD.value: [CodeTable.INFORMATION_IT_INFO.value],
+        }
+    )
+    mock_get_crawling.return_value = pd.DataFrame()
+    mock_extract.return_value = ItKeywordResult(
+        summary=" ",
+        flow="release -> impact",
+        interest_label="low",
+        keywords=["GPU"],
+    )
+
+    analyze_it_keywords()
+
+    mock_merge.assert_called_once()
+    df = mock_merge.call_args[0][0]
+    assert list(df.columns) == [
+        AnalysisColumn.CRAWLING_ID.value,
+        AnalysisColumn.KEYWORDS.value,
+    ]
+    assert df[AnalysisColumn.KEYWORDS.value].iloc[0] == "#GPU"
 
 
 @patch("analyze_it_keywords.merge_analysis_data")

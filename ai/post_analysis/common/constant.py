@@ -227,6 +227,11 @@ class AnalyzeItKeywordsConfig:
     )
     PROMPT_SCHEMA_HEADER = "반환 JSON 스키마:"
     PROMPT_CONSTRAINTS_HEADER = "제약:"
+    PROMPT_SUMMARY_GUIDE = (
+        "- summary는 게시글 생성의 기반이 되는 3~5문장 분석 요약입니다. "
+        "기술/프로젝트의 정체, 기존 대안 대비 차별점, 개발자/운영자의 실무 포인트를 반드시 포함합니다. "
+        "원문에 제한사항, 테스트 단계, 주의사항이 있으면 반드시 포함하고, 원문에 없는 장점이나 안정성은 추정하지 않습니다."
+    )
     PROMPT_KEYWORD_COUNT_TEMPLATE = "- keywords는 {min_keywords}개 이상 {max_keywords}개 이하입니다."
     PROMPT_KEYWORD_GUIDE = (
         "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다."
