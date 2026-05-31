@@ -1,4 +1,4 @@
-from src.core.constants import RESTAURANT_CATEGORY_CD
+from src.core.constants import RESTAURANT_CATEGORY_CD, RESTAURANT_INFORMATION_CD
 from src.projects.save.stage4_load import Stage4Load
 
 
@@ -35,10 +35,10 @@ def test_load_map_and_shop_writes_ca_category_to_maps_and_sc_code_to_shop():
     stage = Stage4Load(db=object(), code_repository=object())
     session = RecordingSession()
     store = {
-        "name": "테스트 식당",
+        "name": "Sample Store",
         "shop_cd": "SC01",
         "address_cd": "LA01",
-        "address_detail": "1층",
+        "address_detail": "1F",
         "latitude": 37.5,
         "longitude": 127.0,
         "rating": 4.5,
@@ -51,21 +51,27 @@ def test_load_map_and_shop_writes_ca_category_to_maps_and_sc_code_to_shop():
     assert session.params[2]["shop_cd"] == "SC01"
 
 
-def test_load_crawling_and_reviews_writes_ca_category_to_crawling():
+def test_load_crawling_and_reviews_writes_restaurant_codes_to_crawling():
     stage = Stage4Load(db=object(), code_repository=object())
     session = RecordingSession()
     store = {
-        "name": "테스트 식당",
-        "description": "설명",
+        "name": "Sample Store",
+        "description": "description",
         "canonical_url": "https://example.com/store",
         "rating": 4.5,
     }
-    reviews = [{"content": "좋아요", "author": "tester", "keywords": ["친절"], "rating": 5}]
+    reviews = [{"content": "good", "author": "tester", "keywords": ["kind"], "rating": 5}]
 
-    stage._load_crawling_and_reviews(session, store, reviews, map_id="10", category_cd="SC01")
+    stage._load_crawling_and_reviews(session, store, reviews, map_id="10", shop_cd="SC01")
 
-    assert session.params[0]["category_cd"] == RESTAURANT_CATEGORY_CD
-    assert session.params[1]["category_cd"] == RESTAURANT_CATEGORY_CD
+    store_params = session.params[0]
+    review_params = session.params[1]
+    assert store_params["category_cd"] == RESTAURANT_CATEGORY_CD
+    assert store_params["information_cd"] == RESTAURANT_INFORMATION_CD
+    assert store_params["shop_cd"] == "SC01"
+    assert review_params["category_cd"] == RESTAURANT_CATEGORY_CD
+    assert review_params["information_cd"] == RESTAURANT_INFORMATION_CD
+    assert review_params["shop_cd"] == "SC01"
 
 
 def test_load_crawling_and_reviews_wraps_article_url_before_db_insert():
@@ -78,7 +84,7 @@ def test_load_crawling_and_reviews_wraps_article_url_before_db_insert():
         "rating": 4.5,
     }
 
-    stage._load_crawling_and_reviews(session, store, [], map_id="10", category_cd="SC01")
+    stage._load_crawling_and_reviews(session, store, [], map_id="10", shop_cd="SC01")
 
     assert session.params[0]["article_url"] == (
         '<a href="https://example.com/store">Sample Store</a>'
@@ -132,7 +138,16 @@ def test_load_crawling_and_reviews_returns_store_crawling_id_for_image_source():
         store,
         [],
         map_id="10",
-        category_cd="SC01",
+        shop_cd="SC01",
     )
 
     assert crawling_id == "343"
+
+
+def test_touch_shop_checked_at_writes_restaurant_codes_to_crawling():
+    from src.core.constants import QUERY_TOUCH_SHOP_CHECKED_AT
+
+    assert "information_cd" in QUERY_TOUCH_SHOP_CHECKED_AT
+    assert "shop_cd" in QUERY_TOUCH_SHOP_CHECKED_AT
+    assert ":information_cd" in QUERY_TOUCH_SHOP_CHECKED_AT
+    assert "s.shop_cd" in QUERY_TOUCH_SHOP_CHECKED_AT

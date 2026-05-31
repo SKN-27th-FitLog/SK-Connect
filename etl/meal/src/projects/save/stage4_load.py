@@ -19,6 +19,7 @@ from src.core.constants import (
     QUERY_UPDATE_MAP_COORDINATES,
     QUERY_UPDATE_SHOP_RATING,
     RESTAURANT_CATEGORY_CD,
+    RESTAURANT_INFORMATION_CD,
     TABLE_NAME_CRAWLING,
 )
 from src.core.policy.exceptions import UndefinedCodeException
@@ -98,6 +99,7 @@ class Stage4Load(BaseStage):
                 "content": store.get("description", ""),
                 "article_url": store.get("canonical_url", ""),
                 "category_cd": None,
+                "information_cd": RESTAURANT_INFORMATION_CD,
                 "author": "System",
                 "keywords": "",
                 "point": float(store.get("rating", 0.0)),
@@ -237,7 +239,7 @@ class Stage4Load(BaseStage):
         store: Dict[str, Any],
         reviews: List[Dict[str, Any]],
         map_id: str,
-        category_cd: str,
+        shop_cd: str,
     ):
         store_crawling_id = session.execute(text(QUERY_INSERT_CRAWLING), {
             "title": self._limit_text(f"Crawl - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
@@ -245,6 +247,8 @@ class Stage4Load(BaseStage):
             "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
             "map_id": int(map_id),
             "category_cd": RESTAURANT_CATEGORY_CD,
+            "information_cd": RESTAURANT_INFORMATION_CD,
+            "shop_cd": shop_cd,
             "author": "System",
             "keywords": "",
             "point": float(store.get("rating", 0.0)),
@@ -257,6 +261,8 @@ class Stage4Load(BaseStage):
                 "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
                 "map_id": int(map_id),
                 "category_cd": RESTAURANT_CATEGORY_CD,
+                "information_cd": RESTAURANT_INFORMATION_CD,
+                "shop_cd": shop_cd,
                 "author": self._limit_text(review.get("author", "Anonymous"), self.CRAWLING_AUTHOR_MAX_LENGTH),
                 "keywords": self._join_keywords(review.get("keywords", [])),
                 "point": float(review.get("rating", 0.0)),
@@ -348,7 +354,7 @@ class Stage4Load(BaseStage):
                                     store,
                                     record.get("reviews", []) if change_plan["review"] else [],
                                     map_id,
-                                    RESTAURANT_CATEGORY_CD,
+                                    shop_cd,
                                 )
                         except Exception as e:
                             entity_type = "review" if change_plan["review"] else "image"
