@@ -24,7 +24,7 @@ Skill `code-integrity-and-testing` · [function-inventory.md](function-inventory
 
 | 항목 | 상태 |
 |------|------|
-| pytest 테스트 | **44건 구현·통과** (`tests/unit/`) |
+| pytest 테스트 | **65건 구현·통과** (`tests/unit/`) |
 | G1 merge 차단 | `tests/conftest.py` autouse |
 | 설정 | `pytest.ini` |
 | 의존성 | `requirements.txt` — `pytest>=8.0.0` |
@@ -42,12 +42,14 @@ Skill `code-integrity-and-testing` · [function-inventory.md](function-inventory
 | `test_l0_singleton.py` | 2 | PA-L0-SNG-001~002 |
 | `test_l0_shop_filter.py` | 7 | PA-L0-SHP-001~007 |
 | `test_l0_bert_predict.py` | 5 | PA-L0-BERT-001~005 |
+| `test_l0_bert_keywords.py` | 12 | PA-L0-BKW-001~012 |
 | `test_l0_pipeline_args.py` | 3 | PA-L0-PLN-001~003 |
 | `test_l0_keywords_model.py` | 2 | PA-L0-LLM-001~002 |
 | `test_l2_merge_mock.py` | 3 | PA-L2-PG-MRG-001, 002, 010~012(간접) |
 | `test_l2_get_reviews_indirect.py` | 3 | PA-L2-GRV-001, 004, 005 |
-| `test_l2_analyze_sentimental_indirect.py` | 2 | PA-L2-SNT-002, 003 |
+| `test_l2_analyze_sentimental_indirect.py` | 3 | PA-L2-SNT-002~004 |
 | `test_l3_analyze_keywords_indirect.py` | 2 | PA-L3-LLM-002, 006 |
+| `test_l3_analyze_keywords_bert_indirect.py` | 7 | PA-L3-KW-001~007 |
 | `test_l3_run_pipeline_indirect.py` | 3 | PA-L2-PLN-001~003 |
 
 ### 2.2 아직 코드화되지 않은 시나리오 (추가 시 docstring·ID 동일 규칙)
@@ -55,7 +57,8 @@ Skill `code-integrity-and-testing` · [function-inventory.md](function-inventory
 | ID | 비고 |
 |----|------|
 | PA-L2-GRV-002, 003, 006~008 | get_reviews 추가 분기 (004: CA07→IC02·shop 스킵 반영) |
-| PA-L2-SNT-001, 004~006 | analyze_sentimental |
+| PA-L2-SNT-001, 005~006 | analyze_sentimental |
+| PA-L3-KW-008~009 | analyze_keywords 행별 실패·no_pending 변형 |
 | PA-L3-LLM-001, 003~005, 007~009 | analyze_keywords_by_llm |
 | PA-L2-PLN-004, PA-L3-PLN-001~002 | pipeline 실패·E2E |
 | PA-L2-PG-MRG-003~005 | merge 전처리 세부 |

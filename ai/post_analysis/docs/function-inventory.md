@@ -166,7 +166,20 @@
 
 | 심볼 | 유형 | 안전성 | 책임 | 불변·실패 요약 |
 |------|------|--------|------|----------------|
-| `analyze_sentimental` | A+D+F | 2 | BERT 감성·점수 MERGE | IC02 제외, NULL만 처리 |
+| `analyze_sentimental` | A+D+F | 2 | BERT 감성·점수 MERGE | IC02·빈 content 제외, NULL만 처리 |
+
+### analyze_keywords.py
+
+| 심볼 | 유형 | 안전성 | 책임 | 불변·실패 요약 |
+|------|------|--------|------|----------------|
+| `analyze_keywords` | A+D+F | 2 | BERT span 키워드 MERGE | IC02·빈 content·kw·sentimental 결측 제외 |
+
+### common/bert_keywords.py
+
+| 심볼 | 유형 | 안전성 | 책임 | 불변·실패 요약 |
+|------|------|--------|------|----------------|
+| `extract_keywords` | A+E | 1 | content+sentimental→`#span#` | label 불일치·혼합 span 제외, top_k |
+| `_format_keywords` 등 `_` 헬퍼 | A~C | 0 | 전처리·span 선택·포맷 | `BertKeywords` 상수 사용 |
 
 ### analyze_keywords_by_llm.py
 
