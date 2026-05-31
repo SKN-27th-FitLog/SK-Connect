@@ -23,22 +23,22 @@ class SaveService:
         
         # 1. 탐색 대상 Hive 경로 빌드 (정규화 완료 데이터)
         base_path = HivePathBuilder.build_stage_base_path(
-            process="normalized", service="shop", category_cd=category_cd,
-            stage="validation_normalization", status="success", dt=dt
+            process="image_validation", service="shop", category_cd=category_cd,
+            stage="image_validation", status="success", dt=dt
         )
         
         # 2. 배치 폴더 목록 확보
-        normalized_files = glob.glob(os.path.join(base_path, "validation_normalization_*.jsonl"))
-        if not normalized_files:
-            logger.info("No normalization success data found for today.")
-            return {"message": "No normalized data found"}
+        image_validation_files = glob.glob(os.path.join(base_path, "image_validation_*.jsonl"))
+        if not image_validation_files:
+            logger.info("No image validation success data found for today.")
+            return {"message": "No image validation data found"}
 
         stage4 = get_stage(STAGE_LOAD)
         code_repo = get_repository("code_table")
         
         files_by_batch: dict[str, list[str]] = {}
-        for file_path in normalized_files:
-            batch_id = HivePathBuilder.extract_batch_id_from_filename(file_path, "validation_normalization")
+        for file_path in image_validation_files:
+            batch_id = HivePathBuilder.extract_batch_id_from_filename(file_path, "image_validation")
             if batch_id:
                 files_by_batch.setdefault(batch_id, []).append(file_path)
 
@@ -47,11 +47,11 @@ class SaveService:
             logger.info(f"Processing Batch ID: {batch_id}")
             
             # 정규화된 JSONL 데이터 로드
-            normalized_data = []
+            image_validation_data = []
             for file in batch_files:
-                normalized_data.extend(JsonlWriter.read(file))
+                image_validation_data.extend(JsonlWriter.read(file))
                 
-            if not normalized_data:
+            if not image_validation_data:
                 continue
             
             run_attempt = BatchUtil.resolve_run_attempt(category_cd, batch_id, dt)
@@ -65,7 +65,7 @@ class SaveService:
             
             # --- 3. 참조 무결성 재검증 (Load 전 필수 단계) ---
             valid_list, failures = [], []
-            for r in normalized_data:
+            for r in image_validation_data:
                 if not code_repo.validate_references(r):
                     # Design Policy: 참조 오류 시 즉시 retry_count 증가 및 실패 처리
                     store = r.get("store", {})

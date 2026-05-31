@@ -20,6 +20,7 @@ class HivePathBuilder:
     PROCESS_ALIASES = {
         "candidate": "cleaning",
         "normalized": "cleaning",
+        "image_validation": "cleaning",
         "load": "save",
         "retry": "failcheck",
         "reprocess": "failcheck",
