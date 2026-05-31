@@ -36,6 +36,7 @@ def block_merge_writes(request: pytest.FixtureRequest, monkeypatch: pytest.Monke
         "analyze_sentimental.merge_analysis_data",
         "analyze_keywords.merge_analysis_data",
         "analyze_keywords_by_llm.merge_analysis_data",
+        "analyze_it_keywords.merge_analysis_data",
     )
     for target in targets:
         monkeypatch.setattr(target, _merge_blocked)

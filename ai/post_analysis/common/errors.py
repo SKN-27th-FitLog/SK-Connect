@@ -104,6 +104,29 @@ class PostAnalysisErrors:
             """행별 BERT 키워드 추출 실패 ``logger.exception`` 포맷 문자열."""
             return "crawling_id=%s 처리 실패 (index=%s)"
 
+    class ItKeywords:
+        """``analyze_it_keywords`` 단계 오류·로그 메시지 (Level 0, 유형 B)."""
+
+        @staticmethod
+        def missing_columns(missing: Iterable[str]) -> str:
+            """필수 analysis 컬럼 누락 ``ValueError`` 메시지."""
+            return _missing_columns_message("analysis", "IT 키워드 추출", missing)
+
+        @staticmethod
+        def no_pending_rows() -> str:
+            """IC02 키워드 처리 대상 0건일 때 ``logger.info`` 메시지."""
+            return "IC02 IT 키워드 처리할 행이 없습니다."
+
+        @staticmethod
+        def no_successful_rows() -> str:
+            """행별 처리 후 저장 가능한 성공 행 0건일 때 ``logger.info`` 메시지."""
+            return "IC02 IT 키워드 성공 행이 없어 MERGE를 생략합니다."
+
+        @staticmethod
+        def row_processing_failed() -> str:
+            """행별 IC02 키워드 추출 실패 ``logger.exception`` 포맷 문자열."""
+            return "IC02 IT 키워드 처리 실패 (crawling_id=%s, index=%s)"
+
     class GetReviews:
         """``get_reviews`` 단계 오류·정보 메시지 (Level 0, 유형 B)."""
 

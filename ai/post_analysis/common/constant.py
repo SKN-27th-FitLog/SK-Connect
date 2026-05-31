@@ -158,6 +158,149 @@ class AnalyzeKeywordsConfig:
     CONTENT_EMPTY_PLACEHOLDERS: tuple[str, ...] = ("", "-", "N/A")
 
 
+class AnalyzeItKeywordsConfig:
+    """IC02 IT 뉴스 키워드 분석 배치 설정."""
+
+    MODEL_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MODEL"
+    OLLAMA_BASE_URL_ENV_KEY = "OLLAMA_BASE_URL"
+    DEFAULT_MODEL = "gemma4:26b"
+    DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+    REQUEST_TIMEOUT_SECONDS = 120
+    REQUEST_TIMEOUT_SECONDS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_TIMEOUT_SECONDS"
+    MAX_CONTENT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_CHARS"
+    MAX_CONTENT_UNITS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_UNITS"
+    MAX_UNIT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_UNIT_CHARS"
+    MAX_CONTENT_CHARS = 2500
+    MAX_CONTENT_UNITS = 8
+    MAX_UNIT_CHARS = 1200
+    MIN_POSITIVE_CONFIG_VALUE = 1
+    TITLE_PROMPT_LABEL = "[title]"
+    CONTENT_PROMPT_LABEL = "[content]"
+    COMPRESSED_CONTENT_PROMPT_LABEL = "[compressed_content]"
+    CANDIDATE_PROMPT_LABEL = "[candidate_keywords]"
+    INTEREST_PROMPT_LABEL = "[interest]"
+    NORMALIZED_PARAGRAPH_SEPARATOR = "\n\n"
+    PARAGRAPH_SPLIT_PATTERN = r"\n\s*\n+"
+    LINE_BREAK_PATTERN = r"\r\n|\r"
+    MULTI_BLANK_LINE_PATTERN = r"\n{3,}"
+    INLINE_SPACE_PATTERN = r"[ \t\f\v]+"
+    SENTENCE_SPLIT_PATTERN = r"(?<=[.!?。！？다요음함됨임])\s+|\n+"
+    NUMBER_PATTERN = r"\d"
+    WORD_PATTERN = r"[0-9A-Za-z가-힣]+"
+    IMPORTANT_TERMS = (
+        "AI",
+        "LLM",
+        "모델",
+        "추론",
+        "학습",
+        "배포",
+        "GPU",
+        "CPU",
+        "성능",
+        "비용",
+        "보안",
+        "취약점",
+        "릴리스",
+        "버전",
+        "업데이트",
+        "프레임워크",
+        "API",
+        "오픈소스",
+        "라이선스",
+        "데이터",
+        "개발자",
+        "에이전트",
+        "자동화",
+        "클라우드",
+        "인프라",
+        "영향",
+        "리스크",
+        "사용",
+    )
+    PROMPT_INSTRUCTIONS = (
+        "당신은 IT 뉴스 게시글 기획을 위한 키워드 분석기입니다.",
+        "입력 글을 읽고 요약, 글의 흐름, 관심도 라벨, 게시글 생성용 키워드를 JSON으로만 반환하세요.",
+        "입력 본문은 원문에서 발췌해 압축한 compressed_content입니다.",
+        "키워드는 기술 주제와 게시글 독자 관점을 함께 포함해야 합니다.",
+        "원문에 없는 인물, 사실, 제품명을 만들지 않습니다.",
+        "JSON 외 텍스트를 출력하지 않습니다.",
+    )
+    PROMPT_SCHEMA_HEADER = "반환 JSON 스키마:"
+    PROMPT_CONSTRAINTS_HEADER = "제약:"
+    PROMPT_SUMMARY_GUIDE = (
+        "- summary는 게시글 생성의 기반이 되는 3~5문장 분석 요약입니다. "
+        "기술/프로젝트의 정체, 기존 대안 대비 차별점, 개발자/운영자의 실무 포인트를 반드시 포함합니다. "
+        "원문에 제한사항, 테스트 단계, 주의사항이 있으면 반드시 포함하고, 원문에 없는 장점이나 안정성은 추정하지 않습니다."
+    )
+    PROMPT_KEYWORD_COUNT_TEMPLATE = "- keywords는 {min_keywords}개 이상 {max_keywords}개 이하입니다."
+    PROMPT_KEYWORD_GUIDE = (
+        "- keywords에는 기술명, 제품명, 프레임워크, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 균형 있게 넣습니다."
+    )
+    PROMPT_CANDIDATE_LIMIT_GUIDE = (
+        "- keywords는 candidate_keywords에 있는 문자열만 사용합니다. 후보군 밖 새 키워드나 임의 합성어를 만들지 않습니다."
+    )
+    KEYWORD_EXPANSION_INSTRUCTIONS = (
+        "이전 응답의 keywords가 너무 적습니다.",
+        "원문에 근거한 세부 키워드를 12개 이상 15개 이하로 다시 나누세요.",
+        "기술명, 변경점, 영향, 리스크, 활용 포인트, 독자 관점을 중복 없이 분리하세요.",
+        "새 JSON만 반환하세요.",
+    )
+    KEYWORD_EXPANSION_PREVIOUS_LABEL = "[previous_response]"
+    PROGRESS_DESC = "IC02 IT 키워드 추출"
+    PROGRESS_UNIT = "건"
+    RESPONSE_SCHEMA_EXAMPLE = (
+        '{"summary":"릴리스 핵심 요약","flow":"발표 -> 변화 -> 영향",'
+        '"interest_label":"high","keywords":["PyTorch 2.8","추론 성능 개선","GPU 비용",'
+        '"배포 효율","API 변경","모델 최적화","서버 지연 시간","운영 비용",'
+        '"개발자 영향","프로덕션 배포","성능 검토","AI 인프라"]}'
+    )
+    MIN_KEYWORDS = 12
+    MAX_KEYWORDS = 15
+    MAX_PROMPT_CANDIDATES = 40
+    MIN_CANDIDATE_SCORE = 2
+    CANDIDATE_MIN_KEYWORD_CHARS = 2
+    CANDIDATE_MAX_KEYWORD_CHARS = 40
+    CANDIDATE_TITLE_WEIGHT = 5
+    CANDIDATE_EARLY_CONTENT_WEIGHT = 3
+    CANDIDATE_FREQUENCY_WEIGHT = 2
+    CANDIDATE_TECH_PATTERN_WEIGHT = 3
+    CANDIDATE_IMPORTANT_TERM_WEIGHT = 2
+    CANDIDATE_SIGNAL_NEARBY_WEIGHT = 2
+    CANDIDATE_NOUN_POS_TAGS = ("NNG", "NNP", "SL", "SN")
+    CANDIDATE_SIGNAL_POS_TAGS = ("VV", "VA", "XR")
+    CANDIDATE_STOPWORDS = (
+        "이해",
+        "필요",
+        "가능",
+        "사용",
+        "지원",
+        "기반",
+        "관련",
+        "내용",
+        "부분",
+    )
+    CANDIDATE_SIGNAL_TERMS = (
+        "개선",
+        "지원",
+        "공개",
+        "변경",
+        "삭제",
+        "검증",
+        "자동화",
+        "최적화",
+        "절감",
+        "통합",
+        "배포",
+        "확장",
+    )
+    DTYPE_OBJECT = "object"
+    CONTENT_EMPTY_PLACEHOLDERS = ("", "-", "N/A")
+    INTEREST_COMMENT_WEIGHT = 10
+    INTEREST_POINT_WEIGHT = 20
+    INTEREST_HIGH_THRESHOLD = 1000
+    INTEREST_MEDIUM_THRESHOLD = 100
+
+
 class BertKeywords:
     """BERT span 키워드 추출(`common/bert_keywords`) 설정."""
 
