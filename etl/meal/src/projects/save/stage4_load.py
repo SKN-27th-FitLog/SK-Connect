@@ -36,7 +36,11 @@ class Stage4Load(BaseStage):
     CRAWLING_KEYWORDS_MAX_LENGTH = 100
     IMAGE_URL_MAX_LENGTH = 500
 
-    def __init__(self, db=None, code_repository: CodeTableRepository | None = None):
+    def __init__(
+        self,
+        db=None,
+        code_repository: CodeTableRepository | None = None,
+    ):
         super().__init__(self.NAME)
         self.db = db or DatabaseManager()
         self.code_repo = code_repository or CodeTableRepository()
@@ -226,10 +230,17 @@ class Stage4Load(BaseStage):
         table_id = int(source_id)
 
         for img in images:
-            img_url = img.get("url", "") if isinstance(img, dict) else img
+            if isinstance(img, dict):
+                img_url = img.get("url", "")
+                validation = img.get("validation", {})
+                alt_text = validation.get("alt_text", "식당 이미지") if isinstance(validation, dict) else "식당 이미지"
+            else:
+                img_url = img
+                alt_text = "식당 이미지"
+
             if img_url:
                 session.execute(text(QUERY_INSERT_IMAGE), {
-                    "image_url": self._build_image_tag(img_url),
+                    "image_url": self._build_image_tag(img_url, alt_text=alt_text),
                     "table_cd": table_cd,
                     "table_id": table_id,
                 })
@@ -399,8 +410,12 @@ class Stage4Load(BaseStage):
                             self.logger.error(f"Menu partial failure for {store.get('name')}: {e}")
                             self._record_partial_failure(results, store, "menu", e, record.get("menus", []), batch_id, run_attempt)
 
+                    images_for_save = []
+                    if change_plan["image"]:
+                        images_for_save = record.get("images", [])
+
                     crawling_source_id = None
-                    if change_plan["image"] or change_plan["review"]:
+                    if images_for_save or change_plan["review"]:
                         try:
                             with session.begin_nested():
                                 crawling_source_id = self._load_crawling_and_reviews(
@@ -418,12 +433,12 @@ class Stage4Load(BaseStage):
                             self.logger.error(f"Crawling source partial failure for {store.get('name')}: {e}")
                             self._record_partial_failure(results, store, entity_type, e, failure_data, batch_id, run_attempt)
 
-                    if change_plan["image"]:
+                    if images_for_save and crawling_source_id:
                         try:
                             with session.begin_nested():
                                 self._load_images(
                                     session,
-                                    record.get("images", []),
+                                    images_for_save,
                                     TABLE_NAME_CRAWLING,
                                     crawling_source_id,
                                 )
