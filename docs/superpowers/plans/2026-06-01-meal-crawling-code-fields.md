@@ -1,5 +1,7 @@
 # Meal Crawling Code Fields Implementation Plan
 
+> **SUPERSEDED:** Do not implement this constant-based plan for future work. Use `docs/superpowers/plans/2026-06-01-meal-code-resolution.md` instead. The approved direction is that code values are resolved from `codeT`, configuration, or execution input, not hardcoded as Python runtime constants.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `etl/meal` Stage 4 DB 적재 시 `crawling.information_cd=IC01`과 `crawling.shop_cd=SCxx`가 store 확인 row와 review row에 함께 저장되도록 한다.

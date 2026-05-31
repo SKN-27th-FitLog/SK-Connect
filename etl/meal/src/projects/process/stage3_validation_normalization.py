@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from src.core.base_stage import BaseStage
+from src.core.config import settings
 from src.core.repository.code_table_repository import CodeTableRepository
 from src.core.storage.path_builder import HivePathBuilder
 from src.core.storage.jsonl_writer import JsonlWriter
@@ -10,7 +11,6 @@ from src.core.models.models import StoreModel
 from src.core.repository.store_repository import StoreRepository
 from src.core.policy.fail_record import build_fail_record
 from src.core.policy.reason_code import ReasonCode
-from src.core.constants import RESTAURANT_CATEGORY_CD
 from src.core.utils.content_hash import (
     HASH_FIELDS_VERSION,
     HASH_VERSION,
@@ -136,12 +136,21 @@ class Stage3ValidationNormalization(BaseStage):
             "hash_fields_version": HASH_FIELDS_VERSION,
         }
 
+    def _resolve_restaurant_category_cd(self) -> str:
+        category_cd = self.code_repo.get_category_code(settings.MEAL_CATEGORY_CODE_KEY)
+        if not category_cd:
+            raise ValueError(
+                f"MEAL_CATEGORY_CODE_KEY cannot be resolved in codeT: {settings.MEAL_CATEGORY_CODE_KEY}"
+            )
+        return category_cd
+
     def execute(self, candidates: List[Dict[str, Any]], batch_id: str, category_cd: str, run_attempt: int = 1) -> List[Dict[str, Any]]:
-        shop_cd = category_cd
         normalized_data = []
         failures = []
         now = datetime.now()
         self.code_repo.preload()
+        shop_cd = self.code_repo.get_shop_code(category_cd) or "UNKNOWN"
+        restaurant_category_cd = self._resolve_restaurant_category_cd()
 
         dedup_keys = []
         for cand in candidates:
@@ -163,7 +172,7 @@ class Stage3ValidationNormalization(BaseStage):
                     entity_id=cand.get("entity_id", ""),
                     entity_ref=cand.get("entity_ref", {}),
                     name=shop_raw.get("name", "Unknown"),
-                    shop_cd=self.code_repo.get_shop_code(category_cd) or "UNKNOWN",
+                    shop_cd=shop_cd,
                     address_cd=addr_cd,
                     address_detail=addr_detail,
                     latitude=float(shop_raw.get("latitude", 0.0)),
@@ -189,7 +198,7 @@ class Stage3ValidationNormalization(BaseStage):
                     "batch_id": batch_id,
                     "run_attempt": run_attempt,
                     "stage": self.stage_name,
-                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "category_cd": restaurant_category_cd,
                     "shop_cd": shop_cd,
                     "store": store.model_dump(),
                     "menus": menus,

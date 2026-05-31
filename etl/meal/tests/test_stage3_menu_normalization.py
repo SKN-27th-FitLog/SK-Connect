@@ -18,6 +18,11 @@ class FakeCodeRepository:
     def get_shop_code(self, category_cd):
         return category_cd
 
+    def get_category_code(self, key):
+        if key in ("맛집", "restaurant", "CA77"):
+            return "CA77"
+        return None
+
 
 class FakeSnapshotRepository:
     def bulk_find_snapshots(self, dedup_keys):
@@ -50,6 +55,7 @@ def test_stage3_adds_menu_normalization_fields_without_changing_raw_name(monkeyp
 
     result = stage.execute(candidates, batch_id="20260512_SC01_001", category_cd="SC01")
 
+    assert result[0]["category_cd"] == "CA77"
     menu = result[0]["menus"][0]
     assert menu["name"] == "매콤 직화 제육 정식 2인"
     assert menu["raw_menu_name"] == "매콤 직화 제육 정식 2인"

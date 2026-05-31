@@ -9,13 +9,7 @@ SQL 쿼리 상수 관리 모듈.
 # ---------------------------------------------------------
 
 QUERY_SELECT_ALL_CODES = 'SELECT cd, name, cd_info, cd_upper FROM "codeT"'
-QUERY_SELECT_ALL_ADDRESS_CODES = 'SELECT cd as address_cd, name FROM "codeT" WHERE cd_upper = \'LA00\''
-QUERY_SELECT_ALL_SHOP_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'SC00\''
-QUERY_SELECT_ALL_TABLE_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'TC00\''
 QUERY_SELECT_PROCESSED_URLS = 'SELECT article_url FROM crawling WHERE article_url IS NOT NULL'
-RESTAURANT_CATEGORY_CD = "CA01"
-RESTAURANT_INFORMATION_CD = "IC01"
-SHOP_CODE_PREFIX = "SC"
 TABLE_NAME_CRAWLING = "crawling"
 
 # ---------------------------------------------------------
