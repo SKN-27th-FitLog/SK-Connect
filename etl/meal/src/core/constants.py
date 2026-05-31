@@ -9,12 +9,7 @@ SQL 쿼리 상수 관리 모듈.
 # ---------------------------------------------------------
 
 QUERY_SELECT_ALL_CODES = 'SELECT cd, name, cd_info, cd_upper FROM "codeT"'
-QUERY_SELECT_ALL_ADDRESS_CODES = 'SELECT cd as address_cd, name FROM "codeT" WHERE cd_upper = \'LA00\''
-QUERY_SELECT_ALL_SHOP_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'SC00\''
-QUERY_SELECT_ALL_TABLE_CODES = 'SELECT cd as code, name FROM "codeT" WHERE cd_upper = \'TC00\''
 QUERY_SELECT_PROCESSED_URLS = 'SELECT article_url FROM crawling WHERE article_url IS NOT NULL'
-RESTAURANT_CATEGORY_CD = "CA01"
-SHOP_CODE_PREFIX = "SC"
 TABLE_NAME_CRAWLING = "crawling"
 
 # ---------------------------------------------------------
@@ -67,13 +62,18 @@ QUERY_UPDATE_SHOP_RATING = """
 """
 
 QUERY_TOUCH_SHOP_CHECKED_AT = """
-    INSERT INTO crawling (title, content, article_url, map_id, category_cd, author, keywords, point, created_at)
+    INSERT INTO crawling (
+        title, content, article_url, map_id, category_cd,
+        information_cd, shop_cd, author, keywords, point, created_at
+    )
     SELECT
         :title,
         :content,
         :article_url,
         s.map_id,
         COALESCE(:category_cd, m.category_cd),
+        :information_cd,
+        s.shop_cd,
         :author,
         :keywords,
         :point,
@@ -97,13 +97,18 @@ QUERY_INSERT_CRAWLING = """
         LIMIT 1
     ),
     inserted AS (
-        INSERT INTO crawling (title, content, article_url, map_id, category_cd, author, keywords, point, created_at)
+        INSERT INTO crawling (
+            title, content, article_url, map_id, category_cd,
+            information_cd, shop_cd, author, keywords, point, created_at
+        )
         SELECT
             CAST(:title AS VARCHAR(200)),
             :content,
             CAST(:article_url AS VARCHAR(500)),
             :map_id,
             CAST(:category_cd AS VARCHAR(6)),
+            CAST(:information_cd AS VARCHAR(6)),
+            CAST(:shop_cd AS VARCHAR(6)),
             CAST(:author AS VARCHAR(100)),
             CAST(:keywords AS VARCHAR(100)),
             :point,
@@ -112,10 +117,22 @@ QUERY_INSERT_CRAWLING = """
             SELECT 1 FROM existing
         )
         RETURNING crawling_id
+    ),
+    updated_existing AS (
+        UPDATE crawling AS c
+        SET
+            information_cd = COALESCE(NULLIF(BTRIM(c.information_cd), ''), CAST(:information_cd AS VARCHAR(6))),
+            shop_cd = COALESCE(NULLIF(BTRIM(c.shop_cd), ''), CAST(:shop_cd AS VARCHAR(6)))
+        FROM existing AS e
+        WHERE c.crawling_id = e.crawling_id
+        RETURNING c.crawling_id
     )
     SELECT crawling_id FROM inserted
     UNION ALL
+    SELECT crawling_id FROM updated_existing
+    UNION ALL
     SELECT crawling_id FROM existing
+    WHERE NOT EXISTS (SELECT 1 FROM updated_existing)
     LIMIT 1
 """
 

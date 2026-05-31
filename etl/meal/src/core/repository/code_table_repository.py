@@ -2,9 +2,7 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy import text
 from src.core.repository.database import DatabaseManager
 from src.core.constants import (
-    QUERY_SELECT_ALL_ADDRESS_CODES,
-    QUERY_SELECT_ALL_SHOP_CODES,
-    QUERY_SELECT_ALL_TABLE_CODES,
+    QUERY_SELECT_ALL_CODES,
 )
 import logging
 
@@ -22,6 +20,8 @@ class CodeTableRepository:
         self._shop_code_cache: Dict[str, str] = {}
         self._shop_name_cache: Dict[str, str] = {}
         self._table_code_cache: Dict[str, str] = {}
+        self._code_group_cache: Dict[str, Dict[str, str]] = {}
+        self._code_name_cache: Dict[str, Dict[str, str]] = {}
         self._is_loaded = False
 
     def preload(self):
@@ -33,27 +33,46 @@ class CodeTableRepository:
 
         try:
             with self.db.get_session() as session:
-                # 1. 주소 코드 로드 (L-xxx 계열)
-                address_rows = session.execute(text(QUERY_SELECT_ALL_ADDRESS_CODES)).mappings().all()
-                for row in address_rows:
-                    # 명칭(name) 또는 코드(address_cd)로 검색 가능하게 저장
-                    self._address_cache[row['name']] = dict(row)
-                    self._address_cache[row['address_cd']] = dict(row)
+                rows = [dict(row) for row in session.execute(text(QUERY_SELECT_ALL_CODES)).mappings().all()]
 
-                # 2. 업종(Shop) 코드 로드 (S-xxx 계열)
-                shop_rows = session.execute(text(QUERY_SELECT_ALL_SHOP_CODES)).mappings().all()
-                for row in shop_rows:
-                    self._shop_code_cache[row['name']] = row['code']
-                    self._shop_code_cache[row['code']] = row['code']
-                    self._shop_name_cache[row['code']] = row['name']
+            parent_names = {
+                row["cd"]: row["name"]
+                for row in rows
+                if not row.get("cd_upper")
+            }
 
-                table_rows = session.execute(text(QUERY_SELECT_ALL_TABLE_CODES)).mappings().all()
-                for row in table_rows:
-                    self._table_code_cache[row['name']] = row['code']
-                    self._table_code_cache[row['code']] = row['code']
+            for row in rows:
+                parent_name = parent_names.get(row.get("cd_upper"))
+                if not parent_name:
+                    continue
+
+                group_cache = self._code_group_cache.setdefault(parent_name, {})
+                group_name_cache = self._code_name_cache.setdefault(parent_name, {})
+                code = row["cd"]
+                name = row["name"]
+                group_cache[name] = code
+                group_cache[code] = code
+                group_name_cache[code] = name
+
+                if parent_name == "address_cd":
+                    address_info = {"address_cd": code, "name": name}
+                    self._address_cache[name] = address_info
+                    self._address_cache[code] = address_info
+                elif parent_name == "shop_cd":
+                    self._shop_code_cache[name] = code
+                    self._shop_code_cache[code] = code
+                    self._shop_name_cache[code] = name
+                elif parent_name == "table_cd":
+                    self._table_code_cache[name] = code
+                    self._table_code_cache[code] = code
 
             self._is_loaded = True
-            logger.info(f"Code Table(codeT) Preloaded: {len(self._address_cache)} addresses, {len(self._shop_code_cache)} shop codes.")
+            logger.info(
+                "Code Table(codeT) Preloaded: "
+                f"{len(self._code_group_cache)} groups, "
+                f"{len(self._address_cache)} address keys, "
+                f"{len(self._shop_code_cache)} shop keys."
+            )
         except Exception as e:
             logger.error(f"Failed to preload code table: {e}")
 
@@ -71,9 +90,7 @@ class CodeTableRepository:
 
     def get_shop_code(self, key: str) -> Optional[str]:
         """명칭 또는 코드로 업종 코드 조회"""
-        if not self._is_loaded:
-            self.preload()
-        return self._shop_code_cache.get(key)
+        return self.get_code("shop_cd", key)
 
     def get_shop_code_name(self, code: str) -> Optional[str]:
         """코드로 명칭 조회 (역방향)"""
@@ -82,13 +99,27 @@ class CodeTableRepository:
         # 캐시에 이미 코드가 키로도 저장되어 있다면 해당 값을 반환하거나 명칭 맵을 활용
         # 현재 구현상 _shop_code_cache에 'S-xxx': 'S-xxx'로 저장되므로 별도 name 맵이 필요할 수 있음
         # 단순화된 codeT 구조에서는 cd, name이 1:1 매칭되므로 preload 시 name_cache도 구축
-        return self._shop_name_cache.get(code)
+        return self._code_name_cache.get("shop_cd", {}).get(code)
 
     def get_table_code(self, key: str) -> Optional[str]:
         """테이블명 또는 코드로 table_cd 조회"""
+        return self.get_code("table_cd", key)
+
+    def get_category_code(self, key: str) -> Optional[str]:
+        """명칭 또는 코드로 category_cd 조회"""
+        return self.get_code("category_cd", key)
+
+    def get_information_code(self, key: str) -> Optional[str]:
+        """명칭 또는 코드로 information_cd 조회"""
+        return self.get_code("information_cd", key)
+
+    def get_code(self, group_name: str, key: str) -> Optional[str]:
+        """codeT 부모 그룹명과 명칭/코드 키로 표준 코드를 조회한다."""
         if not self._is_loaded:
             self.preload()
-        return self._table_code_cache.get(key)
+        if key is None:
+            return None
+        return self._code_group_cache.get(group_name, {}).get(key)
 
     def validate_references(self, record: Dict[str, Any]) -> bool:
         """
@@ -126,4 +157,6 @@ class CodeTableRepository:
         self._shop_code_cache.clear()
         self._shop_name_cache.clear()
         self._table_code_cache.clear()
+        self._code_group_cache.clear()
+        self._code_name_cache.clear()
         self._is_loaded = False

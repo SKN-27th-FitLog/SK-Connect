@@ -1,11 +1,16 @@
 from datetime import datetime
+from types import SimpleNamespace
 
-from src.core.config import settings
+from src.core.storage import path_builder
 from src.core.storage.path_builder import HivePathBuilder
 
 
 def test_build_path_uses_restaurant_category_and_shop_partition(monkeypatch):
-    monkeypatch.setattr(settings, "LAKE_ROOT_PATH", "lake")
+    monkeypatch.setattr(
+        path_builder,
+        "settings",
+        SimpleNamespace(LAKE_ROOT_PATH="lake", MEAL_CATEGORY_CD="CA77", SHOP_CODE_PREFIX="SC"),
+    )
     dt = datetime(2026, 4, 28, 15, 30, 12)
 
     path = HivePathBuilder.build_path(
@@ -19,7 +24,7 @@ def test_build_path_uses_restaurant_category_and_shop_partition(monkeypatch):
     )
 
     assert path == (
-        "lake\\process=cleaning\\category_cd=CA01\\shop_cd=SC01\\year=2026\\month=04\\day=28\\status=success"
+        "lake\\process=cleaning\\category_cd=CA77\\shop_cd=SC01\\year=2026\\month=04\\day=28\\status=success"
     )
     assert "stage=" not in path
     assert "batch_id=" not in path
@@ -28,7 +33,11 @@ def test_build_path_uses_restaurant_category_and_shop_partition(monkeypatch):
 
 
 def test_build_save_path_keeps_table_partition_without_stage_or_batch(monkeypatch):
-    monkeypatch.setattr(settings, "LAKE_ROOT_PATH", "lake")
+    monkeypatch.setattr(
+        path_builder,
+        "settings",
+        SimpleNamespace(LAKE_ROOT_PATH="lake", MEAL_CATEGORY_CD="CA77", SHOP_CODE_PREFIX="SC"),
+    )
     dt = datetime(2026, 4, 28, 15, 30, 12)
 
     path = HivePathBuilder.build_path(
@@ -42,7 +51,7 @@ def test_build_save_path_keeps_table_partition_without_stage_or_batch(monkeypatc
     )
 
     assert path == (
-        "lake\\process=save\\category_cd=CA01\\shop_cd=SC01\\year=2026\\month=04\\day=28\\save=shop\\status=success"
+        "lake\\process=save\\category_cd=CA77\\shop_cd=SC01\\year=2026\\month=04\\day=28\\save=shop\\status=success"
     )
 
 

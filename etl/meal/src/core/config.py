@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Crawler Settings
     HEAD_MODE: bool = False
     LAKE_ROOT_PATH: str = "diningcode_real_lake"
+    MEAL_CATEGORY_CODE_KEY: str = "맛집"
+    MEAL_INFORMATION_CODE_KEY: str = "맛집정보"
+    MEAL_CATEGORY_CD: str = "CA01"
+    SHOP_CODE_PREFIX: str = "SC"
 
     @property
     def database_url(self) -> str:

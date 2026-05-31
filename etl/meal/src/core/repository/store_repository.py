@@ -3,21 +3,22 @@ from typing import Any, Dict, Optional, Set
 
 from sqlalchemy import text
 
+from src.core.config import settings
 from src.core.repository.database import DatabaseManager
 from src.core.constants import (
     QUERY_BULK_FIND_SNAPSHOTS,
     QUERY_FIND_SNAPSHOT_BY_DEDUP_KEY,
     QUERY_FIND_SUCCESS_LOADED_DEDUP_KEYS,
     QUERY_FIND_UPDATE_TARGETS,
-    RESTAURANT_CATEGORY_CD,
 )
 
 logger = logging.getLogger("core.repository")
 
 
 class StoreRepository:
-    def __init__(self, db: DatabaseManager | None = None):
+    def __init__(self, db: DatabaseManager | None = None, category_cd: str | None = None):
         self.db = db or DatabaseManager()
+        self.category_cd = category_cd or settings.MEAL_CATEGORY_CD
 
     def find_success_loaded_dedup_keys(self, category_cd: str) -> Set[str]:
         shop_cd = category_cd
@@ -26,7 +27,7 @@ class StoreRepository:
         try:
             with self.db.get_session() as session:
                 result = session.execute(text(query), {
-                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "category_cd": self.category_cd,
                     "shop_cd": shop_cd,
                 })
                 for row in result:
@@ -45,7 +46,7 @@ class StoreRepository:
         try:
             with self.db.get_session() as session:
                 rows = session.execute(text(query), {
-                    "category_cd": RESTAURANT_CATEGORY_CD,
+                    "category_cd": self.category_cd,
                     "shop_cd": shop_cd,
                     "refresh_interval_days": refresh_interval_days,
                     "limit": limit,

@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 
 from src.core.config import settings
-from src.core.constants import RESTAURANT_CATEGORY_CD, SHOP_CODE_PREFIX
 
 
 class HivePathBuilder:
@@ -34,8 +33,8 @@ class HivePathBuilder:
 
     @staticmethod
     def _category_and_shop_partitions(category_cd: str) -> tuple[str, str | None]:
-        if str(category_cd).startswith(SHOP_CODE_PREFIX):
-            return RESTAURANT_CATEGORY_CD, category_cd
+        if str(category_cd).startswith(settings.SHOP_CODE_PREFIX):
+            return settings.MEAL_CATEGORY_CD, category_cd
         return category_cd, None
 
     @staticmethod

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.core.base_stage import BaseStage
+from src.core.config import settings
 from src.core.constants import (
     QUERY_FIND_MAP,
     QUERY_FIND_SHOP,
@@ -18,7 +19,6 @@ from src.core.constants import (
     QUERY_TOUCH_SHOP_CHECKED_AT,
     QUERY_UPDATE_MAP_COORDINATES,
     QUERY_UPDATE_SHOP_RATING,
-    RESTAURANT_CATEGORY_CD,
     TABLE_NAME_CRAWLING,
 )
 from src.core.policy.exceptions import UndefinedCodeException
@@ -92,7 +92,47 @@ class Stage4Load(BaseStage):
             "touch_only": False,
         }
 
-    def _touch_last_checked_at(self, session: Session, record: Dict[str, Any]) -> None:
+    def _resolve_code_context(self, category_cd: str) -> Dict[str, str]:
+        shop_cd = self.code_repo.get_shop_code(category_cd)
+        if not shop_cd:
+            raise UndefinedCodeException(
+                reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
+                stage=self.NAME,
+                entity_type="store",
+                detail=f"input shop_cd is missing or invalid in CodeTable: {category_cd}",
+            )
+
+        resolved_category_cd = self.code_repo.get_category_code(settings.MEAL_CATEGORY_CODE_KEY)
+        if not resolved_category_cd:
+            raise UndefinedCodeException(
+                reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
+                stage=self.NAME,
+                entity_type="store",
+                detail=f"MEAL_CATEGORY_CODE_KEY cannot be resolved in codeT: {settings.MEAL_CATEGORY_CODE_KEY}",
+            )
+
+        information_cd = self.code_repo.get_information_code(settings.MEAL_INFORMATION_CODE_KEY)
+        if not information_cd:
+            raise UndefinedCodeException(
+                reason_code=ReasonCode.UNDEFINED_CODE_DETECTED,
+                stage=self.NAME,
+                entity_type="store",
+                detail=f"MEAL_INFORMATION_CODE_KEY cannot be resolved in codeT: {settings.MEAL_INFORMATION_CODE_KEY}",
+            )
+
+        return {
+            "category_cd": resolved_category_cd,
+            "information_cd": information_cd,
+            "shop_cd": shop_cd,
+        }
+
+    def _touch_last_checked_at(
+        self,
+        session: Session,
+        record: Dict[str, Any],
+        category_cd: str,
+        information_cd: str,
+    ) -> None:
         shop_id = record.get("existing_store_id") or record.get("store_id")
         if shop_id:
             store = record.get("store", {})
@@ -101,16 +141,24 @@ class Stage4Load(BaseStage):
                 "title": f"Checked - {store.get('name', 'unknown')}",
                 "content": store.get("description", ""),
                 "article_url": store.get("canonical_url", ""),
-                "category_cd": None,
+                "category_cd": category_cd,
+                "information_cd": information_cd,
                 "author": "System",
                 "keywords": "",
                 "point": float(store.get("rating", 0.0)),
             })
 
-    def _load_map_and_shop(self, session: Session, store: Dict[str, Any], record: Dict[str, Any], shop_cd: str) -> str:
+    def _load_map_and_shop(
+        self,
+        session: Session,
+        store: Dict[str, Any],
+        record: Dict[str, Any],
+        category_cd: str,
+        shop_cd: str,
+    ) -> str:
         map_params = {
             "name": store["name"],
-            "category_cd": RESTAURANT_CATEGORY_CD,
+            "category_cd": category_cd,
             "address_cd": store["address_cd"],
             "address_detail": store["address_detail"],
             "latitude": float(store.get("latitude", 0.0)),
@@ -140,13 +188,14 @@ class Stage4Load(BaseStage):
         session: Session,
         store: Dict[str, Any],
         record: Dict[str, Any],
+        category_cd: str,
         shop_cd: str,
         change_plan: Dict[str, bool],
     ) -> tuple[str, str]:
         if not change_plan["store"] and record.get("existing_store_id") and record.get("existing_map_id"):
             return str(record["existing_store_id"]), str(record["existing_map_id"])
 
-        return self._load_map_and_shop(session, store, record, shop_cd)
+        return self._load_map_and_shop(session, store, record, category_cd, shop_cd)
 
     def _load_menus(self, session: Session, menus: List[Dict[str, Any]], shop_id: str):
         for menu in menus:
@@ -249,13 +298,17 @@ class Stage4Load(BaseStage):
         reviews: List[Dict[str, Any]],
         map_id: str,
         category_cd: str,
+        information_cd: str,
+        shop_cd: str,
     ):
         store_crawling_id = session.execute(text(QUERY_INSERT_CRAWLING), {
             "title": self._limit_text(f"Crawl - {store['name']}", self.CRAWLING_TITLE_MAX_LENGTH),
             "content": store.get("description", ""),
             "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
             "map_id": int(map_id),
-            "category_cd": RESTAURANT_CATEGORY_CD,
+            "category_cd": category_cd,
+            "information_cd": information_cd,
+            "shop_cd": shop_cd,
             "author": "System",
             "keywords": "",
             "point": float(store.get("rating", 0.0)),
@@ -267,7 +320,9 @@ class Stage4Load(BaseStage):
                 "content": review.get("content", ""),
                 "article_url": self._build_anchor_tag(store.get("canonical_url", ""), store.get("name", "")),
                 "map_id": int(map_id),
-                "category_cd": RESTAURANT_CATEGORY_CD,
+                "category_cd": category_cd,
+                "information_cd": information_cd,
+                "shop_cd": shop_cd,
                 "author": self._limit_text(review.get("author", "Anonymous"), self.CRAWLING_AUTHOR_MAX_LENGTH),
                 "keywords": self._join_keywords(review.get("keywords", [])),
                 "point": float(review.get("rating", 0.0)),
@@ -304,10 +359,14 @@ class Stage4Load(BaseStage):
         category_cd: str,
         run_attempt: int = 1,
     ) -> List[Dict[str, Any]]:
-        shop_cd = category_cd
         results = []
         loaded_count = 0
         with self.db.get_session() as session:
+            code_context = self._resolve_code_context(category_cd)
+            resolved_category_cd = code_context["category_cd"]
+            information_cd = code_context["information_cd"]
+            shop_cd = code_context["shop_cd"]
+
             for record in normalized_data:
                 store = record.get("store", {})
                 change_plan = self._build_change_plan(record)
@@ -317,13 +376,13 @@ class Stage4Load(BaseStage):
 
                     if change_plan["touch_only"]:
                         with session.begin_nested():
-                            self._touch_last_checked_at(session, record)
+                            self._touch_last_checked_at(session, record, resolved_category_cd, information_cd)
                         session.commit()
                         results.append({
                             "batch_id": batch_id,
                             "run_attempt": run_attempt,
                             "stage": self.NAME,
-                            "category_cd": RESTAURANT_CATEGORY_CD,
+                            "category_cd": resolved_category_cd,
                             "shop_cd": shop_cd,
                             "entity_id": store.get("entity_id", "unknown"),
                             "entity_type": "store",
@@ -338,6 +397,7 @@ class Stage4Load(BaseStage):
                             session,
                             store,
                             record,
+                            resolved_category_cd,
                             shop_cd,
                             change_plan,
                         )
@@ -363,7 +423,9 @@ class Stage4Load(BaseStage):
                                     store,
                                     record.get("reviews", []) if change_plan["review"] else [],
                                     map_id,
-                                    RESTAURANT_CATEGORY_CD,
+                                    resolved_category_cd,
+                                    information_cd,
+                                    shop_cd,
                                 )
                         except Exception as e:
                             entity_type = "review" if change_plan["review"] else "image"
@@ -394,7 +456,7 @@ class Stage4Load(BaseStage):
                         "batch_id": batch_id,
                         "run_attempt": run_attempt,
                         "stage": self.NAME,
-                        "category_cd": RESTAURANT_CATEGORY_CD,
+                        "category_cd": resolved_category_cd,
                         "shop_cd": shop_cd,
                         "entity_id": store.get("entity_id", "unknown"),
                         "entity_type": "store",

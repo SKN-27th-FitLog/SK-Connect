@@ -37,11 +37,12 @@ from common.it_keyword_candidates import (
 
 def test_pa_l0_itkw_001_config_defaults() -> None:
     """PA-L0-ITKW-001 [불변]: IC02 키워드 기본 모델과 관심도 기준."""
-    assert AnalyzeItKeywordsConfig.DEFAULT_MODEL == "gemma4:26b"
+    assert AnalyzeItKeywordsConfig.DEFAULT_MODEL == "gemma4:e4b"
     assert AnalyzeItKeywordsConfig.MODEL_ENV_KEY == "POST_ANALYSIS_IT_KEYWORDS_MODEL"
     assert AnalyzeItKeywordsConfig.OLLAMA_BASE_URL_ENV_KEY == "OLLAMA_BASE_URL"
     assert AnalyzeItKeywordsConfig.MIN_KEYWORDS == 12
     assert AnalyzeItKeywordsConfig.MAX_KEYWORDS == 15
+    assert AnalyzeItKeywordsConfig.REQUEST_TIMEOUT_SECONDS == 300
     assert AnalyzeItKeywordsConfig.INTEREST_HIGH_THRESHOLD == 1000
     assert AnalyzeItKeywordsConfig.INTEREST_MEDIUM_THRESHOLD == 100
     assert AnalyzeItKeywordsConfig.CANDIDATE_PROMPT_LABEL == "[candidate_keywords]"
