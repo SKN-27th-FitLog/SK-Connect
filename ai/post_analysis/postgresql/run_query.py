@@ -10,7 +10,6 @@ from common.constant import (
     AnalysisColumn,
     AnalyzeItKeywordsConfig,
     CodeTable,
-    CrawlingColumn,
 )
 from postgresql.config import MergeAnalysisConfig, PostgreSqlTable
 from postgresql.connection import PostgreDB
@@ -109,7 +108,7 @@ def get_it_keyword_target_data(
     overwrite: bool = False,
     max_rows: int | None = None,
 ) -> pd.DataFrame:
-    """IC02 키워드 추출 대상 row와 관심도 metric만 조회한다."""
+    """IC02 회사/감성 처리 대상 row만 조회한다."""
     text_placeholders = tuple(
         value for value in AnalyzeItKeywordsConfig.CONTENT_EMPTY_PLACEHOLDERS if value
     )
@@ -128,15 +127,14 @@ def get_it_keyword_target_data(
         *text_placeholders,
     ]
 
-    keyword_condition = ""
+    pending_condition = ""
     if not overwrite:
-        keyword_condition = (
+        pending_condition = (
             "\n      AND ("
-            "\n        (a.keywords IS NULL OR BTRIM(a.keywords) = '')"
-            f"\n        OR BTRIM(a.keywords) IN ({text_placeholder_sql})"
+            "\n        (a.sentimental IS NULL OR BTRIM(a.sentimental) = '')"
+            "\n        OR a.score IS NULL"
             "\n      )"
         )
-        params.extend(text_placeholders)
 
     limit_sql = ""
     if max_rows is not None:
@@ -150,14 +148,11 @@ def get_it_keyword_target_data(
         a.{AnalysisColumn.CONTENT.value},
         a.{AnalysisColumn.KEYWORDS.value},
         a.{AnalysisColumn.INFORMATION_CD.value},
-        c.{CrawlingColumn.VIEW_COUNT.value},
-        c.{CrawlingColumn.COMMENT_COUNT.value},
-        c.{CrawlingColumn.POINT.value}
+        a.{AnalysisColumn.SENTIMENTAL.value},
+        a.{AnalysisColumn.SCORE.value}
     FROM {PostgreSqlTable.ANALYSIS.value} AS a
-    LEFT JOIN {PostgreSqlTable.CRAWLING.value} AS c
-      ON c.{CrawlingColumn.CRAWLING_ID.value} = a.{AnalysisColumn.CRAWLING_ID.value}
     WHERE a.{AnalysisColumn.INFORMATION_CD.value} = %s
-      AND (({valid_title_sql}) OR ({valid_content_sql})){keyword_condition}
+      AND (({valid_title_sql}) OR ({valid_content_sql})){pending_condition}
     ORDER BY a.{AnalysisColumn.CRAWLING_ID.value}{limit_sql}
     """
     return _read_query(sql, tuple(params))

@@ -152,20 +152,11 @@ get_it_keyword_target_data()
 
 ## 로그 정책
 
-AWS 운영에서는 CloudWatch 로그 비용과 노이즈를 줄이기 위해 row별 성공 로그를 남기지 않는다.
+AWS 운영에서는 CloudWatch 로그 비용과 노이즈를 줄이기 위해 row별 성공 로그, 진행도 로그, 결과 payload 로그를 남기지 않는다.
 
-`INFO`에는 batch 단위 요약만 남긴다.
+기본 운영 로그는 오류 확인에 필요한 내용만 남긴다.
 
-- 시작/종료
-- target_count
-- processed_count
-- merged_count
-- skipped_count
-- failed_count
-- positive_count
-- negative_count
-- company_matched_count
-- company_unmatched_count
+`INFO`에는 기본적으로 IC02 처리 진행도나 정상 종료 요약을 남기지 않는다.
 
 `WARNING`에는 운영자가 확인해야 하는 비정상 입력 요약만 남긴다.
 
@@ -179,8 +170,17 @@ AWS 운영에서는 CloudWatch 로그 비용과 노이즈를 줄이기 위해 ro
 - 감성 모델 추론 실패
 - row 처리 중 예외
 
-`DEBUG`에만 row별 상세를 허용한다.
+`DEBUG`에만 batch 요약과 row별 상세를 허용한다.
 
+- target_count
+- processed_count
+- merged_count
+- skipped_count
+- failed_count
+- positive_count
+- negative_count
+- company_matched_count
+- company_unmatched_count
 - crawling_id
 - title
 - matched companies
@@ -188,7 +188,7 @@ AWS 운영에서는 CloudWatch 로그 비용과 노이즈를 줄이기 위해 ro
 - sentimental
 - score
 
-기본 운영 로그 레벨은 `INFO`다. 필요하면 환경변수로 `DEBUG`를 켤 수 있게 하되, 기본 구현에서 개별 row 결과를 `INFO`로 출력하지 않는다.
+기본 운영 로그 레벨은 `INFO`다. 필요하면 환경변수로 `DEBUG`를 켤 수 있게 하되, 기본 구현에서 진행도, 정상 row 결과, 정상 batch summary를 `INFO`로 출력하지 않는다.
 
 ## AWS 비용 기준
 
@@ -218,7 +218,7 @@ AWS 배포 시 권장 실행 형태는 EventBridge Scheduler가 ECS/Fargate task
 - 기본 실행은 IC02 중 `sentimental` 또는 `score`가 비어 있는 row만 처리한다.
 - `overwrite=True`는 유효 IC02 row를 재처리한다.
 - row별 성공 로그를 `INFO`로 남기지 않는다.
-- batch summary 로그는 count 중심으로 남긴다.
+- 정상 batch summary 로그는 `INFO`로 남기지 않는다.
 - 기존 IC01 `analyze_sentimental`의 IC02 제외 테스트는 유지된다.
 - 기존 IC01 키워드 테스트는 유지된다.
 

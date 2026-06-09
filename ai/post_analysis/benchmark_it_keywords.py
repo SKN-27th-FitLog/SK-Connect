@@ -1,4 +1,4 @@
-"""Benchmark IC02 keyword extraction strategy without mutating DB rows."""
+"""IC02 회사 매칭 상태를 DB 변경 없이 확인하는 helper."""
 
 from __future__ import annotations
 
@@ -10,13 +10,12 @@ from typing import Any
 
 import pandas as pd
 
-import common.env  # noqa: F401 - load local environment
-from analyze_it_keywords import (
-    evaluate_it_keyword_candidate_confidence,
-    preprocess_it_content,
-)
+import common.env  # noqa: F401 - local DB 환경변수 로드
 from common.constant import AnalysisColumn, AnalyzeItKeywordsConfig
-from common.it_keyword_candidates import extract_it_keyword_candidates
+from common.it_company_registry import (
+    build_company_keyword_values,
+    match_it_companies,
+)
 from postgresql.run_query import get_it_keyword_target_data
 
 
@@ -24,44 +23,38 @@ def _row_value(row: pd.Series, column: str, default: object = "") -> object:
     return row[column] if column in row else default
 
 
-def build_it_keyword_benchmark_report(
-    df: pd.DataFrame,
-    *,
-    measured_llm_seconds: float = AnalyzeItKeywordsConfig.BENCHMARK_DEFAULT_MEASURED_LLM_SECONDS,
-) -> dict[str, Any]:
-    """Build a deterministic-first strategy report for a sample DataFrame."""
+def _keyword_string(values: list[str]) -> str:
+    return "".join(f"#{value}" for value in values if value)
+
+
+def build_it_keyword_benchmark_report(df: pd.DataFrame) -> dict[str, Any]:
+    """샘플 DataFrame의 IC02 회사 매칭 상태 리포트를 만든다."""
     rows: list[dict[str, Any]] = []
-    strategy_counts = {"deterministic": 0, "llm_selector": 0}
+    company_matched_count = 0
 
     for _, row in df.iterrows():
-        compressed_content = preprocess_it_content(row)
-        candidates = extract_it_keyword_candidates(
-            _row_value(row, AnalysisColumn.TITLE.value),
-            compressed_content,
+        companies = match_it_companies(
+            title=_row_value(row, AnalysisColumn.TITLE.value),
+            content=_row_value(row, AnalysisColumn.CONTENT.value),
         )
-        confidence = evaluate_it_keyword_candidate_confidence(candidates)
-        strategy = "deterministic" if confidence.is_confident else "llm_selector"
-        strategy_counts[strategy] += 1
+        keyword_values = build_company_keyword_values(companies)
+        if companies:
+            company_matched_count += 1
         rows.append(
             {
                 "crawling_id": _row_value(row, AnalysisColumn.CRAWLING_ID.value, None),
                 "title": _row_value(row, AnalysisColumn.TITLE.value),
-                "strategy": strategy,
-                "candidate_count": confidence.candidate_count,
-                "average_score": round(confidence.average_score, 3),
-                "title_or_both_count": confidence.title_or_both_count,
-                "repeated_or_title_count": confidence.repeated_or_title_count,
-                "selected_keywords": confidence.keywords,
+                "matched_companies": [company.canonical_name for company in companies],
+                "company_types": [company.company_type for company in companies],
+                "keywords": _keyword_string(keyword_values),
             }
         )
 
-    saved_calls = strategy_counts["deterministic"]
+    sample_size = int(len(df))
     return {
-        "sample_size": int(len(df)),
-        "measured_llm_seconds": float(measured_llm_seconds),
-        "strategy_counts": strategy_counts,
-        "estimated_saved_llm_calls": saved_calls,
-        "estimated_saved_seconds": round(saved_calls * measured_llm_seconds, 3),
+        "sample_size": sample_size,
+        "company_matched_count": company_matched_count,
+        "company_unmatched_count": sample_size - company_matched_count,
         "rows": rows,
     }
 
@@ -70,51 +63,40 @@ def write_it_keyword_benchmark_report(
     report: dict[str, Any],
     output_dir: Path,
 ) -> tuple[Path, Path]:
-    """Write JSON and Markdown benchmark reports."""
+    """JSON과 Markdown 리포트를 쓴다."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    json_path = output_dir / "it-keyword-benchmark.json"
-    md_path = output_dir / "it-keyword-benchmark.md"
+    json_path = output_dir / "it-company-keyword-benchmark.json"
+    md_path = output_dir / "it-company-keyword-benchmark.md"
     json_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
     )
 
     lines = [
-        "# IT Keyword Strategy Benchmark",
+        "# IT Company Keyword Benchmark",
         "",
         f"- sample_size: {report['sample_size']}",
-        f"- measured_llm_seconds: {report['measured_llm_seconds']}",
-        f"- deterministic: {report['strategy_counts']['deterministic']}",
-        f"- llm_selector: {report['strategy_counts']['llm_selector']}",
-        f"- estimated_saved_llm_calls: {report['estimated_saved_llm_calls']}",
-        f"- estimated_saved_seconds: {report['estimated_saved_seconds']}",
+        f"- company_matched_count: {report['company_matched_count']}",
+        f"- company_unmatched_count: {report['company_unmatched_count']}",
         "",
-        "| crawling_id | strategy | candidates | avg_score | title_or_both | title_or_repeated | title |",
-        "|---:|---|---:|---:|---:|---:|---|",
+        "| crawling_id | matched_companies | company_types | title |",
+        "|---:|---|---|---|",
     ]
     for row in report["rows"]:
         title = str(row["title"]).replace("|", "\\|")
-        lines.append(
-            "| "
-            f"{row['crawling_id']} | {row['strategy']} | {row['candidate_count']} | "
-            f"{row['average_score']} | {row['title_or_both_count']} | "
-            f"{row['repeated_or_title_count']} | {title} |"
-        )
+        companies = ", ".join(row["matched_companies"])
+        company_types = ", ".join(row["company_types"])
+        lines.append(f"| {row['crawling_id']} | {companies} | {company_types} | {title} |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return json_path, md_path
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Benchmark IC02 keyword strategy.")
+    parser = argparse.ArgumentParser(description="Benchmark IC02 company keyword matching.")
     parser.add_argument(
         "--max-rows",
         type=int,
         default=AnalyzeItKeywordsConfig.BENCHMARK_DEFAULT_SAMPLE_ROWS,
-    )
-    parser.add_argument(
-        "--measured-llm-seconds",
-        type=float,
-        default=AnalyzeItKeywordsConfig.BENCHMARK_DEFAULT_MEASURED_LLM_SECONDS,
     )
     parser.add_argument("--output-dir", type=Path, default=None)
     return parser.parse_args()
@@ -123,19 +105,15 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
     df = get_it_keyword_target_data(max_rows=args.max_rows)
-    report = build_it_keyword_benchmark_report(
-        df,
-        measured_llm_seconds=args.measured_llm_seconds,
-    )
+    report = build_it_keyword_benchmark_report(df)
     output_dir = args.output_dir or (
         Path("test-results")
-        / "it-keyword-benchmark"
+        / "it-company-keyword-benchmark"
         / datetime.now().strftime("%Y%m%d-%H%M%S")
     )
     json_path, md_path = write_it_keyword_benchmark_report(report, output_dir)
     print(f"JSON={json_path}")
     print(f"MARKDOWN={md_path}")
-    print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
 
 
 if __name__ == "__main__":
