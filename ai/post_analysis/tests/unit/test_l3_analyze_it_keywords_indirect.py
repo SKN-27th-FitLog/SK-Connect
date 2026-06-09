@@ -1,7 +1,9 @@
 """PA-L3-ITKW: IC02 회사/감성 처리 오케스트레이션 테스트."""
 
+import logging
 from unittest.mock import MagicMock, patch
 
+import analyze_it_keywords as itkw
 import pandas as pd
 import pytest
 
@@ -165,6 +167,23 @@ def test_pa_l3_itkw_005_normal_success_does_not_log_info(
     analyze_it_keywords()
 
     assert [record for record in caplog.records if record.levelname == "INFO"] == []
+
+
+def test_pa_l3_itkw_008_cli_logging_suppresses_dependency_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLI 실행 시 외부 라이브러리 INFO 로그가 노출되지 않도록 설정한다."""
+    basic_config = MagicMock()
+    monkeypatch.setattr(logging, "basicConfig", basic_config)
+
+    itkw._configure_cli_logging()
+
+    basic_config.assert_called_once_with(
+        level=logging.INFO,
+        format="%(levelname)s [%(name)s] %(message)s",
+    )
+    for logger_name in ("httpx", "httpcore", "huggingface_hub", "transformers"):
+        assert logging.getLogger(logger_name).level >= logging.WARNING
 
 
 @patch("analyze_it_keywords.merge_analysis_data")

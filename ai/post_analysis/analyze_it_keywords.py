@@ -22,6 +22,20 @@ from postgresql.run_query import get_it_keyword_target_data, merge_analysis_data
 
 logger = logging.getLogger(__name__)
 
+_DEPENDENCY_LOGGER_NAMES = (
+    "httpx",
+    "httpcore",
+    "huggingface_hub",
+    "transformers",
+)
+
+
+def _configure_cli_logging() -> None:
+    """CLI 실행 시 외부 의존성의 정상 INFO 로그 노출을 줄인다."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
+    for logger_name in _DEPENDENCY_LOGGER_NAMES:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+
 
 @dataclass(frozen=True)
 class ItKeywordAnalysisResult:
@@ -192,5 +206,5 @@ def analyze_it_keywords(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
+    _configure_cli_logging()
     analyze_it_keywords()
