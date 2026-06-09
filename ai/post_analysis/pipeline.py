@@ -20,6 +20,7 @@ def run_pipeline(
     max_rows: int | None = None,
     it_keywords_max_rows: int | None = None,
     overwrite_it_keywords: bool = False,
+    it_keywords_workers: int = 1,
 ) -> None:
     """한 프로세스에서 1) 적재, 2) 감성 분석, 3) IC01 키워드, 4) IC02 키워드 순으로 실행한다.
 
@@ -46,6 +47,8 @@ def run_pipeline(
         raise ValueError(
             PostAnalysisErrors.Pipeline.invalid_max_rows(it_keywords_max_rows)
         )
+    if it_keywords_workers <= 0:
+        raise ValueError("it_keywords_workers must be greater than 0")
 
     steps: tuple[tuple[int, str, Callable[..., None], dict], ...] = (
         (1, "get_reviews", get_reviews, {}),
@@ -58,6 +61,7 @@ def run_pipeline(
             {
                 "max_rows": it_keywords_max_rows,
                 "overwrite": overwrite_it_keywords,
+                "workers": it_keywords_workers,
             },
         ),
     )
@@ -101,6 +105,12 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="기존 IC02 keywords를 다시 생성",
     )
+    parser.add_argument(
+        "--it-keywords-workers",
+        type=int,
+        default=1,
+        help="IC02 IT keyword extraction worker count",
+    )
     return parser.parse_args()
 
 
@@ -114,4 +124,5 @@ if __name__ == "__main__":
         max_rows=args.max_rows,
         it_keywords_max_rows=args.it_keywords_max_rows,
         overwrite_it_keywords=args.overwrite_it_keywords,
+        it_keywords_workers=args.it_keywords_workers,
     )

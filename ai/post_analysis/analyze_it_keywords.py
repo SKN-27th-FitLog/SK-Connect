@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import html
 import json
 import logging
@@ -9,6 +10,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
@@ -24,7 +26,7 @@ from common.it_keyword_candidates import (
     filter_it_keywords_by_candidates,
     format_candidate_keywords_for_prompt,
 )
-from postgresql.run_query import get_analysis_data, get_crawling_data, merge_analysis_data
+from postgresql.run_query import get_it_keyword_target_data, merge_analysis_data
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,34 @@ class ItKeywordResult(BaseModel):
     flow: str = ""
     interest_label: str = ""
     keywords: list[str] = Field(default_factory=list)
+
+
+class ItKeywordSelectionResult(ItKeywordResult):
+    """IC02 후보 ID 선택 응답."""
+
+    keyword_ids: list[int] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ItKeywordCandidateConfidence:
+    """Deterministic keyword candidate confidence summary."""
+
+    is_confident: bool
+    candidate_count: int
+    keywords: list[str]
+    average_score: float
+    title_or_both_count: int
+    repeated_or_title_count: int
+
+
+@dataclass(frozen=True)
+class ItKeywordRowProcessingResult:
+    """Single-row IC02 keyword processing result."""
+
+    index: object
+    crawling_id: object
+    result: ItKeywordResult | None
+    error: Exception | None = None
 
 
 def get_ollama_model_name() -> str:
@@ -66,6 +96,21 @@ def get_it_keyword_int_config(env_key: str, default: int) -> int:
     if parsed < AnalyzeItKeywordsConfig.MIN_POSITIVE_CONFIG_VALUE:
         return default
     return parsed
+
+
+def get_it_keyword_worker_count(workers: int | None = None) -> int:
+    """인자 또는 환경 변수에서 IC02 키워드 worker 수를 확정한다."""
+    resolved = (
+        workers
+        if workers is not None
+        else get_it_keyword_int_config(
+            AnalyzeItKeywordsConfig.WORKERS_ENV_KEY,
+            AnalyzeItKeywordsConfig.DEFAULT_WORKERS,
+        )
+    )
+    if resolved < AnalyzeItKeywordsConfig.MIN_POSITIVE_CONFIG_VALUE:
+        raise ValueError("it_keywords_workers must be greater than 0")
+    return resolved
 
 
 def _number_or_zero(value: object) -> float:
@@ -373,6 +418,148 @@ def _keyword_count(value: object) -> int:
     return normalized.count("#")
 
 
+def supplement_it_keywords_from_candidates(
+    keywords: object,
+    candidates: list[ItKeywordCandidate],
+    *,
+    min_keywords: int = AnalyzeItKeywordsConfig.MIN_KEYWORDS,
+    max_keywords: int = AnalyzeItKeywordsConfig.MAX_KEYWORDS,
+) -> list[str]:
+    """부족한 LLM 키워드를 deterministic 후보 상위 항목으로 보강한다."""
+    if isinstance(keywords, str):
+        parts = keywords.split("#") if "#" in keywords else [keywords]
+    elif isinstance(keywords, list):
+        parts = keywords
+    else:
+        parts = []
+
+    seen: set[str] = set()
+    supplemented: list[str] = []
+    for part in parts:
+        keyword = _clean_keyword(part)
+        key = keyword.casefold()
+        if not keyword or key in seen:
+            continue
+        seen.add(key)
+        supplemented.append(keyword)
+        if len(supplemented) >= max_keywords:
+            return supplemented
+
+    for candidate in candidates:
+        if len(supplemented) >= min_keywords:
+            break
+        keyword = _clean_keyword(candidate.text)
+        key = keyword.casefold()
+        if not keyword or key in seen:
+            continue
+        seen.add(key)
+        supplemented.append(keyword)
+        if len(supplemented) >= max_keywords:
+            break
+
+    return supplemented
+
+
+def _is_deterministic_candidate(candidate: ItKeywordCandidate) -> bool:
+    """deterministic 출력에 사용할 만큼 안정적인 후보인지 판단한다."""
+    keyword = _clean_keyword(candidate.text)
+    lowered = keyword.casefold()
+    blocked_tokens = set(AnalyzeItKeywordsConfig.DETERMINISTIC_BLOCKED_TOKENS)
+    weak_fragment_tokens = set(AnalyzeItKeywordsConfig.DETERMINISTIC_WEAK_FRAGMENT_TOKENS)
+    tokens = [
+        token.strip(" \t\r\n\v\f,.;:!?()[]{}<>\"'")
+        for token in re.split(r"\s+", lowered)
+        if token.strip()
+    ]
+    if any(token in blocked_tokens for token in tokens):
+        return False
+    if any(token in weak_fragment_tokens for token in tokens):
+        return False
+    if len(tokens) > 1 and any(len(token) == 1 and not token.isdigit() for token in tokens):
+        return False
+    meaningful_tokens = [
+        token
+        for token in tokens
+        if token not in blocked_tokens and token not in weak_fragment_tokens
+    ]
+    if len(meaningful_tokens) != len(set(meaningful_tokens)):
+        return False
+    if lowered.startswith(("http", "www.")) or ".com" in lowered:
+        return False
+    return (
+        candidate.score >= AnalyzeItKeywordsConfig.DETERMINISTIC_MIN_CANDIDATE_SCORE
+        or candidate.source in {"title", "both"}
+        or candidate.frequency >= 2
+    )
+
+
+def _dedupe_candidate_keywords(
+    candidates: list[ItKeywordCandidate],
+    *,
+    max_keywords: int,
+) -> list[ItKeywordCandidate]:
+    seen: set[str] = set()
+    selected: list[ItKeywordCandidate] = []
+    for candidate in candidates:
+        if not _is_deterministic_candidate(candidate):
+            continue
+        keyword = _clean_keyword(candidate.text)
+        key = keyword.casefold()
+        if not keyword or key in seen:
+            continue
+        seen.add(key)
+        selected.append(candidate)
+        if len(selected) >= max_keywords:
+            break
+    return selected
+
+
+def select_deterministic_it_keywords(
+    candidates: list[ItKeywordCandidate],
+    *,
+    max_keywords: int = AnalyzeItKeywordsConfig.MIN_KEYWORDS,
+) -> list[str]:
+    """신뢰 가능한 후보군에서 deterministic 키워드를 순위대로 반환한다."""
+    selected = _dedupe_candidate_keywords(candidates, max_keywords=max_keywords)
+    return [_clean_keyword(candidate.text) for candidate in selected]
+
+
+def evaluate_it_keyword_candidate_confidence(
+    candidates: list[ItKeywordCandidate],
+    *,
+    min_keywords: int = AnalyzeItKeywordsConfig.MIN_KEYWORDS,
+) -> ItKeywordCandidateConfidence:
+    """deterministic 후보만으로 LLM 호출을 건너뛸 수 있는지 평가한다."""
+    selected = _dedupe_candidate_keywords(candidates, max_keywords=min_keywords)
+    keywords = [_clean_keyword(candidate.text) for candidate in selected]
+    average_score = (
+        sum(candidate.score for candidate in selected) / len(selected)
+        if selected
+        else 0.0
+    )
+    title_or_both_count = sum(candidate.source in {"title", "both"} for candidate in selected)
+    repeated_or_title_count = sum(
+        candidate.source in {"title", "both"} or candidate.frequency >= 2
+        for candidate in selected
+    )
+    is_confident = (
+        len(keywords) >= min_keywords
+        and average_score >= AnalyzeItKeywordsConfig.DETERMINISTIC_MIN_AVERAGE_SCORE
+        and title_or_both_count
+        >= AnalyzeItKeywordsConfig.DETERMINISTIC_MIN_TITLE_OR_BOTH_CANDIDATES
+        and repeated_or_title_count
+        >= AnalyzeItKeywordsConfig.DETERMINISTIC_MIN_REPEATED_OR_TITLE_CANDIDATES
+    )
+    return ItKeywordCandidateConfidence(
+        is_confident=is_confident,
+        candidate_count=len(candidates),
+        keywords=keywords,
+        average_score=average_score,
+        title_or_both_count=title_or_both_count,
+        repeated_or_title_count=repeated_or_title_count,
+    )
+
+
 def _build_candidate_context(
     title: str,
     compressed_content: str,
@@ -423,6 +610,59 @@ def build_it_keyword_prompt(
     return "\n".join(prompt_lines)
 
 
+def _format_candidate_keyword_ids(
+    candidates: list[ItKeywordCandidate],
+    limit: int = AnalyzeItKeywordsConfig.MAX_PROMPT_CANDIDATES,
+) -> str:
+    return "\n".join(
+        f"{index}. {candidate.text}"
+        for index, candidate in enumerate(candidates[:limit], start=1)
+    )
+
+
+def build_it_keyword_selection_prompt(
+    row: dict | pd.Series,
+    *,
+    compressed_content: str | None = None,
+    candidates: list[ItKeywordCandidate] | None = None,
+) -> str:
+    """자유 키워드 대신 후보 ID를 선택하는 LLM prompt를 만든다."""
+    title = _text_or_empty(row.get(AnalysisColumn.TITLE.value))
+    resolved_compressed_content = (
+        compressed_content if compressed_content is not None else preprocess_it_content(row)
+    )
+    resolved_candidates, candidate_prompt = (
+        _build_candidate_context(title, resolved_compressed_content)
+        if candidates is None
+        else (candidates, _format_candidate_keyword_ids(candidates))
+    )
+    if not resolved_candidates or not candidate_prompt:
+        raise ValueError("IC02 키워드 후보군이 비어 있습니다.")
+    interest = compute_interest_signal(row)
+    prompt_lines = [
+        *AnalyzeItKeywordsConfig.PROMPT_INSTRUCTIONS,
+        "Return JSON schema:",
+        (
+            '{"summary":"article summary","flow":"event -> change -> impact",'
+            '"interest_label":"low|medium|high","keyword_ids":[1,2,3]}'
+        ),
+        AnalyzeItKeywordsConfig.PROMPT_CONSTRAINTS_HEADER,
+        AnalyzeItKeywordsConfig.PROMPT_SUMMARY_GUIDE,
+        AnalyzeItKeywordsConfig.PROMPT_KEYWORD_COUNT_TEMPLATE.format(
+            min_keywords=AnalyzeItKeywordsConfig.MIN_KEYWORDS,
+            max_keywords=AnalyzeItKeywordsConfig.MAX_KEYWORDS,
+        ),
+        "- keyword_ids must use only ids from [candidate_keyword_ids].",
+        "- Do not invent keywords or return ids that are not listed.",
+        "",
+        f"{AnalyzeItKeywordsConfig.TITLE_PROMPT_LABEL}\n{title}",
+        f"{AnalyzeItKeywordsConfig.COMPRESSED_CONTENT_PROMPT_LABEL}\n{resolved_compressed_content}",
+        f"[candidate_keyword_ids]\n{candidate_prompt}",
+        f"{AnalyzeItKeywordsConfig.INTEREST_PROMPT_LABEL}\n{interest['description']}",
+    ]
+    return "\n".join(prompt_lines)
+
+
 def _build_keyword_expansion_prompt(base_prompt: str, result: ItKeywordResult) -> str:
     """키워드가 적은 IC02 응답을 한 번 더 세분화하도록 요청하는 prompt를 만든다."""
     previous_response = result.model_dump_json(ensure_ascii=False)
@@ -467,6 +707,45 @@ def _ollama_chat_json(prompt: str) -> dict[str, Any]:
     return json.loads(content)
 
 
+def _keywords_from_candidate_ids(
+    keyword_ids: object,
+    candidates: list[ItKeywordCandidate],
+) -> list[str]:
+    if not isinstance(keyword_ids, list):
+        return []
+    selected: list[str] = []
+    seen: set[int] = set()
+    for value in keyword_ids:
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if index in seen or index < 1 or index > len(candidates):
+            continue
+        seen.add(index)
+        selected.append(candidates[index - 1].text)
+    return selected
+
+
+def _result_from_llm_selection(
+    response: dict[str, Any],
+    candidates: list[ItKeywordCandidate],
+) -> ItKeywordResult:
+    selection = ItKeywordSelectionResult(**response)
+    keywords = _keywords_from_candidate_ids(selection.keyword_ids, candidates)
+    if not keywords:
+        keywords = filter_it_keywords_by_candidates(selection.keywords, candidates)
+    keyword_count = _keyword_count(keywords)
+    if 0 < keyword_count < AnalyzeItKeywordsConfig.MIN_KEYWORDS:
+        keywords = supplement_it_keywords_from_candidates(keywords, candidates)
+    return ItKeywordResult(
+        summary=selection.summary,
+        flow=selection.flow,
+        interest_label=selection.interest_label,
+        keywords=keywords,
+    )
+
+
 def extract_it_keywords(row: dict | pd.Series) -> ItKeywordResult:
     """IC02 row 하나를 Ollama로 분석해 요약, 흐름, 키워드를 추출한다."""
     title = _text_or_empty(row.get(AnalysisColumn.TITLE.value))
@@ -475,22 +754,22 @@ def extract_it_keywords(row: dict | pd.Series) -> ItKeywordResult:
     if not candidates:
         raise ValueError("IC02 키워드 후보군이 비어 있습니다.")
 
-    prompt = build_it_keyword_prompt(
+    confidence = evaluate_it_keyword_candidate_confidence(candidates)
+    if confidence.is_confident:
+        interest = compute_interest_signal(row)
+        return ItKeywordResult(
+            summary="",
+            flow="",
+            interest_label=str(interest["level"]),
+            keywords=confidence.keywords,
+        )
+
+    prompt = build_it_keyword_selection_prompt(
         row,
         compressed_content=compressed_content,
         candidates=candidates,
     )
-    result = ItKeywordResult(**_ollama_chat_json(prompt))
-    result.keywords = filter_it_keywords_by_candidates(result.keywords, candidates)
-    if _keyword_count(result.keywords) >= AnalyzeItKeywordsConfig.MIN_KEYWORDS:
-        return result
-
-    expanded_prompt = _build_keyword_expansion_prompt(prompt, result)
-    expanded_result = ItKeywordResult(**_ollama_chat_json(expanded_prompt))
-    expanded_result.keywords = filter_it_keywords_by_candidates(expanded_result.keywords, candidates)
-    if _keyword_count(expanded_result.keywords) > _keyword_count(result.keywords):
-        return expanded_result
-    return result
+    return _result_from_llm_selection(_ollama_chat_json(prompt), candidates)
 
 
 def _is_blank_series(series: pd.Series) -> pd.Series:
@@ -553,9 +832,73 @@ def _filter_it_keyword_targets(df: pd.DataFrame, *, overwrite: bool) -> pd.DataF
     return df[_is_blank_series(df[kw_col])].copy()
 
 
-def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) -> None:
+def _process_it_keyword_row(
+    index: object,
+    row: dict[str, object],
+) -> ItKeywordRowProcessingResult:
+    id_col = AnalysisColumn.CRAWLING_ID.value
+    crawling_id = row.get(id_col)
+    try:
+        return ItKeywordRowProcessingResult(
+            index=index,
+            crawling_id=crawling_id,
+            result=extract_it_keywords(row),
+        )
+    except Exception as exc:
+        logger.exception(
+            PostAnalysisErrors.ItKeywords.row_processing_failed(),
+            crawling_id,
+            index,
+        )
+        return ItKeywordRowProcessingResult(
+            index=index,
+            crawling_id=crawling_id,
+            result=None,
+            error=exc,
+        )
+
+
+def _iter_it_keyword_row_results(
+    df: pd.DataFrame,
+    *,
+    workers: int,
+) -> list[ItKeywordRowProcessingResult]:
+    rows = [(index, row.to_dict()) for index, row in df.iterrows()]
+    if workers <= 1:
+        return [
+            _process_it_keyword_row(index, row)
+            for index, row in tqdm(
+                rows,
+                total=len(rows),
+                desc=AnalyzeItKeywordsConfig.PROGRESS_DESC,
+                unit=AnalyzeItKeywordsConfig.PROGRESS_UNIT,
+            )
+        ]
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = [
+            executor.submit(_process_it_keyword_row, index, row)
+            for index, row in rows
+        ]
+        return [
+            future.result()
+            for future in tqdm(
+                futures,
+                total=len(futures),
+                desc=AnalyzeItKeywordsConfig.PROGRESS_DESC,
+                unit=AnalyzeItKeywordsConfig.PROGRESS_UNIT,
+            )
+        ]
+
+
+def analyze_it_keywords(
+    max_rows: int | None = None,
+    overwrite: bool = False,
+    workers: int | None = None,
+) -> None:
     """IC02 IT news row의 `analysis.keywords`만 채운다."""
-    df = get_analysis_data()
+    worker_count = get_it_keyword_worker_count(workers)
+    df = get_it_keyword_target_data(overwrite=overwrite, max_rows=max_rows)
     _validate_required_columns(df)
 
     df = _filter_it_keyword_targets(df, overwrite=overwrite)
@@ -563,11 +906,10 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
         logger.info(PostAnalysisErrors.ItKeywords.no_pending_rows())
         return
 
-    if max_rows is not None and max_rows > 0:
+    if max_rows is not None:
         df = df.head(max_rows).copy()
         logger.info("IC02 IT keyword limit applied: %s rows (max_rows=%s)", len(df), max_rows)
 
-    df = _attach_crawling_metrics(df, get_crawling_data())
     content_col = AnalysisColumn.CONTENT.value
     kw_col = AnalysisColumn.KEYWORDS.value
     id_col = AnalysisColumn.CRAWLING_ID.value
@@ -575,41 +917,32 @@ def analyze_it_keywords(max_rows: int | None = None, overwrite: bool = False) ->
 
     success_indexes: list[int] = []
     content_update_indexes: list[int] = []
-    for index, row in tqdm(
-        df.iterrows(),
-        total=len(df),
-        desc=AnalyzeItKeywordsConfig.PROGRESS_DESC,
-        unit=AnalyzeItKeywordsConfig.PROGRESS_UNIT,
-    ):
-        crawling_id = row.get(id_col)
-        try:
-            result = extract_it_keywords(row)
-            keywords = normalize_it_keywords(result.keywords)
-            if not keywords:
-                logger.info("IC02 IT keyword empty result skipped (crawling_id=%s)", crawling_id)
-                continue
-            enriched_content = build_summary_enriched_content(
-                row.get(content_col),
-                result.summary,
-            )
-            df.at[index, kw_col] = keywords
-            if enriched_content is not None:
-                df.at[index, content_col] = enriched_content
-                content_update_indexes.append(index)
-            success_indexes.append(index)
-            logger.info(
-                "IC02 IT keywords: crawling_id=%s interest=%s keywords=%s",
-                crawling_id,
-                result.interest_label,
-                keywords,
-            )
-        except Exception:
-            logger.exception(
-                PostAnalysisErrors.ItKeywords.row_processing_failed(),
-                crawling_id,
-                index,
-            )
+    logger.info("IC02 IT keyword workers=%s", worker_count)
+    for row_result in _iter_it_keyword_row_results(df, workers=worker_count):
+        result = row_result.result
+        index = row_result.index
+        crawling_id = row_result.crawling_id
+        if result is None:
             continue
+        keywords = normalize_it_keywords(result.keywords)
+        if not keywords:
+            logger.info("IC02 IT keyword empty result skipped (crawling_id=%s)", crawling_id)
+            continue
+        enriched_content = build_summary_enriched_content(
+            df.at[index, content_col],
+            result.summary,
+        )
+        df.at[index, kw_col] = keywords
+        if enriched_content is not None:
+            df.at[index, content_col] = enriched_content
+            content_update_indexes.append(index)
+        success_indexes.append(index)
+        logger.info(
+            "IC02 IT keywords: crawling_id=%s interest=%s keywords=%s",
+            crawling_id,
+            result.interest_label,
+            keywords,
+        )
 
     if not success_indexes:
         logger.info(PostAnalysisErrors.ItKeywords.no_successful_rows())

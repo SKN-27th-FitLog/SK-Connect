@@ -167,6 +167,8 @@ class AnalyzeItKeywordsConfig:
     DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
     REQUEST_TIMEOUT_SECONDS = 300
     REQUEST_TIMEOUT_SECONDS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_TIMEOUT_SECONDS"
+    WORKERS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_WORKERS"
+    DEFAULT_WORKERS = 1
     MAX_CONTENT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_CHARS"
     MAX_CONTENT_UNITS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_CONTENT_UNITS"
     MAX_UNIT_CHARS_ENV_KEY = "POST_ANALYSIS_IT_KEYWORDS_MAX_UNIT_CHARS"
@@ -258,6 +260,53 @@ class AnalyzeItKeywordsConfig:
     MAX_KEYWORDS = 15
     MAX_PROMPT_CANDIDATES = 40
     MIN_CANDIDATE_SCORE = 2
+    DETERMINISTIC_MIN_CANDIDATE_SCORE = 12
+    DETERMINISTIC_MIN_AVERAGE_SCORE = 16
+    DETERMINISTIC_MIN_TITLE_OR_BOTH_CANDIDATES = 4
+    DETERMINISTIC_MIN_REPEATED_OR_TITLE_CANDIDATES = 8
+    DETERMINISTIC_BLOCKED_TOKENS = (
+        "a",
+        "an",
+        "and",
+        "for",
+        "from",
+        "in",
+        "main",
+        "means",
+        "of",
+        "on",
+        "or",
+        "pub",
+        "the",
+        "to",
+        "void",
+        "what",
+        "with",
+        "fn",
+        "https",
+        "http",
+        "github.com",
+        "를",
+        "을",
+        "은",
+        "는",
+        "이",
+        "가",
+        "로",
+        "으",
+    )
+    DETERMINISTIC_WEAK_FRAGMENT_TOKENS = (
+        "이번",
+        "제공",
+        "가능",
+        "즉시",
+        "검색",
+        "배열",
+        "유지",
+        "소개",
+    )
+    BENCHMARK_DEFAULT_SAMPLE_ROWS = 20
+    BENCHMARK_DEFAULT_MEASURED_LLM_SECONDS = 213.128
     CANDIDATE_MIN_KEYWORD_CHARS = 2
     CANDIDATE_MAX_KEYWORD_CHARS = 40
     CANDIDATE_TITLE_WEIGHT = 5

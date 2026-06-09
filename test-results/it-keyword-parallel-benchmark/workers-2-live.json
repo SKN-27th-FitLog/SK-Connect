@@ -1,0 +1,22 @@
+{
+  "workers": 2,
+  "elapsed_seconds": 302.221,
+  "baseline_single_selector_seconds": 243.689,
+  "estimated_sequential_for_two_seconds": 487.378,
+  "rows": [
+    {
+      "crawling_id": 7,
+      "status": "failed",
+      "keyword_count": 0,
+      "keywords": [],
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "crawling_id": 9,
+      "status": "failed",
+      "keyword_count": 0,
+      "keywords": [],
+      "error": "TimeoutError: timed out"
+    }
+  ]
+}

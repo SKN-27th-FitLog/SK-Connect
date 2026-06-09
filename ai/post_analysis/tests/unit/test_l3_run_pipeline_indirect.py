@@ -42,12 +42,12 @@ def test_pa_l2_pln_002_step_order(
     mock_gr.side_effect = lambda: calls.append("gr")
     mock_as.side_effect = lambda: calls.append("as")
     mock_kw.side_effect = lambda max_rows=None: calls.append(f"kw:{max_rows}")
-    mock_it_kw.side_effect = lambda max_rows=None, overwrite=False: calls.append(
-        f"it_kw:{max_rows}:{overwrite}"
+    mock_it_kw.side_effect = lambda max_rows=None, overwrite=False, workers=1: calls.append(
+        f"it_kw:{max_rows}:{overwrite}:{workers}"
     )
 
     run_pipeline(max_rows=None)
-    assert calls == ["gr", "as", "kw:None", "it_kw:None:False"]
+    assert calls == ["gr", "as", "kw:None", "it_kw:None:False:1"]
 
 
 @patch("pipeline.analyze_it_keywords")
@@ -63,7 +63,7 @@ def test_pa_l2_pln_003_passes_max_rows_to_keywords(
     """PA-L2-PLN-003 [정상]: max_rows는 기존 IC01 키워드에만 전달."""
     run_pipeline(max_rows=3)
     mock_kw.assert_called_once_with(max_rows=3)
-    mock_it_kw.assert_called_once_with(max_rows=None, overwrite=False)
+    mock_it_kw.assert_called_once_with(max_rows=None, overwrite=False, workers=1)
 
 
 @patch("pipeline.analyze_it_keywords")
@@ -79,7 +79,22 @@ def test_pa_l2_pln_004_passes_it_keyword_options(
     """PA-L2-PLN-004 [정상]: IC02 키워드 옵션은 IC02 단계에만 전달."""
     run_pipeline(max_rows=2, it_keywords_max_rows=5, overwrite_it_keywords=True)
     mock_kw.assert_called_once_with(max_rows=2)
-    mock_it_kw.assert_called_once_with(max_rows=5, overwrite=True)
+    mock_it_kw.assert_called_once_with(max_rows=5, overwrite=True, workers=1)
+
+
+@patch("pipeline.analyze_it_keywords")
+@patch("pipeline.analyze_keywords")
+@patch("pipeline.analyze_sentimental")
+@patch("pipeline.get_reviews")
+def test_pa_l2_pln_006_passes_it_keyword_workers(
+    mock_gr: MagicMock,
+    mock_as: MagicMock,
+    mock_kw: MagicMock,
+    mock_it_kw: MagicMock,
+) -> None:
+    """PA-L2-PLN-006 [정상]: IC02 workers 옵션은 IC02 단계에만 전달."""
+    run_pipeline(it_keywords_max_rows=5, it_keywords_workers=2)
+    mock_it_kw.assert_called_once_with(max_rows=5, overwrite=False, workers=2)
 
 
 @patch("pipeline.analyze_it_keywords")

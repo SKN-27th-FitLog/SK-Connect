@@ -11,8 +11,10 @@ from analyze_it_keywords import (
     _ollama_chat_json,
     build_summary_enriched_content,
     build_it_keyword_prompt,
+    build_it_keyword_selection_prompt,
     compress_it_content,
     compute_interest_signal,
+    evaluate_it_keyword_candidate_confidence,
     extract_it_keywords,
     extract_original_content,
     get_it_keyword_int_config,
@@ -22,7 +24,9 @@ from analyze_it_keywords import (
     normalize_it_keywords,
     preprocess_it_content,
     select_content_units,
+    select_deterministic_it_keywords,
     split_content_units,
+    supplement_it_keywords_from_candidates,
     validate_preprocessed_content,
 )
 from common.constant import AnalyzeItKeywordsConfig
@@ -522,7 +526,10 @@ def test_pa_l0_itkw_026_extract_filters_llm_keywords_by_candidates(
         }
     )
 
-    assert result.keywords == ["git-sync", "타겟 리모트"]
+    assert result.keywords[:2] == ["git-sync", "타겟 리모트"]
+    assert len(result.keywords) == AnalyzeItKeywordsConfig.MIN_KEYWORDS
+    assert "Git 레미트리치닝" not in result.keywords
+    assert "프로덕션 배포" not in result.keywords
 
 
 def test_pa_l0_itkw_028_build_summary_enriched_content_formats_body_and_summary() -> None:
@@ -553,6 +560,132 @@ def test_pa_l0_itkw_029_build_summary_enriched_content_deduplicates_existing_sum
 def test_pa_l0_itkw_030_build_summary_enriched_content_skips_blank_summary() -> None:
     """PA-L0-ITKW-030 [경계]: 요약이 비어 있으면 content 업데이트 값을 만들지 않는다."""
     assert build_summary_enriched_content("Original body", "  ") is None
+
+
+def test_pa_l0_itkw_031_supplements_sparse_llm_keywords_from_ranked_candidates() -> None:
+    """PA-L0-ITKW-031 [정상]: 부족한 LLM 키워드는 원문 후보 상위 항목으로 보강한다."""
+    candidates = [
+        ItKeywordCandidate(f"keyword-{index}", 100 - index, "content", 1)
+        for index in range(1, 20)
+    ]
+
+    supplemented = supplement_it_keywords_from_candidates(
+        ["keyword-3", "keyword-1"],
+        candidates,
+    )
+
+    assert supplemented[:2] == ["keyword-3", "keyword-1"]
+    assert len(supplemented) == AnalyzeItKeywordsConfig.MIN_KEYWORDS
+    assert supplemented[2:] == [
+        "keyword-2",
+        "keyword-4",
+        "keyword-5",
+        "keyword-6",
+        "keyword-7",
+        "keyword-8",
+        "keyword-9",
+        "keyword-10",
+        "keyword-11",
+        "keyword-12",
+    ]
+
+
+def test_pa_l0_itkw_032_candidate_confidence_accepts_strong_candidates() -> None:
+    candidates = [
+        ItKeywordCandidate(f"keyword-{index:02d}", 24 - index, "both", 2)
+        for index in range(1, 16)
+    ]
+
+    confidence = evaluate_it_keyword_candidate_confidence(candidates)
+
+    assert confidence.is_confident is True
+    assert confidence.candidate_count == 15
+    assert confidence.keywords == [f"keyword-{index:02d}" for index in range(1, 13)]
+    assert select_deterministic_it_keywords(candidates) == confidence.keywords
+
+
+def test_pa_l0_itkw_033_candidate_confidence_rejects_content_only_candidates() -> None:
+    candidates = [
+        ItKeywordCandidate(f"fragment-{index:02d}", 20, "content", 1)
+        for index in range(1, 16)
+    ]
+
+    confidence = evaluate_it_keyword_candidate_confidence(candidates)
+
+    assert confidence.is_confident is False
+    assert confidence.title_or_both_count == 0
+
+
+def test_pa_l0_itkw_034_selection_prompt_uses_candidate_ids() -> None:
+    candidates = [
+        ItKeywordCandidate(f"keyword-{index:02d}", 24 - index, "both", 2)
+        for index in range(1, 4)
+    ]
+
+    prompt = build_it_keyword_selection_prompt(
+        {"title": "Agent update", "content": "Agent update content"},
+        compressed_content="Agent update content",
+        candidates=candidates,
+    )
+
+    assert "keyword_ids" in prompt
+    assert "1. keyword-01" in prompt
+    assert "3. keyword-03" in prompt
+
+
+def test_pa_l0_itkw_035_candidate_confidence_rejects_fragment_keywords() -> None:
+    candidates = [
+        ItKeywordCandidate("26 means for", 30, "both", 3),
+        ItKeywordCandidate("https", 30, "both", 3),
+        ItKeywordCandidate("plugin Diary 를", 30, "both", 3),
+        *[
+            ItKeywordCandidate(f"keyword-{index:02d}", 20, "both", 2)
+            for index in range(1, 10)
+        ],
+    ]
+
+    confidence = evaluate_it_keyword_candidate_confidence(candidates)
+
+    assert confidence.is_confident is False
+    assert "26 means for" not in confidence.keywords
+    assert "https" not in confidence.keywords
+    assert "plugin Diary 를" not in confidence.keywords
+
+
+def test_pa_l0_itkw_036_candidate_confidence_rejects_low_quality_deterministic_candidates() -> None:
+    """PA-L0-ITKW-036 [정상]: 깨진 조각 후보가 top 후보에 있으면 deterministic skip을 막는다."""
+    candidates = [
+        ItKeywordCandidate("이번 I", 30, "both", 2),
+        ItKeywordCandidate("hatch 제공 배열", 30, "both", 2),
+        ItKeywordCandidate("즉시 검색 Impact", 30, "both", 2),
+        ItKeywordCandidate("ViMax 소개 ViMax", 30, "both", 2),
+        *[
+            ItKeywordCandidate(f"quality-keyword-{index:02d}", 18, "both", 2)
+            for index in range(1, 10)
+        ],
+    ]
+
+    confidence = evaluate_it_keyword_candidate_confidence(candidates)
+
+    assert confidence.is_confident is False
+    assert "이번 I" not in confidence.keywords
+    assert "hatch 제공 배열" not in confidence.keywords
+    assert "즉시 검색 Impact" not in confidence.keywords
+    assert "ViMax 소개 ViMax" not in confidence.keywords
+
+
+def test_pa_l0_itkw_037_candidate_confidence_accepts_quality_candidates_at_score_16() -> None:
+    """PA-L0-ITKW-037 [정상]: 품질 조건을 통과한 평균 16점 후보군은 deterministic 처리한다."""
+    candidates = [
+        ItKeywordCandidate(f"quality-keyword-{index:02d}", 16, "both", 2)
+        for index in range(1, 13)
+    ]
+
+    confidence = evaluate_it_keyword_candidate_confidence(candidates)
+
+    assert confidence.is_confident is True
+    assert confidence.average_score == 16
+    assert confidence.keywords == [f"quality-keyword-{index:02d}" for index in range(1, 13)]
 
 
 def test_pa_l0_itkw_027_candidate_extraction_rejects_attached_prefix_fragment() -> None:
