@@ -1,0 +1,23 @@
+{
+  "run_id": "20260602-100756",
+  "status": "passed",
+  "elapsed_seconds": 213.128,
+  "target_crawling_id": 6,
+  "before": [
+    [
+      6,
+      "IC02",
+      "macOS의 기능을 100% 활용하는 실시간 다국어 AI Voice Agent — TalkMode",
+      null
+    ]
+  ],
+  "after": [
+    [
+      6,
+      "IC02",
+      "macOS의 기능을 100% 활용하는 실시간 다국어 AI Voice Agent — TalkMode",
+      "#TalkMode#AI 음성 Agent#실시간#macOS#OS 스타일#Agent#LLM Agent#Streaming STT#TTS#Tool Calls#Claude#OpenAI 연동#다국어 AI#Voice Agent"
+    ]
+  ],
+  "error": null
+}

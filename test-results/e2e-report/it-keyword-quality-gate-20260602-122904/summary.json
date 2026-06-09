@@ -1,0 +1,22 @@
+{
+  "run_id": "it-keyword-quality-gate-20260602-122904",
+  "report": "C:\\dev\\Project\\SK-Connect\\test-results\\e2e-report\\it-keyword-quality-gate-20260602-122904\\index.html",
+  "screenshots": "C:\\dev\\Project\\SK-Connect\\test-results\\e2e-screenshots\\it-keyword-quality-gate-20260602-122904",
+  "before_counts": {
+    "deterministic": 12,
+    "llm_selector": 38
+  },
+  "after_counts": {
+    "deterministic": 16,
+    "llm_selector": 34
+  },
+  "new_deterministic": [
+    25,
+    34,
+    46,
+    53
+  ],
+  "removed_deterministic": [],
+  "extra_saved_seconds": 852.512,
+  "total_saved_seconds": 3410.048
+}

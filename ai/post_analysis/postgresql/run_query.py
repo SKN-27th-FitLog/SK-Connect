@@ -6,9 +6,24 @@ import pandas as pd
 from psycopg.types.json import Jsonb
 
 # 모듈
-from common.constant import AnalysisColumn
+from common.constant import (
+    AnalysisColumn,
+    AnalyzeItKeywordsConfig,
+    CodeTable,
+)
 from postgresql.config import MergeAnalysisConfig, PostgreSqlTable
 from postgresql.connection import PostgreDB
+
+
+def _read_query(sql: str, params: tuple[object, ...] = ()) -> pd.DataFrame:
+    """지정 SQL을 실행해 DataFrame으로 반환한다."""
+    db = PostgreDB()
+    with db.conn.cursor() as cur:
+        cur.execute(sql, params)
+        columns = [col.name for col in cur.description]
+        rows = cur.fetchall()
+    return pd.DataFrame(rows, columns=columns)
+
 
 ##############################################
 # 테이블 조회 쿼리를 내장 함수로 분리 
@@ -86,6 +101,61 @@ def get_analysis_data() -> pd.DataFrame:
     db = PostgreDB()
     table = PostgreSqlTable.ANALYSIS.value
     return _read_table(table)
+
+
+def get_it_keyword_target_data(
+    *,
+    overwrite: bool = False,
+    max_rows: int | None = None,
+) -> pd.DataFrame:
+    """IC02 회사/감성 처리 대상 row만 조회한다."""
+    text_placeholders = tuple(
+        value for value in AnalyzeItKeywordsConfig.CONTENT_EMPTY_PLACEHOLDERS if value
+    )
+    text_placeholder_sql = ", ".join(["%s"] * len(text_placeholders))
+    valid_title_sql = (
+        "NULLIF(BTRIM(COALESCE(a.title, '')), '') IS NOT NULL "
+        f"AND BTRIM(COALESCE(a.title, '')) NOT IN ({text_placeholder_sql})"
+    )
+    valid_content_sql = (
+        "NULLIF(BTRIM(COALESCE(a.content, '')), '') IS NOT NULL "
+        f"AND BTRIM(COALESCE(a.content, '')) NOT IN ({text_placeholder_sql})"
+    )
+    params: list[object] = [
+        CodeTable.INFORMATION_IT_INFO.value,
+        *text_placeholders,
+        *text_placeholders,
+    ]
+
+    pending_condition = ""
+    if not overwrite:
+        pending_condition = (
+            "\n      AND ("
+            "\n        (a.sentimental IS NULL OR BTRIM(a.sentimental) = '')"
+            "\n        OR a.score IS NULL"
+            "\n      )"
+        )
+
+    limit_sql = ""
+    if max_rows is not None:
+        limit_sql = "\n    LIMIT %s"
+        params.append(max_rows)
+
+    sql = f"""
+    SELECT
+        a.{AnalysisColumn.CRAWLING_ID.value},
+        a.{AnalysisColumn.TITLE.value},
+        a.{AnalysisColumn.CONTENT.value},
+        a.{AnalysisColumn.KEYWORDS.value},
+        a.{AnalysisColumn.INFORMATION_CD.value},
+        a.{AnalysisColumn.SENTIMENTAL.value},
+        a.{AnalysisColumn.SCORE.value}
+    FROM {PostgreSqlTable.ANALYSIS.value} AS a
+    WHERE a.{AnalysisColumn.INFORMATION_CD.value} = %s
+      AND (({valid_title_sql}) OR ({valid_content_sql})){pending_condition}
+    ORDER BY a.{AnalysisColumn.CRAWLING_ID.value}{limit_sql}
+    """
+    return _read_query(sql, tuple(params))
 
 
 ##################################################################

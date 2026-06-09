@@ -1,0 +1,54 @@
+{
+  "workers": 2,
+  "timeout_seconds": 600,
+  "elapsed_seconds": 435.457,
+  "baseline_single_selector_seconds": 243.689,
+  "estimated_sequential_for_two_seconds": 487.378,
+  "rows": [
+    {
+      "crawling_id": 7,
+      "status": "passed",
+      "keyword_count": 14,
+      "keywords": [
+        "에이전트",
+        "언어",
+        "프로그래밍 언어",
+        "지원 핵심 설계",
+        "표준 라이브러리 API",
+        "핵심 설계 특성",
+        "Inspectable by tools",
+        "Inspect",
+        "Labs",
+        "표준 라이브러리",
+        "repair plans",
+        "복구 정보",
+        "설계 특성",
+        "프로그래밍 언어 즉석"
+      ],
+      "error": null
+    },
+    {
+      "crawling_id": 9,
+      "status": "passed",
+      "keyword_count": 15,
+      "keywords": [
+        "AI 코딩 에이전트",
+        "AI 코딩",
+        "코딩 에이전트",
+        "에이전트",
+        "영구 메모리 시스템",
+        "해결 도구 사용",
+        "agentmemory",
+        "iii worker add",
+        "worker add 로",
+        "adapter 확장 Apache",
+        "add 로 pubsub",
+        "SQL adapter 확장",
+        "SQL adapter",
+        "queue",
+        "메모리 시스템"
+      ],
+      "error": null
+    }
+  ]
+}
