@@ -22,3 +22,9 @@ def test_pa_l0_pln_003_max_rows_one() -> None:
     """PA-L0-PLN-003 [경계]: --max-rows 1 파싱."""
     with patch.object(sys, "argv", ["pipeline.py", "--max-rows", "1"]):
         assert _parse_args().max_rows == 1
+
+
+def test_pa_l0_pln_004_it_keywords_workers() -> None:
+    """PA-L0-PLN-004: parse IC02 keyword worker count."""
+    with patch.object(sys, "argv", ["pipeline.py", "--it-keywords-workers", "2"]):
+        assert _parse_args().it_keywords_workers == 2

@@ -1,0 +1,11 @@
+{
+  "run_id": "it-keyword-parallel-20260602-113757",
+  "report": "C:\\dev\\Project\\SK-Connect\\test-results\\e2e-report\\it-keyword-parallel-20260602-113757\\index.html",
+  "screenshots": "C:\\dev\\Project\\SK-Connect\\test-results\\e2e-screenshots\\it-keyword-parallel-20260602-113757",
+  "workers": 2,
+  "timeout_300_elapsed_seconds": 302.221,
+  "timeout_600_elapsed_seconds": 435.457,
+  "estimated_sequential_for_two_seconds": 487.378,
+  "saved_seconds": 51.921,
+  "saved_percent": 10.653
+}
